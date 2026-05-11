@@ -1,0 +1,73 @@
+# def hmac_sha3_256(key, message):
+#     """计算 HMAC-SHA3-256"""
+#     return hmac.new(key, message, hashlib.sha3_256).digest()
+
+# def hmac_sha3_256(key, message):
+#     B = 136  # SHA3-256 block size (rate) = 200 - 2 * L, L = 32
+#     L = 32   # output L
+    
+#     # Step 1: Key preprocessing
+#     if len(key) > B:
+#         key = hashlib.sha3_256(key).digest()
+#     if len(key) < B:
+#         key = key + b'\x00' * (B - len(key))
+    
+#     # Step 2: Derive ipad and opad
+#     ipad = bytes([k ^ 0x36 for k in key])
+#     opad = bytes([k ^ 0x5C for k in key])
+    
+#     # Step 3: Inner hash
+#     inner = hashlib.sha3_256(ipad + message).digest()
+    
+#     # Step 4: Outer hash
+#     outer = hashlib.sha3_256(opad + inner).digest()
+    
+#     return outer
+
+# def hkdf_expand(prk, info, L):
+#     """
+#     HKDF-Expand 基于 HMAC-SHA3-256
+#     prk  : 伪随机密钥（至少 32 字节）
+#     info : 上下文信息（bytes）
+#     L : 输出长度（字节）
+#     """
+#     hash_len = 32  # SHA3-256 输出长度
+#     if L > 255 * hash_len:
+#         raise ValueError("L too long")
+#     if info is None:
+#         info = b''
+#     N = (L + hash_len - 1) // hash_len
+#     t = b''
+#     okm = b''
+#     for i in range(1, N + 1):
+#         t = hmac.new(prk, t + info + bytes([i]), hashlib.sha3_256).digest()
+#         okm += t
+#     return okm[:L]
+
+# import hmac
+# import hashlib
+
+# prk = bytes([0x0b] * 32)
+# info = bytes([0x0b] * 31)
+# L = 64
+
+# omk = hkdf_expand(prk, info, L)
+# print(omk.hex())
+
+
+# prk = bytes([0x11] * 32)
+# info = bytes([0xf0, 0xf1, 0xf2])
+#okm: 039e7b28e10a2d20d763bdc6936c7e0417023724f52052e6c457eaedf5acbd69501f2623c3935f5a2cf69baca0cdc9f5d1355b67b2b42d919f131057dae27a8d
+
+# prk = bytes([0x0b] * 32)
+# info = bytes([0xf0, 0xf1, 0xf2])
+#okm: 98ac0374e0a5fb18a6a727a707bec6a9bc54b778b3cb21faa2361e443d99b810a2fb21ba17c81d0def31e96370ee95a1d5ad4ad598f7fb97b41016fef97feaaf
+
+# prk = bytes([0x0b] * 32)
+# info = b''
+#okm: 68f1d568a493b70baf8d8ded9620808cdd9b4531522765cf00091d85a93fb2b9fe548332a2c6884c0fe7e131c3d28f6c885813abf4307777559e8f61aef9601e
+
+# prk = bytes([0x0b] * 32)
+# info = bytes([0x0b] * 31)
+#okm: 98e1821534601800a16b13be582fd91f61c6bf5a9ecd93f3fb1adf67499ce03f040304f1f6f6455aba9738756481f854613dfa287ff62676d15c6ce23ce595a4
+#okm: a495e53ce26c5cd17626f67f28fa3d6154f88164753897ba5a45f6f6f10403043fe09c4967df1afbf393cd9e5abfc6611fd92f58be136ba1001860341582e198

@@ -29,8 +29,8 @@ _Window = Tuple[int, int]
 
 # This needs to be kept in sync with the parameter of the same name in
 # otbn_pkg.sv
-_DmemScratchSizeBytes = 16384
-
+# _DmemScratchSizeBytes = 16384
+_DmemScratchSizeBytes = 1024
 
 def extract_windows(reg_byte_width: int, regs: object) -> Dict[str, _Window]:
     '''Make sense of the list of register definitions and extract memories'''
