@@ -1166,7 +1166,6 @@ scalar_mult_int:
   bn.cmp    w10, w31
   jal       x0, trigger_fault_if_fg0_not_z
 
-
 /**
  * Routine to hide a masked scalar.
  *

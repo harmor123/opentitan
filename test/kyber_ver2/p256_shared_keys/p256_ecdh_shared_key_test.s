@@ -15,6 +15,7 @@
  *
  * The result of arithmetical unmasking as well as the result of boolean
  * unmasking are compared with an expected value.
+   ECDH 共享密钥就是结果点的 X 坐标
  */
 
 .section .text.start
@@ -23,8 +24,9 @@ p256_ecdh_shared_key_test:
 
   /* Call P-256 shared key generation to get a boolean-masked key.
        dmem[x] <= x0
-       dmem[y] <= x1 */
-  jal      x1, p256_shared_key
+       dmem[y] <= x1 
+       调用密钥生成函数，输出 x0, x1 布尔共享 */
+  jal      x1, p256_shared_key 
 
   /* Load the two shares.
        w11 <= dmem[x] = x0
@@ -36,8 +38,15 @@ p256_ecdh_shared_key_test:
   bn.lid    x3, 0(x4)
 
   /* Unmask the shared key, x.
-       w11 <= x0 ^ x1 = x */
+       w11 <= x0 ^ x1 = x 
+       代码将它们异或还原出明文 x，存于 w11。在实际安全产品中绝不会这样做，这里仅为测试验证。*/
   bn.xor    w11, w11, w12
+
+  /* 实际过程中不允许直接输出x！仅用于测试 */
+  /* 将最终的明文共享密钥写回 DMEM 的 x 位置，覆盖掉带掩码的 x0 */
+  li        x5, 11
+  la        x21, x
+  bn.sid    x5, 0(x21)
 
   ecall
 
@@ -47,7 +56,7 @@ p256_ecdh_shared_key_test:
 /* Secret key d in arithmetic shares. */
 .globl d0
 .balign 32
-d0:
+d0:  /* 标量 d 的第一个算术份额 */
   .word 0xfe6d1071
   .word 0x21d0a016
   .word 0xb0b2c781
@@ -66,13 +75,13 @@ d0:
   .word 0x00000000
 .globl d1
 .balign 32
-d1:
+d1: /* 标量 d 的第二个算术份额（全零，即 d 本身是 d0） */
   .zero 64
 
 /* example curve point x-coordinate */
-.globl x
+.globl x 
 .balign 32
-x:
+x: /* 基点 P 的 x 坐标 */
   .word 0xbfa8c334
   .word 0x9773b7b3
   .word 0xf36b0689
@@ -85,7 +94,7 @@ x:
 /* example curve point y-coordinate */
 .globl y
 .balign 32
-y:
+y: /*  基点 P 的 y 坐标 */
   .word 0x9e008c2e
   .word 0xa8707058
   .word 0xab9c6924
@@ -98,11 +107,11 @@ y:
 /* Public key z-coordinate. */
 .globl z
 .balign 32
-z:
+z: /* 仿射点 z 坐标（用不上，预留） */
   .zero 32
 
 /* affine x-coordinate value before A2B */
 .globl x_a
 .balign 32
-x_a:
+x_a: /* 仿射的算术掩码后 x 坐标（未使用，预留） */
   .zero 32
