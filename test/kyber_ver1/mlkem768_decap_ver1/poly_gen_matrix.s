@@ -50,22 +50,19 @@ _aligned:
     sw \reg, 0(sp)      /* Store register value at the top of the stack */
   .endr
 
-  /* Initialize a SHAKE128 operation. */
-  la   x10, context
-  jal  x1, shake128_init
+  /*  Initialize a SHAKE128 operation. */
+  addi  x10, x0, 2       /* Mode 2 = SHAKE128 */
+  jal   x1, kmac_init
 
-  la   x10, context
-  add  x11, x0, x3 
-  li   x12, 32
-  jal  x1, sha3_update
+  add   x10, x0, x3      /* x10 = seed_ptr */
+  addi  x11, x0, 32      /* x11 = length */
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  add  x11, fp, -64 
-  li   x12, 2
-  jal  x1, sha3_update
+  addi  x10, fp, -64     /* x10 = nonce_ptr */
+  addi  x11, x0, 2       /* x11 = length */
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  jal  x1, shake_xof
+  jal   x1, kmac_process
 
   .irp reg,x29,x28,x15,x13,x12,x11,x10
     lw \reg, 0(sp)      /* Load value from the top of the stack into register */
@@ -95,6 +92,7 @@ _aligned:
   li x28, 16 /* 1 WDR stores 16 coeffs */
 
   li x31, 0
+  li x7, 0   /*  x7 作为循环首次标志，0表示第一次，1表示需要 kmac_run */
 
   /* Loop until 256 coefficients have been written to the output */
 _rej_sample_loop:
@@ -110,11 +108,17 @@ _rej_sample_loop:
     bn.sid x5, 0(x6++)
     addi   x5, x5, 1
 
-  /* First squeeze */
-  la     x10, context
-  add    x11, fp, -32 
-  addi   x12, x0, 32
-  jal    x1, shake_out
+  /*  管理状态机：除首次外，循环回来需要推进状态 */
+  bne  x7, x0, _run_first
+  addi x7, x0, 1
+  jal  x0, _skip_first
+_run_first:
+  jal  x1, kmac_run
+_skip_first:
+
+  /*  First squeeze */
+  addi   x10, fp, -32 
+  jal    x1, kmac_squeeze_32B
 
   addi x6, fp, -256
   li   x5, 10
@@ -160,11 +164,10 @@ _rej_sample_loop:
     bn.sid x5, 0(x6++)
     addi   x5, x5, 1
 
-  /* First squeeze */
-  la     x10, context
-  add    x11, fp, -32 
-  addi   x12, x0, 32
-  jal    x1, shake_out
+  /*  Second squeeze */
+  jal    x1, kmac_run
+  addi   x10, fp, -32 
+  jal    x1, kmac_squeeze_32B
 
   addi x6, fp, -256
   li   x5, 10
@@ -230,11 +233,10 @@ _skip_store2:
     bn.sid x5, 0(x6++)
     addi   x5, x5, 1
 
-  /* First squeeze */
-  la     x10, context
-  add    x11, fp, -32 
-  addi   x12, x0, 32
-  jal    x1, shake_out
+  /*  Third squeeze */
+  jal    x1, kmac_run
+  addi   x10, fp, -32 
+  jal    x1, kmac_squeeze_32B
 
   addi x6, fp, -256
   li   x5, 10
@@ -288,8 +290,8 @@ _skip_store4:
   /* No remainder! Start all over again. */
   beq        x0, x0, _rej_sample_loop
 _end_rej_sample_loop:
-  /* ★ 释放 KMAC 硬件回到 IDLE */
-  jal  x1, kmac_release
+  /*  释放 KMAC 硬件回到 IDLE */
+  jal  x1, kmac_done
   
   addi       sp, fp, 0 /* sp <- fp */
   lw         fp, 0(sp)   /* Pop ebp */
@@ -327,5 +329,3 @@ _skip_store1:
   lw   x29, 0(sp)
   addi sp, sp, 4
   ret
-
-

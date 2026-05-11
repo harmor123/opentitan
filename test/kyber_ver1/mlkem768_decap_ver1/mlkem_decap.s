@@ -145,18 +145,31 @@ crypto_kem_dec:
   bn.sid x4, 0(x13++)
 
   /*** hash_g(buf) ***/
-  la   x10, context
-  li   x11, 64
-  jal  x1, sha3_init
-  la   x10, context
-  li   x11, -4320
-  add  x11, fp, x11
-  li   x12, 64
-  jal  x1, sha3_update
-  la   x10, context
-  li   x11, -4256
-  add  x11, fp, x11 
-  jal  x1, sha3_final
+  /* ★ 替换开始：使用硬件 SHA3-512 (Mode 1) */
+  addi  x10, x0, 1       /* Mode 1 = SHA3-512 */
+  jal   x1, kmac_init
+
+  li    x10, -4320
+  add   x10, fp, x10     /* x10 = buf 指针 */
+  addi  x11, x0, 64      /* x11 = 消息长度 64 字节 */
+  jal   x1, keccak_send_message
+
+  jal   x1, kmac_process
+
+  li    x10, -4256
+  add   x10, fp, x10     /* x10 = 输出指针 (buf+64)，写入前 32 字节 (K') */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_run     /* 推进状态，准备挤出后 32 字节 */
+
+  li    x10, -4256
+  add   x10, fp, x10
+  addi  x10, x10, 32     /* x10 = 输出指针 (buf+96)，写入后 32 字节 (r') */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done    /* 注意：必须是 kmac_done，不能是 kmac_release */
+  /* ★ 替换结束 */
+
 
   /*** indcpa_enc ***/
   li   x10, -4320
@@ -170,33 +183,29 @@ crypto_kem_dec:
   jal  x1, indcpa_enc
 
   /*** shake256(z||c,32) ***/
-  la   x10, context
-  /* ★  1：删除 li x11, 32，改成调用 shake256_init */
-  jal  x1, shake256_init
+  /* ★ 替换开始：使用硬件 SHAKE256 (Mode 3) */
+  addi  x10, x0, 3       /* Mode 3 = SHAKE256 */
+  jal   x1, kmac_init
 
-  la   x10, context
-  lw   x11, -12(fp)
-  addi x11, x11, 32 
-  li   x12, 32
-  jal x1, sha3_update
+  lw    x10, -12(fp)     /* x10 = sk+1152 指针 */
+  addi  x10, x10, 32     /* x10 = z 指针 (sk+1184) */
+  addi  x11, x0, 32      /* x11 = z 长度 */
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  lw   x11, -20(fp)
-  li   x12, 1088
-  jal  x1, sha3_update
+  lw    x10, -20(fp)     /* x10 = ct 指针 */
+  li    x11, 1088        /* x11 = ct 长度 */
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  jal  x1, shake_xof
+  jal   x1, kmac_process
 
-  la   x10, context
-  li   x11, -4256
-  add  x11, fp, x11
-  addi x11, x11, 32
-  addi x12, x0, 32
-  jal  x1, shake_out
+  li    x10, -4256
+  add   x10, fp, x10
+  addi  x10, x10, 32     /* x10 = 输出指针 (buf+96) */
+  jal   x1, kmac_squeeze_32B
 
-  /* ★  2：释放硬件，防止状态机残留 */
-  jal  x1, kmac_release
+  jal   x1, kmac_done    /* 注意：必须是 kmac_done，释放硬件回 IDLE */
+  /* ★ 替换结束 */
+
 
   /*** verify: ct == cmp ? ***/
   li      x5, 0

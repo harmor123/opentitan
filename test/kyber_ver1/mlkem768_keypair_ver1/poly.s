@@ -126,35 +126,39 @@ poly_getnoise_eta_1:
   /* Initialize a SHAKE256 operation. */
   add x3, x0, x10
   add x9, fp, x13
-  la  x18, context
   add x19, x0, x6
 
-  /* ★ 修复 1：必须调用 shake256_init，且不需要传 x11 参数 */
-  add x10, x0, x18
-  jal x1, shake256_init 
+  /*  初始化 SHAKE256 (Mode 3) */
+  addi x10, x0, 3       
+  jal  x1, kmac_init 
 
-  add x10, x0, x18 
-  add x11, x0, x3 
-  li  x12, 32
-  jal x1, sha3_update
+  /*  吸收 Seed (32 字节) */
+  add  x10, x0, x3 
+  addi x11, x0, 32
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18
-  add x11, x0, x9 
-  li  x12, 1
-  jal x1, sha3_update
+  /*  吸收 Nonce (1 字节) */
+  add  x10, x0, x9 
+  addi x11, x0, 1
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18 
-  jal x1, shake_xof 
+  /*  结束 Absorb，进入 Squeeze */
+  jal  x1, kmac_process
 
-  li  x9, 0
-  LOOPI 4, 5
-    add x10, x0, x18
-    add x11, x9, x19 
-    add x12, x0, 32 
-    jal x1, shake_out
-    add x9, x9, 32
+  /*  1次直接挤出 + 3次循环挤出 */
+  add  x10, x0, x19 
+  jal  x1, kmac_squeeze_32B
 
-    jal x1, kmac_release
+  addi x9, x0, 32
+
+  LOOPI 3, 4
+    jal  x1, kmac_run
+    add  x10, x9, x19
+    jal  x1, kmac_squeeze_32B
+    addi x9, x9, 32
+
+  /*  释放 KMAC 硬件回到 IDLE */
+  jal  x1, kmac_done
       
   .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x28,x7,x6,x5
     lw \reg, 0(sp)
@@ -206,35 +210,40 @@ poly_getnoise_eta_2:
   /* Initialize a SHAKE256 operation. */
   add x3, x0, x10
   add x9, fp, x13
-  la  x18, context
   add x19, x0, x6
 
-  add x10, x0, x18
-  jal x1, shake256_init 
+  /*  初始化 SHAKE256 (Mode 3) */
+  addi x10, x0, 3       
+  jal  x1, kmac_init 
 
-  add x10, x0, x18 
-  add x11, x0, x3 
-  li  x12, 32
-  jal x1, sha3_update
+  /*  吸收 Seed (32 字节) */
+  add  x10, x0, x3 
+  addi x11, x0, 32
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18
-  add x11, x0, x9 
-  li  x12, 1
-  jal x1, sha3_update
+  /*  吸收 Nonce (1 字节) */
+  add  x10, x0, x9 
+  addi x11, x0, 1
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18 
-  jal x1, shake_xof 
+  /*  结束 Absorb，进入 Squeeze */
+  jal  x1, kmac_process
 
-  li  x9, 0
-  LOOPI 4, 5
-    add x10, x0, x18
-    add x11, x9, x19 
-    add x12, x0, 32 
-    jal x1, shake_out
-    add x9, x9, 32
-  
-    jal x1, kmac_release
+  /*  1次直接挤出 + 3次循环挤出 */
+  add  x10, x0, x19 
+  jal  x1, kmac_squeeze_32B
 
+  addi x9, x0, 32
+
+  LOOPI 3, 4
+    jal  x1, kmac_run
+    add  x10, x9, x19
+    jal  x1, kmac_squeeze_32B
+    addi x9, x9, 32
+
+  /*  释放 KMAC 硬件回到 IDLE */
+  jal  x1, kmac_done
+      
   .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x28,x7,x6,x5
     lw \reg, 0(sp)
     addi sp, sp, 4

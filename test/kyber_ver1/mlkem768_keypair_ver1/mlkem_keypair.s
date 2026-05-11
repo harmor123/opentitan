@@ -31,22 +31,36 @@ indcpa_keypair:
   sw  x12, -24(fp)
 
   /*** hash_g: SHA3-512 ***/
-  la   x10, context
-  li   x11, 64 /* output len */
-  jal  x1, sha3_init
-  la   x10, context
-  lw   x11, -16(fp)
-  li   x12, 32 /* input len */
-  jal  x1, sha3_update
+  /* 初始化 SHA3-512 (Mode 1) */
+  addi  x10, x0, 1              
+  jal   x1, kmac_init
+
+  /* 发送 seed (32 字节) */
+  lw    x10, -16(fp)            /* 加载 seed 指针 */
+  addi  x11, x0, 32             /* 长度 32 */
+  jal   x1, keccak_send_message
+
+  /* 发送 0x03 字节 */
   addi  x11, x0, 3
-  sw    x11, -128(fp)
-  la    x10, context
-  addi  x11, fp, -128
-  addi  x12, x0, 1
-  jal   x1, sha3_update
-  la   x10, context
-  addi x11, fp, -128
-  jal  x1, sha3_final
+  sw    x11, -128(fp)           /* 将 0x03 存入栈帧临时空间 */
+  addi  x10, fp, -128
+  addi  x11, x0, 1              /* 长度 1 */
+  jal   x1, keccak_send_message
+
+  /* 结束 Absorb，进入 Squeeze */
+  jal   x1, kmac_process
+
+  /* 挤出前 32 字节到 fp-128 */
+  addi  x10, fp, -128
+  jal   x1, kmac_squeeze_32B
+
+  /* 继续挤出后 32 字节到 fp-96 (触发 RUN) */
+  jal   x1, kmac_run
+  addi  x10, fp, -96
+  jal   x1, kmac_squeeze_32B
+
+  /* 释放 KMAC 硬件 */
+  jal   x1, kmac_done
 
   /*** CBD skpv ***/
   li   x15, -2176 
@@ -207,18 +221,27 @@ crypto_kem_keypair:
     bn.sid x4, 0(x11++)
 
   /*** hash_h ***/
-  la   x10, context
-  li   x11, 32
-  jal  x1, sha3_init
-  la   x10, context
-  lw   x11, -32(fp)
-  li   x12, 1184
-  jal  x1, sha3_update
-  la   x10, context
-  lw   x11, -24(fp)
-  addi x11, x11, 1184
-  addi x11, x11, 1152
-  jal  x1, sha3_final
+  /* 初始化 SHA3-256 (Mode 0) */
+  addi  x10, x0, 0              
+  jal   x1, kmac_init
+
+  /* 发送 pk (1184 字节) */
+  lw    x10, -32(fp)            /* 加载 pk 指针 */
+  addi  x11, x0, 1184           /* 长度 1184 */
+  jal   x1, keccak_send_message
+
+  /* 结束 Absorb，进入 Squeeze */
+  jal   x1, kmac_process
+
+  /* 挤出 32 字节直接写入 sk 的指定偏移位置 (sk + 2336) */
+  lw    x10, -24(fp)            /* 加载 sk 基地址 */
+  li    x6, 2336                /* 偏移量 1152 + 1184 = 2336 */
+  add   x10, x10, x6            /* x10 = sk + 2336 */
+  jal   x1, kmac_squeeze_32B
+
+  /* 释放 KMAC 硬件 */
+  jal   x1, kmac_done
+
 
   /*** Random bytes ***/
   lw      x10, -16(fp)

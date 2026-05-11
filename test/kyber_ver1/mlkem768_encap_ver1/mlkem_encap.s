@@ -261,33 +261,45 @@ crypto_kem_enc:
 
  
   /*** hash_h(pk) ***/
-  la   x10, context
-  li   x11, 32
-  jal  x1, sha3_init
-  la   x10, context
-  lw   x11, -24(fp)
-  li   x12, 1184  /***x12 被破坏 ***/
-  jal  x1, sha3_update
-  la   x10, context
-  li   x11, -1120
-  add  x11, fp, x11 
-  addi x11, x11, 32
-  jal  x1, sha3_final
+  /* 使用硬件 SHA3-256 (Mode 0) */
+  addi  x10, x0, 0       /* Mode 0 = SHA3-256 */
+  jal   x1, kmac_init
+
+  lw    x10, -24(fp)     /* x10 = pk 指针 */
+  addi  x11, x0, 1184    /* x11 = pk 长度 */
+  jal   x1, keccak_send_message
+
+  jal   x1, kmac_process
+
+  addi  x10, fp, -1120
+  addi  x10, x10, 32     /* x10 = 输出指针 (fp-1088)，紧跟在 randombytes 后面 */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done
 
 
   /*** hash_g(randombytes||hash_h(pk)) ***/
   /* 注意：fp-1120 处现在恰好是 32字节randombytes + 32字节hash_h(pk) = 64字节 */
-  la   x10, context
-  li   x11, 64
-  jal  x1, sha3_init
-  la   x10, context
-  li   x11, -1120
-  add  x11, fp, x11
-  li   x12, 64 
-  jal  x1, sha3_update
-  la   x10, context
-  lw   x11, -20(fp)     /* 目标：ss 指针，sha3_final 会直接写入 64 字节 */
-  jal  x1, sha3_final
+  /* 使用硬件 SHA3-512 (Mode 1) */
+  addi  x10, x0, 1       /* Mode 1 = SHA3-512 */
+  jal   x1, kmac_init
+
+  addi  x10, fp, -1120   /* x10 = 消息指针 (randombytes || hash_h(pk)) */
+  addi  x11, x0, 64      /* x11 = 消息长度 64 字节 */
+  jal   x1, keccak_send_message
+
+  jal   x1, kmac_process
+
+  lw    x10, -20(fp)     /* x10 = ss 指针，前 32 字节写入 K */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_run     /* 触发下一轮排列，准备挤出后 32 字节 */
+
+  lw    x10, -20(fp)
+  addi  x10, x10, 32     /* x10 = ss 指针 + 32，后 32 字节写入 r */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done
 
  /* 此时 ss 内存区已经是：前32字节=K，后32字节=r */
   
