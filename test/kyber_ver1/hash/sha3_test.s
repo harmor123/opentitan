@@ -212,12 +212,12 @@ msg_32b:
 .balign 32
 msg_33b:
     .zero 32
-    .byte 0x01
+    .word 0x00000001
 
 .balign 32
 msg_35b:
     .zero 32
-    .byte 0x01, 0x02, 0x03
+    .word 0x00030201
 
 .balign 32
 msg_64b:

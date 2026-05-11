@@ -132,6 +132,8 @@ shake256_init:
  *
  * Description: 向哈希引擎吸收数据 (支持任意长度)。
  *              自动处理块对齐和尾部未对齐数据。
+ *              利用 Ibex 补零契约：尾部不足 4 字节已由调用方补零，
+ *              可安全按字拷贝，无需字节级掩码。
  *
  * Arguments:   - x10: 指向 212 字节上下文的指针 (32 字节对齐)
  *              - x11: 指向待吸收数据的指针 (4 字节对齐)
@@ -182,45 +184,17 @@ sha3_update:
     addi    x3, x3, -1
     bne     x3, x0, .clr_tail
 
-    srli    x5, x14, 2              /* 完整 32‑bit 字数量 */
+    addi    x5, x14, 3
+    srli    x5, x5, 2               /* ceil(x14/4)：含尾部不足4字节(已补零)的字 */
     addi    x3, x13, 0              /* 源数据指针 */
-    bne     x5, x0, .do_copy
-    addi    x7, x6, 0               /* 不足 4 字节时重置目标指针 */
-    jal     x0, .tail_rem
-
-.do_copy:
-    addi    x7, x6, 0
-    addi    x9, x5, 0
+    addi    x7, x6, 0               /* 目标指针 (tailbuf) */
 .copy_words:
     lw      x31, 0(x3)
     sw      x31, 0(x7)
     addi    x7, x7, 4
     addi    x3, x3, 4
-    addi    x9, x9, -1
-    bne     x9, x0, .copy_words
-
-.tail_rem:
-    andi    x9, x14, 0x3
-    beq     x9, x0, .tail_done_copy
-    lw      x13, 0(x3)
-    addi    x11, x0, 1
-    beq     x9, x11, .is1
-    addi    x11, x0, 2
-    beq     x9, x11, .is2
-    addi    x11, x0, 3
-    beq     x9, x11, .is3
-    jal     x0, .tail_done_copy
-.is3:
-    li      x12, 0xFFFFFF
-    jal     x0, .apply_mask
-.is2:
-    li      x12, 0xFFFF
-    jal     x0, .apply_mask
-.is1:
-    li      x12, 0xFF
-.apply_mask:
-    and     x13, x13, x12
-    sw      x13, 0(x7)
+    addi    x5, x5, -1
+    bne     x5, x0, .copy_words
 
 .tail_done_copy:
     li      x15, 0
@@ -269,7 +243,6 @@ sha3_final:
     srli    x7, x6, 3
     addi    x15, x28, 0
 
-    /* ★ 优化：将循环内不变的常量和地址，提前到循环外计算 */
     la      x13, tailbuf
     li      x12, 22
 
@@ -282,7 +255,7 @@ sha3_final:
     bn.wsrr w10, KMAC_DATA_S0
     bn.wsrr w11, KMAC_DATA_S1
     bn.xor  w10, w10, w11
-    /* 循环内不再有 la 和 li，直接使用寄存器里的值 */
+
     bn.mov  w22, w10
     bn.sid  x12, 0(x13)
     lw      x14, 0(x13)
@@ -348,7 +321,6 @@ shake_out:
     li      x7, 4
     addi    x15, x11, 0
 
-    /* ★ 优化：同样提前计算 */
     la      x13, tailbuf
     li      x12, 22
 

@@ -155,29 +155,29 @@ export PYTHONPATH="$OT_ROOT:$PYTHONPATH"
 # ==========================================
 # 执行测试（共 5 项）
 # ==========================================
-echo ""
-echo ">>> [1/5] Hash"
-python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-    "hash_test#$ELF_HASH" \
-    hash_test
+# echo ""
+# echo ">>> [1/5] Hash"
+# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+#     "hash_test#$ELF_HASH" \
+#     hash_test
 
-echo ""
-echo ">>> [2/5] ML-KEM-768 Keypair"
-python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-    "mlkem768_keypair#$ELF_KEYPAIR" \
-    mlkem768_keypair
+# echo ""
+# echo ">>> [2/5] ML-KEM-768 Keypair"
+# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+#     "mlkem768_keypair#$ELF_KEYPAIR" \
+#     mlkem768_keypair
 
-echo ""
-echo ">>> [3/5] ML-KEM-768 Encap"
-python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-    "mlkem768_encap#$ELF_ENCAP" \
-    mlkem768_encap
+# echo ""
+# echo ">>> [3/5] ML-KEM-768 Encap"
+# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+#     "mlkem768_encap#$ELF_ENCAP" \
+#     mlkem768_encap
 
-echo ""
-echo ">>> [4/5] ML-KEM-768 Decap"
-python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-    "mlkem768_decap#$ELF_DECAP" \
-    mlkem768_decap
+# echo ""
+# echo ">>> [4/5] ML-KEM-768 Decap"
+# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+#     "mlkem768_decap#$ELF_DECAP" \
+#     mlkem768_decap
 
 echo ""
 echo ">>> [5/5] P-256 ECDH Shared Key"

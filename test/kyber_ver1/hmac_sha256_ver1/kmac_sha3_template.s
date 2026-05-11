@@ -2,9 +2,18 @@
  * OpenTiton KMAC Hardware Driver – For Kyber (context label)
  *
  * 将软件 sha3 替换为 KMAC 硬件加速，保留完全相同的 API。
- * 上下文标签改为 context，匹配 Kyber 代码中的引用。
  *
  * 所有函数说明均以中文注释形式给出，方便集成与维护。
+ *
+ * 【 调用要求 —— Ibex-OTBN 内存共享契约】
+ * 1. 指针对齐：传入的 x11 (数据指针) 必须严格 32 字节对齐 (256-bit)。
+ * 2. 尾部补零：当消息长度 x12 不是 4 的倍数时 (例如 33, 35 字节)，
+ *    调用方 必须在将数据写入 OTBN DMEM 时，
+ *    手动将不足 4 字节的尾部用 0x00 填充至 4 字节对齐。
+ *    (例如：传 33 字节，DMEM 中第 34, 35, 36 字节必须被 Ibex 预先写为 0)。
+ * 3. 真实长度：x12 必须传入真实的消息字节数 (如 33)，绝不能传入补零后的长度。
+ * 4. 硬件截断：OTBN 内部按向上取整读取 Word，并根据 x12 真实长度动态生成
+ *    KMAC_BYTE_STROBE。KMAC 硬件据此自动屏蔽补零字节
  * ================================================================ */
 
 .section .text
@@ -131,11 +140,12 @@ shake256_init:
  * Name:        sha3_update
  *
  * Description: 向哈希引擎吸收数据 (支持任意长度)。
- *              自动处理块对齐和尾部未对齐数据。
+ *              利用 Ibex 补零契约：OTBN 放心按 32 字节宽读取，
+ *              由硬件 STROBE 精确截断尾部补零。
  *
  * Arguments:   - x10: 指向 212 字节上下文的指针 (32 字节对齐)
  *              - x11: 指向待吸收数据的指针 (4 字节对齐)
- *              - x12: 数据长度 (字节)
+ *              - x12: 数据长度 (真实字节数)
  *
  * Clobbers:    x13..x17, x31
  *              w22, w23
@@ -144,20 +154,20 @@ shake256_init:
  * ================================================================ */
 sha3_update:
     beq     x12, x0, .upd_done
-    addi    x13, x11, 0
-    addi    x14, x12, 0
-    bn.xor  w23, w23, w23          /* mask = 0 */
+    addi    x13, x11, 0           /* x13: 数据指针 */
+    addi    x14, x12, 0           /* x14: 真实剩余长度 */
 
 .upd_loop:
-.wait_rdy:
     csrrs   x15, KMAC_IF_STATUS, x0
-    andi    x15, x15, 0x1          /* MSG_WRITE_RDY */
-    beq     x15, x0, .wait_rdy
-    addi    x16, x14, -32
-    srli    x17, x16, 31
-    bne     x17, x0, .upd_tail
+    andi    x15, x15, 0x1         /* MSG_WRITE_RDY */
+    beq     x15, x0, .upd_loop
 
-    li      x15, -1
+    addi    x15, x14, -32
+    srli    x15, x15, 31          /* x15 = (x14 < 32) ? 1 : 0 */
+    bne     x15, x0, .upd_tail
+
+    /* ===== 完整 32 字节块 ===== */
+    li      x15, -1               /* STROBE = 0xFFFFFFFF */
     csrrw   x0, KMAC_BYTE_STROBE, x15
     li      x15, 22
     bn.lid  x15, 0(x13)
@@ -172,73 +182,26 @@ sha3_update:
 
 .upd_tail:
     beq     x14, x0, .upd_done
-    addi    x17, x14, 0             /* 保存原始长度 */
-    la      x6, tailbuf
-    addi    x7, x6, 0
-    li      x3, 8
-.clr_tail:
-    sw      x0, 0(x7)
-    addi    x7, x7, 4
-    addi    x3, x3, -1
-    bne     x3, x0, .clr_tail
 
-    srli    x5, x14, 2              /* 完整 32‑bit 字数量 */
-    addi    x3, x13, 0              /* 源数据指针 */
-    bne     x5, x0, .do_copy
-    addi    x7, x6, 0               /* 不足 4 字节时重置目标指针 */
-    jal     x0, .tail_rem
-
-.do_copy:
-    addi    x7, x6, 0
-    addi    x9, x5, 0
-.copy_words:
-    lw      x31, 0(x3)
-    sw      x31, 0(x7)
-    addi    x7, x7, 4
-    addi    x3, x3, 4
-    addi    x9, x9, -1
-    bne     x9, x0, .copy_words
-
-.tail_rem:
-    andi    x9, x14, 0x3
-    beq     x9, x0, .tail_done_copy
-    lw      x13, 0(x3)
-    addi    x11, x0, 1
-    beq     x9, x11, .is1
-    addi    x11, x0, 2
-    beq     x9, x11, .is2
-    addi    x11, x0, 3
-    beq     x9, x11, .is3
-    jal     x0, .tail_done_copy
-.is3:
-    li      x12, 0xFFFFFF
-    jal     x0, .apply_mask
-.is2:
-    li      x12, 0xFFFF
-    jal     x0, .apply_mask
-.is1:
-    li      x12, 0xFF
-.apply_mask:
-    and     x13, x13, x12
-    sw      x13, 0(x7)
-
-.tail_done_copy:
+    /* ===== 尾部块：根据真实长度生成 STROBE 屏蔽补零 ===== */
     li      x15, 0
     li      x16, 1
-    addi    x17, x17, 0
+    addi    x17, x14, 0
 .gen_strobe:
     or      x15, x15, x16
     slli    x16, x16, 1
     addi    x17, x17, -1
     bne     x17, x0, .gen_strobe
     csrrw   x0, KMAC_BYTE_STROBE, x15
-    la      x13, tailbuf
+
+    /* 安全用 bn.lid 读取 32 字节（Ibex已补零，多余部分被STROBE屏蔽） */
     li      x15, 22
     bn.lid  x15, 0(x13)
     bn.wsrw KMAC_DATA_S0, w22
     bn.wsrw KMAC_DATA_S1, w23
     li      x15, 1
     csrrw   x0, KMAC_MSG_SEND, x15  /* 推入尾部块 */
+
 .upd_done:
     ret
 
@@ -269,7 +232,6 @@ sha3_final:
     srli    x7, x6, 3
     addi    x15, x28, 0
 
-    /* ★ 优化：将循环内不变的常量和地址，提前到循环外计算 */
     la      x13, tailbuf
     li      x12, 22
 
@@ -282,7 +244,7 @@ sha3_final:
     bn.wsrr w10, KMAC_DATA_S0
     bn.wsrr w11, KMAC_DATA_S1
     bn.xor  w10, w10, w11
-    /* 循环内不再有 la 和 li，直接使用寄存器里的值 */
+
     bn.mov  w22, w10
     bn.sid  x12, 0(x13)
     lw      x14, 0(x13)
@@ -348,7 +310,6 @@ shake_out:
     li      x7, 4
     addi    x15, x11, 0
 
-    /* ★ 优化：同样提前计算 */
     la      x13, tailbuf
     li      x12, 22
 
@@ -409,4 +370,4 @@ context:
 
 .balign 32
 tailbuf:
-    .zero 32                      /* 尾部数据对齐缓冲区 */
+    .zero 32                      /* 摘要读取中转缓冲区 (仅用于 final/out 读出) */
