@@ -23,7 +23,7 @@ fi
 echo "OpenTitan root: $OT_ROOT"
 
 # 源文件目录（位于 OpenTitan 根目录下）
-SOURCE_DIR="$OT_ROOT/test/kyber_ver1/p256_shared_keys"
+SOURCE_DIR="$OT_ROOT/test/kyber_ver1/mai_hw_driver"
 if [[ ! -d "$SOURCE_DIR" ]]; then
     echo "Error: Source directory not found: $SOURCE_DIR"
     exit 1
@@ -40,34 +40,26 @@ TMPDIR="$SCRIPT_DIR/tmp-kybertest"
 rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 
-# MAI driver source directory
-MAI_DIR="$OT_ROOT/test/kyber_ver2/p256_shared_keys"
-
 # 汇编 .s 文件
-"$OTBN_AS" -o "$TMPDIR/p256_ecdh_shared_key_test.o" "$SOURCE_DIR/p256_ecdh_shared_key_test.s"
-"$OTBN_AS" -o "$TMPDIR/p256_shared_key.o" "$SOURCE_DIR/p256_shared_key.s"
-"$OTBN_AS" -o "$TMPDIR/p256_base.o" "$SOURCE_DIR/p256_base.s"
-"$OTBN_AS" -o "$TMPDIR/p256_isoncurve_proj.o" "$SOURCE_DIR/p256_isoncurve_proj.s"
-"$OTBN_AS" -o "$TMPDIR/mai_hw_driver.o" "$MAI_DIR/mai_hw_driver.s"
+"$OTBN_AS" -o "$TMPDIR/mai_p256_test.o" "$SOURCE_DIR/mai_p256_test.s"
+"$OTBN_AS" -o "$TMPDIR/mai_hw_driver.o" "$SOURCE_DIR/mai_hw_driver.s"
+
 
 # 链接生成 .elf 文件
-"$OTBN_LD" -o "$TMPDIR/p256_ecdh_shared_key_test.elf" \
-    "$TMPDIR/p256_ecdh_shared_key_test.o" \
-    "$TMPDIR/p256_shared_key.o" \
-    "$TMPDIR/p256_base.o" \
-    "$TMPDIR/p256_isoncurve_proj.o" \
-    "$TMPDIR/mai_hw_driver.o"
-
+"$OTBN_LD" -o "$TMPDIR/mai_p256_test.elf" \
+    "$TMPDIR/mai_p256_test.o" \
+    "$TMPDIR/mai_hw_driver.o" 
+    
 export PYTHONPATH="$OT_ROOT:$PYTHONPATH"
 
 # 第一次模拟：使用 standalone.py 导出 DMEM 二进制文件（用于调试）
 echo "第一次模拟：导出 DMEM 内容..."
-"$OTBN_SIM" --verbose --dump-dmem "$TMPDIR/dmem.bin" "$TMPDIR/p256_ecdh_shared_key_test.elf" > "$TMPDIR/sim_standalone.log" 2>&1
+"$OTBN_SIM" --verbose --dump-dmem "$TMPDIR/dmem.bin" "$TMPDIR/mai_p256_test.elf" > "$TMPDIR/sim_standalone.log" 2>&1
 echo "DMEM 已导出到: $TMPDIR/dmem.bin"
 echo "模拟日志: $TMPDIR/sim_standalone.log"
 
 # 第二次模拟：使用 otbn_sim_test.py 进行期望值比对
 echo "第二次模拟：比对 DMEM 期望值..."
-"$OTBN_SIM_TEST" --verbose "$OTBN_SIM" --expected_dmem "$SOURCE_DIR/p256_ecdh_shared_key_test.exp" "$TMPDIR/p256_ecdh_shared_key_test.elf" > "$TMPDIR/sim_test.log" 2>&1
+"$OTBN_SIM_TEST" --verbose "$OTBN_SIM" --expected_dmem "$SOURCE_DIR/mai_p256_test.dexp" "$TMPDIR/mai_p256_test.elf"  > "$TMPDIR/sim_test.log" 2>&1
 echo "模拟测试完成. 日志: $TMPDIR/sim_test.log"
 

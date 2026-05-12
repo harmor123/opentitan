@@ -1,0 +1,70 @@
+# P-256 MAI B2A/A2B round-trip test (MOD = p)
+# Expected: output = original secret (mod p)
+
+
+# """
+# .dexp 格式 = 256-bit 大整数的标准大端 hex 
+# 就是 f"{val:064x}"，和 trace 显示格式一致:
+#   dmem[0x140..0x15f] = 0xfffffffefffffffe...
+# """
+
+# # ================================================================
+# # 工具函数
+# # ================================================================
+
+# def words_to_int(words):
+#     """LE word 列表 → 大整数 (word0=LSB)"""
+#     val = 0
+#     for i, w in enumerate(words):
+#         val |= (w << (32 * i))
+#     return val
+
+# def int_to_words(val, n=8):
+#     """大整数 → LE word 列表 (word0=LSB)"""
+#     return [(val >> (32*i)) & 0xFFFFFFFF for i in range(n)]
+
+# def xor_words(a, b):
+#     return [x ^ y for x, y in zip(a, b)]
+
+# def dexp_hex(val):
+#     """大整数 → .dexp 格式 (标准大端 hex)"""
+#     return "{:064x}".format(val)
+
+# # ================================================================
+# # P-256 域模数
+# # ================================================================
+# P256_P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
+
+# # ================================================================
+# # 测试数据
+# # ================================================================
+
+# # Test 1: 常规数据
+# test1_s0 = [0x9abcdef0, 0x12345678, 0xdeadbeef, 0xcafebabe,
+#             0x01020304, 0x05060708, 0xf0e1d2c3, 0xb4a59687]
+# test1_s1 = [0x11223344, 0x55667788, 0x99aabbcc, 0xddeeff00,
+#             0x13579bdf, 0x2468ace0, 0x0fedcba9, 0x87654321]
+
+# # Test 2: 全 F 边缘
+# test2_s0 = [0xffffffff] * 8
+# test2_s1 = [0x00000001] * 8
+
+
+# # ================================================================
+# # 安全性检查: S < p
+# # ================================================================
+# for name, s0, s1 in [("test1", test1_s0, test1_s1),
+#                       ("test2", test2_s0, test2_s1)
+#                      ]:
+#     S = words_to_int(xor_words(s0, s1))
+#     assert S < P256_P, "{}: S={:#x} >= p!".format(name, S)
+
+# # ================================================================
+# # 输出 .dexp
+# # ================================================================
+# print("test1_out: {}".format(dexp_hex(words_to_int(xor_words(test1_s0, test1_s1)))))
+# print("test2_out: {}".format(dexp_hex(words_to_int(xor_words(test2_s0, test2_s1)))))
+
+
+test1_out: 33c0d5a6ff0c196a216eabe8125598db171045be47070523475221f08b9eedb4
+test2_out: fffffffefffffffefffffffefffffffefffffffefffffffefffffffefffffffe
