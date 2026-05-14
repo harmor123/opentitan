@@ -145,7 +145,7 @@ crypto_kem_dec:
   bn.sid x4, 0(x13++)
 
   /*** hash_g(buf) ***/
-  /* ★ 替换开始：使用硬件 SHA3-512 (Mode 1) */
+  /* 使用硬件 SHA3-512 (Mode 1) */
   addi  x10, x0, 1       /* Mode 1 = SHA3-512 */
   jal   x1, kmac_init
 
@@ -168,7 +168,7 @@ crypto_kem_dec:
   jal   x1, kmac_squeeze_32B
 
   jal   x1, kmac_done    /* 注意：必须是 kmac_done，不能是 kmac_release */
-  /* ★ 替换结束 */
+
 
 
   /*** indcpa_enc ***/
@@ -183,7 +183,7 @@ crypto_kem_dec:
   jal  x1, indcpa_enc
 
   /*** shake256(z||c,32) ***/
-  /* ★ 替换开始：使用硬件 SHAKE256 (Mode 3) */
+  /* 使用硬件 SHAKE256 (Mode 3) */
   addi  x10, x0, 3       /* Mode 3 = SHAKE256 */
   jal   x1, kmac_init
 
@@ -204,7 +204,7 @@ crypto_kem_dec:
   jal   x1, kmac_squeeze_32B
 
   jal   x1, kmac_done    /* 注意：必须是 kmac_done，释放硬件回 IDLE */
-  /* ★ 替换结束 */
+ 
 
 
   /*** verify: ct == cmp ? ***/

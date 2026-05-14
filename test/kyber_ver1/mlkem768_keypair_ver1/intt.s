@@ -378,7 +378,6 @@ intt:
     bn.and w7, w24, w22 >> 208
     bn.and w8, w17, w22 >> 208
     bn.and w9, w18, w22 >> 208
-#    bn.and w10, w18, w22 >> 208
     bn.and w10, w19, w22 >> 208
     bn.and w11, w21, w22 >> 208
     bn.and w12, w23, w22 >> 208
@@ -765,8 +764,7 @@ intt:
     bn.rshi w25, w6, w25 >> 16
     bn.rshi w24, w7, w24 >> 16
     bn.rshi w17, w8, w17 >> 16
-    bn.rshi w18, w9, w18 >> 16
-#    bn.rshi w18, w10, w18 >> 16    
+    bn.rshi w18, w9, w18 >> 16   
     bn.rshi w19, w10, w19 >> 16
     bn.rshi w21, w11, w21 >> 16
     bn.rshi w23, w12, w23 >> 16
@@ -795,8 +793,7 @@ intt:
     bn.and w6, w25, w22 >> 208
     bn.and w7, w24, w22 >> 208
     bn.and w8, w17, w22 >> 208
-    bn.and w9, w18, w22 >> 208
-#    bn.and w10, w18, w22 >> 208    
+    bn.and w9, w18, w22 >> 208   
     bn.and w10, w19, w22 >> 208
     bn.and w11, w21, w22 >> 208
     bn.and w12, w23, w22 >> 208
@@ -1177,8 +1174,7 @@ intt:
     bn.rshi w25, w6, w25 >> 16
     bn.rshi w24, w7, w24 >> 16
     bn.rshi w17, w8, w17 >> 16
-    bn.rshi w18, w9, w18 >> 16
-#    bn.rshi w18, w10, w18 >> 16    
+    bn.rshi w18, w9, w18 >> 16  
     bn.rshi w19, w10, w19 >> 16
     bn.rshi w21, w11, w21 >> 16
     bn.rshi w23, w12, w23 >> 16

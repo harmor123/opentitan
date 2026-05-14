@@ -29,6 +29,10 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
     exit 1
 fi
 
+# Use ISA version with .16H support (Paper 2 ver2 as our ver1)
+export OTBN_ISA_VER=ver1
+export BNMULV_VER=1
+
 # 工具路径
 OTBN_AS="$OT_ROOT/hw/ip/otbn/util/otbn_as.py"
 OTBN_LD="$OT_ROOT/hw/ip/otbn/util/otbn_ld.py"
@@ -40,29 +44,28 @@ TMPDIR="$SCRIPT_DIR/tmp-kybertest"
 rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 
-# 汇编 .s 文件
+# 汇编 .s 文件,key阶段没有调用intt.s 
 "$OTBN_AS" -o "$TMPDIR/mlkem_base_keypair_test.o" "$SOURCE_DIR/mlkem_base_keypair_test.s"
 "$OTBN_AS" -o "$TMPDIR/pack_keys.o" "$SOURCE_DIR/pack_keys.s"
-"$OTBN_AS" -o "$TMPDIR/keccak_direct.o" "$SOURCE_DIR/keccak_direct.s"
+"$OTBN_AS" -o "$TMPDIR/kmac_sha3_template.o" "$SOURCE_DIR/kmac_sha3_template.s"
 "$OTBN_AS" -o "$TMPDIR/poly_gen_matrix.o" "$SOURCE_DIR/poly_gen_matrix.s"
 "$OTBN_AS" -o "$TMPDIR/poly.o" "$SOURCE_DIR/poly.s"
 "$OTBN_AS" -o "$TMPDIR/cbd.o" "$SOURCE_DIR/cbd.s"
 "$OTBN_AS" -o "$TMPDIR/basemul.o" "$SOURCE_DIR/basemul.s"
 "$OTBN_AS" -o "$TMPDIR/ntt.o" "$SOURCE_DIR/ntt.s"
-"$OTBN_AS" -o "$TMPDIR/intt.o" "$SOURCE_DIR/intt.s"
+
 "$OTBN_AS" -o "$TMPDIR/mlkem_keypair.o" "$SOURCE_DIR/mlkem_keypair.s"
 
 # 链接生成 .elf 文件
 "$OTBN_LD" -o "$TMPDIR/kyber768_mklem_keypair_test.elf" \
     "$TMPDIR/mlkem_base_keypair_test.o" \
     "$TMPDIR/pack_keys.o" \
-    "$TMPDIR/keccak_direct.o" \
+    "$TMPDIR/kmac_sha3_template.o" \
     "$TMPDIR/poly_gen_matrix.o" \
     "$TMPDIR/poly.o" \
     "$TMPDIR/cbd.o" \
     "$TMPDIR/basemul.o" \
     "$TMPDIR/ntt.o" \
-    "$TMPDIR/intt.o" \
     "$TMPDIR/mlkem_keypair.o"
 
 export PYTHONPATH="$OT_ROOT:$PYTHONPATH"

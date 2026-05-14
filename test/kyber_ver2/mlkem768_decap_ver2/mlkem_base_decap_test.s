@@ -1,12 +1,3 @@
-/* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
-/* Modified by Ruben Niederhagen and Hoang Nguyen Hien Pham - authors of */
-/* "Improving ML-KEM & ML-DSA on OpenTitan - Efficient Multiplication Vector Instructions for OTBN" */
-/* (https://eprint.iacr.org/2025/2028) */
-/* Copyright Ruben Niederhagen and Hoang Nguyen Hien Pham. */
-
-
 /*
  * Testwrapper for mlkem_decap
 */
@@ -17,56 +8,26 @@
 /* Entry point. */
 .globl main
 main:
-  /* Init all-zero register. */
+    bn.xor  w31, w31, w31
 
-  bn.xor  w0, w0, w0
-  bn.xor  w1, w1, w1
-  bn.xor  w2, w2, w2
-  bn.xor  w3, w3, w3
-  bn.xor  w4, w4, w4
-  bn.xor  w5, w5, w5
-  bn.xor  w6, w6, w6
-  bn.xor  w7, w7, w7
-  bn.xor  w8, w8, w8
-  bn.xor  w9, w9, w9
-  bn.xor  w10, w10, w10
-  bn.xor  w11, w11, w11
-  bn.xor  w12, w12, w12
-  bn.xor  w13, w13, w13
-  bn.xor  w14, w14, w14
-  bn.xor  w15, w15, w15
-  bn.xor  w16, w16, w16
-  bn.xor  w17, w17, w17
-  bn.xor  w18, w18, w18
-  bn.xor  w19, w19, w19
-  bn.xor  w20, w20, w20
-  bn.xor  w21, w21, w21
-  bn.xor  w22, w22, w22
-  bn.xor  w23, w23, w23
-  bn.xor  w24, w24, w24
-  bn.xor  w25, w25, w25
-  bn.xor  w26, w26, w26
-  bn.xor  w27, w27, w27
-  bn.xor  w28, w28, w28
-  bn.xor  w29, w29, w29
-  bn.xor  w30, w30, w30
+    /* MOD <= {mu, q} */
+    la      x5, modulus
+    li      x6, 2
+    bn.lid  x6, 0(x5)
+    la      x5, modulus_inv
+    li      x6, 3
+    bn.lid  x6, 0(x5)
+    bn.or   w2, w2, w3 << 32
+    bn.wsrw 0x0, w2
 
-  bn.xor  w31, w31, w31
+    /* Load stack pointer */
+    la   x2, stack_end
+    la   x10, ct
+    la   x11, dk
+    la   x12, ss
+    jal  x1, crypto_kem_dec
 
-  /* MOD <= dmem[modulus] = KYBER_Q */
-  li      x5, 2
-  la      x6, modulus
-  bn.lid  x5, 0(x6)
-  bn.wsrw 0x0, w2
-
-  /* Load stack pointer */
-  la   x2, stack_end
-  la   x10, ct
-  la   x11, dk 
-  la   x12, ss
-  jal  x1, crypto_kem_dec
-
-  ecall
+    ecall
 
 .data
 .balign 32
@@ -970,10 +931,9 @@ modulus:
   .word 0x00000000
   .word 0x00000000
 
-/* 1/Q mod 2^32 */
-.globl qinv
-qinv:
-  .word 0x6ba8f301
+.globl modulus_inv
+modulus_inv:
+  .word 0x00000cff
   .word 0x00000000
   .word 0x00000000
   .word 0x00000000
@@ -1036,17 +996,17 @@ const_8:
   .word 0x00080008
   .word 0x00080008
   .word 0x00080008
-
-.globl const_toplant
-const_toplant:
-  .word 0x97f44fab
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
+  
+.globl const_tomont
+const_tomont:
+  .word 0x05490549 /* 2^32 % KYBER_Q */
+  .word 0x05490549
+  .word 0x05490549
+  .word 0x05490549
+  .word 0x05490549
+  .word 0x05490549
+  .word 0x05490549
+  .word 0x05490549
 
 .globl cbd2_const
 cbd2_const:
@@ -1092,394 +1052,347 @@ cbd3_const:
 
 .globl twiddles_ntt
 twiddles_ntt:
-  /* Layer 1--4 */
-  .word 0x84f5c5b6, 0x00000000
-  .word 0xc666e465, 0x00000000
-  .word 0xfcec8b58, 0x00000000
-  .word 0xcb2b72d0, 0x00000000
-  .word 0x30726d5b, 0x00000000
-  .word 0x91e11612, 0x00000000
-  .word 0x41360f89, 0x00000000
-  .word 0x51aaf2da, 0x00000000
-  .word 0x93922fd5, 0x00000000
-  .word 0x0ed77946, 0x00000000
-  .word 0x3d4a0dff, 0x00000000
-  .word 0xd63e49fb, 0x00000000
-  .word 0xfab1a391, 0x00000000
-  .word 0x2bc18ea7, 0x00000000
-  .word 0x864470e4, 0x00000000
+  /* Layer 1--4 */ 
+  .half 0x0a0b
+  .half 0x0b9a
+  .half 0x0714
+  .half 0x05d5
+  .half 0x058e
+  .half 0x011f
+  .half 0x00ca
+  .half 0x0c56
+  .half 0x026e
+  .half 0x0629
+  .half 0x00b6
+  .half 0x03c2
+  .half 0x084f
+  .half 0x073f
+  .half 0x05bc
   /* Padding */
-  .word 0x00000000, 0x00000000
-  /* Layer 5 - 1 */
-  .word 0x16c32c11, 0x00000000
-  /* Layer 6 - 1 */
-  .word 0x16395e0d, 0x00000000
-  .word 0x19743224, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 1 */
-  .word 0x014eab2e, 0x00000000
-  .word 0xd4522112, 0x00000000
-  .word 0x2cd52aae, 0x00000000
-  .word 0xcbb540d4, 0x00000000
-  /* Layer 5 - 2 */
-  .word 0xbc2c9a1c, 0x00000000
-  /* Layer 6 - 2 */
-  .word 0xfa27d58e, 0x00000000
-  .word 0x87094e0e, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 2 */
-  .word 0x7de29fcd, 0x00000000
-  .word 0x379942fb, 0x00000000
-  .word 0xaff27732, 0x00000000
-  .word 0x54970814, 0x00000000
-  /* Layer 5 - 3 */
-  .word 0x66f8144e, 0x00000000
-  /* Layer 6 - 3 */
-  .word 0x5c0c9c92, 0x00000000
-  .word 0xb12d72a9, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 3 */
-  .word 0x6c5a2074, 0x00000000
-  .word 0xccb52d24, 0x00000000
-  .word 0xfc4f0d9d, 0x00000000
-  .word 0x11eaedee, 0x00000000
-  /* Layer 5 - 4 */
-  .word 0x71811d74, 0x00000000
-  /* Layer 6 - 4 */
-  .word 0xaf19ea51, 0x00000000
-  .word 0x9e078945, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 4 */
-  .word 0x3a22e9a0, 0x00000000
-  .word 0xa5cbdca1, 0x00000000
-  .word 0xe7da790b, 0x00000000
-  .word 0xea8b7f1e, 0x00000000
-  /* Layer 5 - 5 */
-  .word 0xea3cc040, 0x00000000
-  /* Layer 6 - 5 */
-  .word 0x31fc27af, 0x00000000
-  .word 0x9807ff63, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 5 */
-  .word 0x82f5ed16, 0x00000000
-  .word 0x7ef63bd5, 0x00000000
-  .word 0xd6795921, 0x00000000
-  .word 0x8992f4b3, 0x00000000
-  /* Layer 5 - 6 */
-  .word 0x044e701f, 0x00000000
-  /* Layer 6 - 6 */
-  .word 0xc13fe765, 0x00000000
-  .word 0x3099ccc9, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 6 */
-  .word 0x8e08c440, 0x00000000
-  .word 0x4935720b, 0x00000000
-  .word 0x7059d1b5, 0x00000000
-  .word 0xcea1560e, 0x00000000
-  /* Layer 5 - 7 */
-  .word 0xac4184cf, 0x00000000
-  /* Layer 6 - 7 */
-  .word 0xdc518394, 0x00000000
-  .word 0x0289a6a5, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 7 */
-  .word 0x483585bb, 0x00000000
-  .word 0xb17c3187, 0x00000000
-  .word 0xbb67bcf2, 0x00000000
-  .word 0xb7a31ad7, 0x00000000
-  /* Layer 5 - 8 */
-  .word 0x6681f601, 0x00000000
-  /* Layer 6 - 8 */
-  .word 0x658209b1, 0x00000000
-  .word 0x934370f8, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 8 */
-  .word 0x385e2025, 0x00000000
-  .word 0xb3b7194d, 0x00000000
-  .word 0x149bf401, 0x00000000
-  .word 0x314afa3c, 0x00000000
-  /* Layer 5 - 9 */
-  .word 0x6da8cba2, 0x00000000
-  /* Layer 6 - 9 */
-  .word 0xb254be68, 0x00000000
-  .word 0x6e59f915, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 9 */
-  .word 0x79cf3ed4, 0x00000000
-  .word 0xb0b7545c, 0x00000000
-  .word 0x9ca52e5f, 0x00000000
-  .word 0xf79e2ee9, 0x00000000
-  /* Layer 5 - 10 */
-  .word 0xa1074e36, 0x00000000
-  /* Layer 6 - 10 */
-  .word 0x3e0eeb29, 0x00000000
-  .word 0x22c23fd4, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 10 */
-  .word 0x1cd665aa, 0x00000000
-  .word 0xc4049d2f, 0x00000000
-  .word 0xa0b88f58, 0x00000000
-  .word 0x7e801d88, 0x00000000
-  /* Layer 5 - 11 */
-  .word 0x2924384b, 0x00000000
-  /* Layer 6 - 11 */
-  .word 0x6e95083b, 0x00000000
-  .word 0xdc8c92ba, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 11 */
-  .word 0x51bea292, 0x00000000
-  .word 0x1887f58b, 0x00000000
-  .word 0xd53e5dab, 0x00000000
-  .word 0x3a369957, 0x00000000
-  /* Layer 5 - 12 */
-  .word 0xdda02ec2, 0x00000000
-  /* Layer 6 - 12 */
-  .word 0x75f6ed02, 0x00000000
-  .word 0xb8b6b6df, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 12 */
-  .word 0xa169bccb, 0x00000000
-  .word 0x2b2410ec, 0x00000000
-  .word 0xbda2a4b9, 0x00000000
-  .word 0xc77a806d, 0x00000000
-  /* Layer 5 - 13 */
-  .word 0xb805896c, 0x00000000
-  /* Layer 6 - 13 */
-  .word 0xcb8de165, 0x00000000
-  .word 0xc93f49e7, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 13 */
-  .word 0xd7a0a4e0, 0x00000000
-  .word 0x53f98a58, 0x00000000
-  .word 0x1efd9db9, 0x00000000
-  .word 0x4ee63d0f, 0x00000000
-  /* Layer 5 - 14 */
-  .word 0xdd651f9c, 0x00000000
-  /* Layer 6 - 14 */
-  .word 0x71e38c09, 0x00000000
-  .word 0x31d4c840, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 14 */
-  .word 0x57e58be2, 0x00000000
-  .word 0xa555be54, 0x00000000
-  .word 0xd565bd19, 0x00000000
-  .word 0x442224c3, 0x00000000
-  /* Layer 5 - 15 */
-  .word 0x97ccf03d, 0x00000000
-  /* Layer 6 - 15 */
-  .word 0xbe402274, 0x00000000
-  .word 0xef28ae1a, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 15 */
-  .word 0x846bf7b2, 0x00000000
-  .word 0x5d33e851, 0x00000000
-  .word 0x901c4c98, 0x00000000
-  .word 0x4f214c36, 0x00000000
-  /* Layer 5 - 16 */
-  .word 0x3f228731, 0x00000000
-  /* Layer 6 - 16 */
-  .word 0x5e5b3410, 0x00000000
-  .word 0x45fa9df4, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 16 */
-  .word 0xa24249ac, 0x00000000
-  .word 0xe1b38fba, 0x00000000
-  .word 0x440e750b, 0x00000000
-  .word 0xa5a47d32, 0x00000000
+  .half 0x0000
+  /* Layer 5 */
+  .word 0x023d023d
+  .word 0x07d407d4
+  .word 0x01080108
+  .word 0x017f017f
+  .word 0x09c409c4
+  .word 0x05b205b2
+  .word 0x06bf06bf
+  .word 0x0c7f0c7f
+  .word 0x0a580a58
+  .word 0x03f903f9
+  .word 0x02dc02dc
+  .word 0x02600260
+  .word 0x06fb06fb
+  .word 0x019b019b
+  .word 0x0c340c34
+  .word 0x06de06de
+  /* Layer 6 */
+  .word 0x04c704c7
+  .word 0x0ad90ad9
+  .word 0x07f407f4
+  .word 0x0be70be7
+  .word 0x02040204
+  .word 0x0bc10bc1
+  .word 0x06af06af
+  .word 0x007e007e
+  .word 0x028c028c
+  .word 0x03f703f7
+  .word 0x05d305d3
+  .word 0x06f906f9
+  .word 0x0cf90cf9
+  .word 0x0a670a67
+  .word 0x08770877
+  .word 0x05bd05bd
+  .word 0x09ac09ac
+  .word 0x0bf20bf2
+  .word 0x006b006b
+  .word 0x0c0a0c0a
+  .word 0x0b730b73
+  .word 0x071d071d
+  .word 0x01c001c0
+  .word 0x02a502a5
+  .word 0x0ca70ca7
+  .word 0x033e033e
+  .word 0x07740774
+  .word 0x094a094a
+  .word 0x03c103c1
+  .word 0x0a2c0a2c
+  .word 0x08d808d8
+  .word 0x08060806
+  /* Layer 7 */
+  .word 0x08b208b2
+  .word 0x081e081e
+  .word 0x01a601a6
+  .word 0x0bde0bde
+  .word 0x0c0b0c0b
+  .word 0x09f809f8
+  .word 0x06cb06cb
+  .word 0x01a201a2
+  .word 0x01ae01ae
+  .word 0x03670367
+  .word 0x024b024b
+  .word 0x0b350b35
+  .word 0x030a030a
+  .word 0x05cb05cb
+  .word 0x02840284
+  .word 0x01490149
+  .word 0x022b022b
+  .word 0x060e060e
+  .word 0x00b100b1
+  .word 0x06260626
+  .word 0x04870487
+  .word 0x0aa70aa7
+  .word 0x09990999
+  .word 0x0c650c65
+  .word 0x034b034b
+  .word 0x00690069
+  .word 0x0c160c16
+  .word 0x06750675
+  .word 0x0c6e0c6e
+  .word 0x045f045f
+  .word 0x015d015d
+  .word 0x0cb60cb6
+  .word 0x03310331
+  .word 0x052a052a
+  .word 0x08420842
+  .word 0x09970997
+  .word 0x08600860
+  .word 0x071b071b
+  .word 0x0c950c95
+  .word 0x03be03be
+  .word 0x04490449
+  .word 0x07fc07fc
+  .word 0x0c790c79
+  .word 0x00dc00dc
+  .word 0x07070707
+  .word 0x09ab09ab
+  .word 0x0bcd0bcd
+  .word 0x074d074d
+  .word 0x025b025b
+  .word 0x07480748
+  .word 0x04c204c2
+  .word 0x085e085e
+  .word 0x08030803
+  .word 0x099b099b
+  .word 0x03e403e4
+  .word 0x05f205f2
+  .word 0x02620262
+  .word 0x01800180
+  .word 0x07ca07ca
+  .word 0x06860686
+  .word 0x031a031a
+  .word 0x01de01de
+  .word 0x03df03df
+  .word 0x065c065c
 
 .globl twiddles_intt
 twiddles_intt:
-  /* Layer 7 - 1 */
-  .word 0x5a5b82cf, 0x00000000
-  .word 0xbbf18af6, 0x00000000
-  .word 0x1e4c7047, 0x00000000
-  .word 0x5dbdb655, 0x00000000
-  /* Layer 6 - 1 */
-  .word 0xba05620d, 0x00000000
-  .word 0xa1a4cbf1, 0x00000000
-  /* Layer 5 - 1 */
-  .word 0xc0dd78d0, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 2 */
-  .word 0xb0deb3cb, 0x00000000
-  .word 0x6fe3b369, 0x00000000
-  .word 0xa2cc17b0, 0x00000000
-  .word 0x7b94084f, 0x00000000
-  /* Layer 6 - 2 */
-  .word 0x10d751e7, 0x00000000
-  .word 0x41bfdd8d, 0x00000000
-  /* Layer 5 - 2 */
-  .word 0x68330fc4, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 3 */
-  .word 0xbbdddb3e, 0x00000000
-  .word 0x2a9a42e8, 0x00000000
-  .word 0x5aaa41ad, 0x00000000
-  .word 0xa81a741f, 0x00000000
-  /* Layer 6 - 3 */
-  .word 0xce2b37c1, 0x00000000
-  .word 0x8e1c73f8, 0x00000000
-  /* Layer 5 - 3 */
-  .word 0x229ae065, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 4 */
-  .word 0xb119c2f2, 0x00000000
-  .word 0xe1026248, 0x00000000
-  .word 0xac0675a9, 0x00000000
-  .word 0x285f5b21, 0x00000000
-  /* Layer 6 - 4 */
-  .word 0x36c0b61a, 0x00000000
-  .word 0x34721e9c, 0x00000000
-  /* Layer 5 - 4 */
-  .word 0x47fa7695, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 5 */
-  .word 0x38857f94, 0x00000000
-  .word 0x425d5b48, 0x00000000
-  .word 0xd4dbef15, 0x00000000
-  .word 0x5e964336, 0x00000000
-  /* Layer 6 - 5 */
-  .word 0x47494922, 0x00000000
-  .word 0x8a0912ff, 0x00000000
-  /* Layer 5 - 5 */
-  .word 0x225fd13f, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 6 */
-  .word 0xc5c966aa, 0x00000000
-  .word 0x2ac1a256, 0x00000000
-  .word 0xe7780a76, 0x00000000
-  .word 0xae415d6f, 0x00000000
-  /* Layer 6 - 6 */
-  .word 0x23736d47, 0x00000000
-  .word 0x916af7c6, 0x00000000
-  /* Layer 5 - 6 */
-  .word 0xd6dbc7b6, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 7 */
-  .word 0x817fe279, 0x00000000
-  .word 0x5f4770a9, 0x00000000
-  .word 0x3bfb62d2, 0x00000000
-  .word 0xe3299a57, 0x00000000
-  /* Layer 6 - 7 */
-  .word 0xdd3dc02d, 0x00000000
-  .word 0xc1f114d8, 0x00000000
-  /* Layer 5 - 7 */
-  .word 0x5ef8b1cb, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 8 */
-  .word 0x0861d118, 0x00000000
-  .word 0x635ad1a2, 0x00000000
-  .word 0x4f48aba5, 0x00000000
-  .word 0x8630c12d, 0x00000000
-  /* Layer 6 - 8 */
-  .word 0x91a606ec, 0x00000000
-  .word 0x4dab4199, 0x00000000
-  /* Layer 5 - 8 */
-  .word 0x9257345f, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 9 */
-  .word 0xceb505c5, 0x00000000
-  .word 0xeb640c00, 0x00000000
-  .word 0x4c48e6b4, 0x00000000
-  .word 0xc7a1dfdc, 0x00000000
-  /* Layer 6 - 9 */
-  .word 0x6cbc8f09, 0x00000000
-  .word 0x9a7df650, 0x00000000
-  /* Layer 5 - 9 */
-  .word 0x997e0a00, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 10 */
-  .word 0x485ce52a, 0x00000000
-  .word 0x4498430f, 0x00000000
-  .word 0x4e83ce7a, 0x00000000
-  .word 0xb7ca7a46, 0x00000000
-  /* Layer 6 - 10 */
-  .word 0xfd76595c, 0x00000000
-  .word 0x23ae7c6d, 0x00000000
-  /* Layer 5 - 10 */
-  .word 0x53be7b32, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 11 */
-  .word 0x315ea9f3, 0x00000000
-  .word 0x8fa62e4c, 0x00000000
-  .word 0xb6ca8df6, 0x00000000
-  .word 0x71f73bc1, 0x00000000
-  /* Layer 6 - 11 */
-  .word 0xcf663338, 0x00000000
-  .word 0x3ec0189c, 0x00000000
-  /* Layer 5 - 11 */
-  .word 0xfbb18fe2, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 12 */
-  .word 0x766d0b4e, 0x00000000
-  .word 0x2986a6e0, 0x00000000
-  .word 0x8109c42c, 0x00000000
-  .word 0x7d0a12eb, 0x00000000
-  /* Layer 6 - 12 */
-  .word 0x67f8009e, 0x00000000
-  .word 0xce03d852, 0x00000000
-  /* Layer 5 - 12 */
-  .word 0x15c33fc1, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 13 */
-  .word 0x157480e3, 0x00000000
-  .word 0x182586f6, 0x00000000
-  .word 0x5a342360, 0x00000000
-  .word 0xc5dd1661, 0x00000000
-  /* Layer 6 - 13 */
-  .word 0x61f876bc, 0x00000000
-  .word 0x50e615b0, 0x00000000
-  /* Layer 5 - 13 */
-  .word 0x8e7ee28d, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 14 */
-  .word 0xee151213, 0x00000000
-  .word 0x03b0f264, 0x00000000
-  .word 0x334ad2dd, 0x00000000
-  .word 0x93a5df8d, 0x00000000
-  /* Layer 6 - 14 */
-  .word 0x4ed28d58, 0x00000000
-  .word 0xa3f3636f, 0x00000000
-  /* Layer 5 - 14 */
-  .word 0x9907ebb3, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 15 */
-  .word 0xab68f7ed, 0x00000000
-  .word 0x500d88cf, 0x00000000
-  .word 0xc866bd06, 0x00000000
-  .word 0x821d6034, 0x00000000
-  /* Layer 6 - 15 */
-  .word 0x78f6b1f3, 0x00000000
-  .word 0x05d82a73, 0x00000000
-  /* Layer 5 - 15 */
-  .word 0x43d365e5, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 7 - 16 */
-  .word 0x344abf2d, 0x00000000
-  .word 0xd32ad553, 0x00000000
-  .word 0x2baddeef, 0x00000000
-  .word 0xfeb154d3, 0x00000000
-  /* Layer 6 - 16 */
-  .word 0xe68bcddd, 0x00000000
-  .word 0xe9c6a1f4, 0x00000000
-  /* Layer 5 - 16 */
-  .word 0xe93cd3f0, 0x00000000
-  .word 0x00000000, 0x00000000
-  /* Layer 4--1 */ 
-  .word 0x79bb8f1d, 0x00000000
-  .word 0xd43e715a, 0x00000000
-  .word 0x054e5c70, 0x00000000
-  .word 0x29c1b606, 0x00000000
-  .word 0xc2b5f202, 0x00000000
-  .word 0xf12886bb, 0x00000000
-  .word 0x6c6dd02c, 0x00000000
-  .word 0xae550d27, 0x00000000
-  .word 0xbec9f078, 0x00000000
-  .word 0x6e1ee9ef, 0x00000000
-  .word 0xcf8d92a6, 0x00000000
-  .word 0x34d48d31, 0x00000000
-  .word 0x031374a9, 0x00000000
-  .word 0x39991b9c, 0x00000000
-  .word 0x6b6de3db, 0x00000000
-  /* n_inv */ 
-  .word 0x912fe8a0, 0x00000000
+  /* Layer 7 */
+  .word 0x06a506a5
+  .word 0x09220922
+  .word 0x0b230b23
+  .word 0x09e709e7
+  .word 0x067b067b
+  .word 0x05370537
+  .word 0x0b810b81
+  .word 0x0a9f0a9f
+  .word 0x070f070f
+  .word 0x091d091d
+  .word 0x03660366
+  .word 0x04fe04fe
+  .word 0x04a304a3
+  .word 0x083f083f
+  .word 0x05b905b9
+  .word 0x0aa60aa6
+  .word 0x05b405b4
+  .word 0x01340134
+  .word 0x03560356
+  .word 0x05fa05fa
+  .word 0x0c250c25
+  .word 0x00880088
+  .word 0x05050505
+  .word 0x08b808b8
+  .word 0x09430943
+  .word 0x006c006c
+  .word 0x05e605e6
+  .word 0x04a104a1
+  .word 0x036a036a
+  .word 0x04bf04bf
+  .word 0x07d707d7
+  .word 0x09d009d0
+  .word 0x004b004b
+  .word 0x0ba40ba4
+  .word 0x08a208a2
+  .word 0x00930093
+  .word 0x068c068c
+  .word 0x00eb00eb
+  .word 0x0c980c98
+  .word 0x09b609b6
+  .word 0x009c009c
+  .word 0x03680368
+  .word 0x025a025a
+  .word 0x087a087a
+  .word 0x06db06db
+  .word 0x0c500c50
+  .word 0x06f306f3
+  .word 0x0ad60ad6
+  .word 0x0bb80bb8
+  .word 0x0a7d0a7d
+  .word 0x07360736
+  .word 0x09f709f7
+  .word 0x01cc01cc
+  .word 0x0ab60ab6
+  .word 0x099a099a
+  .word 0x0b530b53
+  .word 0x0b5f0b5f
+  .word 0x06360636
+  .word 0x03090309
+  .word 0x00f600f6
+  .word 0x01230123
+  .word 0x0b5b0b5b
+  .word 0x04e304e3
+  .word 0x044f044f
+  /* Layer 6 */
+  .word 0x04fb04fb
+  .word 0x04290429
+  .word 0x02d502d5
+  .word 0x09400940
+  .word 0x03b703b7
+  .word 0x058d058d
+  .word 0x09c309c3
+  .word 0x005a005a
+  .word 0x0a5c0a5c
+  .word 0x0b410b41
+  .word 0x05e405e4
+  .word 0x018e018e
+  .word 0x00f700f7
+  .word 0x0c960c96
+  .word 0x010f010f
+  .word 0x03550355
+  .word 0x07440744
+  .word 0x048a048a
+  .word 0x029a029a
+  .word 0x00080008
+  .word 0x06080608
+  .word 0x072e072e
+  .word 0x090a090a
+  .word 0x0a750a75
+  .word 0x0c830c83
+  .word 0x06520652
+  .word 0x01400140
+  .word 0x0afd0afd
+  .word 0x011a011a
+  .word 0x050d050d
+  .word 0x02280228
+  .word 0x083a083a
+  /* Layer 5 */
+  .word 0x06230623
+  .word 0x00cd00cd
+  .word 0x0b660b66
+  .word 0x06060606
+  .word 0x0aa10aa1
+  .word 0x0a250a25
+  .word 0x09080908
+  .word 0x02a902a9
+  .word 0x00820082
+  .word 0x06420642
+  .word 0x074f074f
+  .word 0x033d033d
+  .word 0x0b820b82
+  .word 0x0bf90bf9
+  .word 0x052d052d
+  .word 0x0ac40ac4
+  /* Layer 4--2 */
+  .half 0x0745
+  .half 0x05c2
+  .half 0x04b2
+  .half 0x093f
+  .half 0x0c4b
+  .half 0x06d8
+  .half 0x0a93
+  .half 0x00ab
+  .half 0x0c37
+  .half 0x0be2
+  .half 0x0773
+  .half 0x072c
+  .half 0x05ed
+  .half 0x0167
+  /* Layer 1 */
+  .half 0x078c /* ((758*2^16) mod KYBER_Q)*(1/128) mod KYBER_Q */
+  /* [(2^32 mod KYBER_Q)*(1/128)] mod KYBER_Q */
+  .half 0x05a1
+
+.globl twiddles_basemul
+twiddles_basemul:
+  .word 0x081e08b2
+  .word 0x04e3044f
+  .word 0x036701ae
+  .word 0x099a0b53
+  .word 0x060e022b
+  .word 0x06f30ad6
+  .word 0x0069034b
+  .word 0x0c9809b6
+
+  .word 0x0bde01a6
+  .word 0x01230b5b
+  .word 0x0b35024b
+  .word 0x01cc0ab6
+  .word 0x062600b1
+  .word 0x06db0c50
+  .word 0x06750c16
+  .word 0x068c00eb
+
+  .word 0x09f80c0b
+  .word 0x030900f6
+  .word 0x05cb030a
+  .word 0x073609f7
+  .word 0x0aa70487
+  .word 0x025a087a
+  .word 0x045f0c6e
+  .word 0x08a20093
+
+  .word 0x01a206cb
+  .word 0x0b5f0636
+  .word 0x01490284
+  .word 0x0bb80a7d
+  .word 0x0c650999
+  .word 0x009c0368
+  .word 0x0cb6015d
+  .word 0x004b0ba4
+
+  .word 0x052a0331
+  .word 0x07d709d0
+  .word 0x07fc0449
+  .word 0x050508b8
+  .word 0x0748025b
+  .word 0x05b90aa6
+  .word 0x01800262
+  .word 0x0b810a9f
+
+  .word 0x09970842
+  .word 0x036a04bf
+  .word 0x00dc0c79
+  .word 0x0c250088
+  .word 0x085e04c2
+  .word 0x04a3083f
+  .word 0x068607ca
+  .word 0x067b0537
+
+  .word 0x071b0860
+  .word 0x05e604a1
+  .word 0x09ab0707
+  .word 0x035605fa
+  .word 0x099b0803
+  .word 0x036604fe
+  .word 0x01de031a
+  .word 0x0b2309e7
+
+  .word 0x03be0c95
+  .word 0x0943006c
+  .word 0x074d0bcd
+  .word 0x05b40134
+  .word 0x05f203e4
+  .word 0x070f091d
+  .word 0x065c03df
+  .word 0x06a50922

@@ -29,6 +29,11 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
     exit 1
 fi
 
+# Use ISA version with .16H support (Paper 2 ver2 as our ver1)
+export OTBN_ISA_VER=ver1
+export BNMULV_VER=1
+
+
 # 工具路径
 OTBN_AS="$OT_ROOT/hw/ip/otbn/util/otbn_as.py"
 OTBN_LD="$OT_ROOT/hw/ip/otbn/util/otbn_ld.py"
@@ -44,7 +49,7 @@ mkdir -p "$TMPDIR"
 "$OTBN_AS" -o "$TMPDIR/mlkem_base_encap_test.o" "$SOURCE_DIR/mlkem_base_encap_test.s"
 "$OTBN_AS" -o "$TMPDIR/pack_ciphertext.o" "$SOURCE_DIR/pack_ciphertext.s"
 "$OTBN_AS" -o "$TMPDIR/pack_keys.o" "$SOURCE_DIR/pack_keys.s"
-"$OTBN_AS" -o "$TMPDIR/keccak_direct.o" "$SOURCE_DIR/keccak_direct.s"
+"$OTBN_AS" -o "$TMPDIR/kmac_sha3_template.o" "$SOURCE_DIR/kmac_sha3_template.s"
 "$OTBN_AS" -o "$TMPDIR/poly_gen_matrix.o" "$SOURCE_DIR/poly_gen_matrix.s"
 "$OTBN_AS" -o "$TMPDIR/poly.o" "$SOURCE_DIR/poly.s"
 "$OTBN_AS" -o "$TMPDIR/cbd.o" "$SOURCE_DIR/cbd.s"
@@ -58,7 +63,7 @@ mkdir -p "$TMPDIR"
     "$TMPDIR/mlkem_base_encap_test.o" \
     "$TMPDIR/pack_ciphertext.o" \
     "$TMPDIR/pack_keys.o" \
-    "$TMPDIR/keccak_direct.o" \
+    "$TMPDIR/kmac_sha3_template.o" \
     "$TMPDIR/poly_gen_matrix.o" \
     "$TMPDIR/poly.o" \
     "$TMPDIR/cbd.o" \

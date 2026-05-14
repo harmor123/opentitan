@@ -1,10 +1,6 @@
 /* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
 /* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Modified by Ruben Niederhagen and Hoang Nguyen Hien Pham - authors of */
-/* "Improving ML-KEM & ML-DSA on OpenTitan - Efficient Multiplication Vector Instructions for OTBN" */
-/* (https://eprint.iacr.org/2025/2028) */
-/* Copyright Ruben Niederhagen and Hoang Nguyen Hien Pham. */
 
 /*
  * Name:        poly_compress
@@ -14,88 +10,58 @@
  * Arguments:   - uint8_t r: output byte array (of length KYBER_POLYCOMPRESSEDBYTES)
  *              - poly a: input polynomial, n=256, q=3329
  *
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
- * @param[in]  w31: all-zero
  * @param[in]  x11: dptr_input, dmem pointer to input polynomial
- * @param[in]  x13 (w3): const_80635
- * @param[in]  x15 (w2): dptr_modulus_over_2
  * @param[out] x12: dptr_output, dmem pointer to output byte array
+ * @param[in]  w2: dptr_modulus_over_2
+ * @param[in]  w5: const_1290167
+ * @param[in]  w31: all-zero
  *
  * clobbered registers: x0-x30, w0-w31
  */
 
 poly_compress:
-
-  bn.rshi w3, w31, w3 >> 4 /* 80635 */
-  bn.addi w5, w31, 1
-  bn.rshi w5, w5, w31 >> 240
-  bn.subi w5, w5, 1 /* mask = 0xffff */
-  LOOPI 4, 12
-    LOOPI 4, 10
-      bn.lid  x0, 0(x11++)  /* Load input */
-      bn.rshi w0, w0, w31 >> 252 /* <= 4 */
-      bn.add  w0, w0, w2 /* pseudo-vect: +1665 */
-      LOOPI 16, 5
-        bn.and          w1, w0, w5 /* Mask out one coeff on w5 */
-        bn.rshi         w0, w31, w0 >> 16 /* Shift out used coeff of w0 */
-        bn.mulqacc.wo.z w1, w1.0, w3.0, 0 /* *80635 */
-        bn.rshi         w1, w31, w1 >> 28 /* >= 28 */
-        bn.rshi         w4, w1, w4 >> 4 /* save 4 bits */
-      NOP 
+  /* Multiply constant 80635 with 2**4 so we shift right 32 bits instead of 28.
+   * This lets us return the high parts of 64-bit products within the multiply. */
+  bn.subi w16, w5, 7 /* w16 = 80635 * 16 = 1290160 */
+  LOOPI 4, 16
+    LOOPI 4, 14
+      bn.lid               x0, 0(x11++) /* Load input */
+      bn.shv.16H           w0, w0 << 4 /* <= 4 */
+      bn.addv.16H          w0, w0, w2 /* += 1665 */
+      bn.trn1.16H          w1, w0, w31 /* Put even coeffs to 32-bit slots */
+      bn.mulv.l.8S.even.hi w1, w1, sw0.0 /* >> 32 takes high parts of 64-bit products */
+      bn.mulv.l.8S.odd.hi  w1, w1, sw0.0
+      bn.trn2.16H          w0, w0, w31 /* Put odd coeffs to 32-bit slots */
+      bn.mulv.l.8S.even.hi w0, w0, sw0.0
+      bn.mulv.l.8S.odd.hi  w0, w0, sw0.0
+      bn.trn1.16H          w1, w1, w0 /* Interleave results to original order */
+      LOOPI 16, 2
+        bn.rshi w4, w1, w4 >> 4
+        bn.rshi w1, w31, w1 >> 16
+      NOP
     bn.sid x4, 0(x12++)
 
   ret
-
-/*
- * Name:        poly_compress_16 
- *
- * Description: Subroutine of poly_compress for compressing 16 coefficients
- *
- * @param[in]   w0: input vector with 16 16-bit coefficients
- * @param[in]   w7: 1664
- * @param[in]   w5: 40318
- * @param[in]  w31: all-zero
- * @param[out]  w1: output vector with 16 compressed coefficients
- *
- * clobbered registers:
- */
-
-poly_compress_16:
-LOOPI 16, 7
-  bn.rshi         w5, w0, w31 >> 16 /* Shift one coeff on w5 */
-  bn.rshi         w0, w31, w0 >> 16 /* Shift out used coeff of w0 */
-  bn.rshi         w5, w31, w5 >> 235 /* <= 5 */
-  bn.add          w5, w5, w7 /* +1664 */
-  bn.mulqacc.wo.z w5, w5.0, w3.0, 0 /* *40318 */
-  bn.rshi         w5, w31, w5 >> 27 /* >= 27 */
-  bn.rshi         w1, w5, w1 >> 16 /* Store res to w1 */
-ret
 
 /*
  * Name:        polyvec_compress
  *
  * Description: Compress and serialize vector of polynomials
  *
- * Arguments:   - uint8_t r: output byte array (of length KYBER_POLYCOMPRESSEDBYTES)
- *              - poly a: input polynomial, n=256, q=3329
- *
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
- * @param[in]  w31: all-zero
  * @param[in]  x10: dptr_input, dmem pointer to input polynomial
- * @param[in]  x13: const_1290167
- * @param[in]  x15: dptr_modulus_over_2
  * @param[out] x12: dptr_output, dmem pointer to output byte array
+ * @param[in]  w2: modulus_over_2 = (0x681)^16
+ * @param[in]  w5: const_1290167
+ * @param[in]  w31: all-zero
  *
  * clobbered registers: x0-x30, w0-w31
  */
 polyvec_compress:
 
-  bn.rshi w7, w31, w2 >> 240 /* extract (Q+1)/2 */
+  bn.shv.8S w3, w2 >> 16 /* w3 = (0x681)^8 */
+  bn.mov    w16, w5 /* w16 = 1290167 */
   LOOPI 6, 61
     /* First WDR: 160 bits (16 coeffs) + (Reload) 90 bits (9 coeffs) + 6 bits */
-    /* Load 1st batch */
     bn.lid x0, 0(x10++)
     jal    x1, polyvec_compress_16
     /* Pack 160 bits */
@@ -114,7 +80,7 @@ polyvec_compress:
     bn.sid  x4, 0(x12++)
 
     /* Second WDR: 4 bits + 60 bits (6 coeffs) + (Reload) 160 bits (16 coeffs) +
-    * (Reload) 30 bits (3 coeffs) + 2 bits */
+     * (Reload) 30 bits (3 coeffs) + 2 bits */
     /* Pack 4 + 60 bits */
     LOOPI 7, 2
       bn.rshi w4, w1, w4 >> 10
@@ -189,57 +155,46 @@ polyvec_compress:
     LOOPI 16, 2
       bn.rshi w4, w1, w4 >> 10
       bn.rshi w1, w31, w1 >> 16
-    bn.sid x4, 0(x12++)
+    bn.sid  x4, 0(x12++)
 
   ret
 
 /*
- * Name:        _polyvec__compress_16 
+ * Name:        polyvec_compress_16
  *
- * Description: Subroutine of poly_compress for compressing 16 coefficients
+ * Description: Subroutine for compressing 16 coefficients
  *
  * @param[in]   w0: input vector with 16 16-bit coefficients
- * @param[in]   w7: 1664 (if KYBER_K == 4); 1665 (if KYBER_K != 4)
- * @param[in]   w3: 645084 (if KYBER_K == 4); 1290167 (if KYBER_K != 4)
+ * @param[in]   w3: (0x681)^8
+ * @param[in]  w16: const_1290167
  * @param[in]  w31: all-zero
  * @param[out]  w1: output vector with 16 compressed coefficients
- *
- * clobbered registers:
  */
-
 polyvec_compress_16:
-LOOPI 16, 7
-  bn.rshi         w5, w0, w5 >> 16 /* shift one coeff on w5 */
-  bn.rshi         w0, w31, w0 >> 16 /* shift out used coeff */
-
-  bn.rshi         w5, w31, w5 >> 230 /* << 10 */
-
-  bn.add          w5, w5, w7 /* +1664 or +1665 (w7) */
-  bn.mulqacc.wo.z w5, w5.0, w3.0, 0 /* *645084 or *1290167 (w3) */
-
-  bn.rshi         w5, w31, w5 >> 32 /* >> 32 */
-
-  bn.rshi         w1, w5, w1 >> 16 /* store res to w1 */
-ret
+  bn.trn1.16H          w1, w0, w31 /* Put even coeffs to 32-bit slots */
+  bn.shv.8S            w1, w1 << 10 /* << 10 */
+  bn.addv.8S           w1, w1, w3 /* +1665 */
+  bn.mulv.l.8S.even.hi w1, w1, sw0.0 /* >> 32 takes high parts of 64-bit products */
+  bn.mulv.l.8S.odd.hi  w1, w1, sw0.0
+  bn.trn2.16H          w0, w0, w31 /* Put odd coeffs to 32-bit slots */
+  bn.shv.8S            w0, w0 << 10 /* << 10 */
+  bn.addv.8S           w0, w0, w3 /* +1665 */
+  bn.mulv.l.8S.even.hi w0, w0, sw0.0
+  bn.mulv.l.8S.odd.hi  w0, w0, sw0.0
+  bn.trn1.16H          w1, w1, w0 /* Interleave results to original order */
+  ret
 
 /*
- * Name:        pack_ciphertext 
+ * Name:        pack_ciphertext
  *
  * Description: Serialize the ciphertext as concatenation of the
- *              compressed and serialized vector of polynomials b
- *              and the compressed and serialized polynomial v
- *
- * Arguments:   - uint8_t *r: pointer to the output serialized ciphertext
- *              - polyvec *b: pointer to the input vector of polynomials b
- *              - poly *v: pointer to the input polynomial v
- *
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
+ *              compressed vector of polynomials b and the compressed
+ *              polynomial v
  *
  * @param[in]  x10: dptr_b, dmem pointer to first input polynomial
  * @param[in]  x11: dptr_v, dmem pointer to second input polynomial
  * @param[out] x12: dptr_output, dmem pointer to output byte array
  * @param[in]  x13: const_1290167
- * @param[in]  x14: modulus_bn
  * @param[in]  x15: dptr_modulus_over_2
  * @param[in]  w31: all-zero
  *
@@ -251,14 +206,14 @@ pack_ciphertext:
   /* Set up registers for input and output */
   li x4, 4
   li x5, 2
+  li x6, 5
 
   /* Load const */
-  bn.lid x5++, 0(x15) /* w2 = modulus_over_2 = (0x681)^16 */
-  bn.lid x5, 0(x13) /* w3 = const_1290167 */
+  bn.lid  x5, 0(x15) /* w2 = modulus_over_2 = (0x681)^16 */
+  bn.lid  x6, 0(x13) /* w5 = const_1290167 */
 
-  /* Zeroize w31 and w5 */
+  /* Zeroize w31 */
   bn.xor w31, w31, w31
-  bn.xor w5, w5, w5
   jal    x1, polyvec_compress
   jal    x1, poly_compress
 
@@ -271,60 +226,31 @@ pack_ciphertext:
  * Description: De-serialization and subsequent decompression of a polynomial;
  *              approximate inverse of poly_compress
  *
- * Arguments:   - uint8_t r: input byte array (of length KYBER_POLYCOMPRESSEDBYTES)
- *              - poly a: output polynomial, n=256, q=3329
- *
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
- * @param[in]  w31: all-zero
  * @param[in]  x10: dptr_input, dmem pointer to input byte array
  * @param[out] x12: dptr_output, dmem pointer to output polynomial
+ * @param[in]  w2: const_0x0fff
+ * @param[in]  w31: all-zero
  *
  * clobbered registers: x0-x30, w0-w31
  */
 
 poly_decompress:
 
-  bn.rshi w2, w31, w2 >> 248 /* 0xf */
-  bn.rshi w3, w31, w3 >> 240 /* 8 */
+  bn.shv.16H w2, w2 >> 8 /* 0xf */
   LOOPI 4, 11
     bn.lid x0, 0(x10++)
     LOOPI 4, 8
-      LOOPI 16, 6
-        bn.and          w1, w0, w2 /* Mask out one coeff on w1 */
-        bn.rshi         w0, w31, w0 >> 4 /* shift out used coeff of w0 */
-        bn.mulqacc.wo.z w1, w1.0, w6.0, 0 /* *KYBER_Q */
-        bn.add          w1, w1, w3 /* +8 */
-        bn.rshi         w1, w31, w1 >> 4 /* >> 4 */
-        bn.rshi         w4, w1, w4 >> 16 /* Store res on w4 */
-      bn.sid x4, 0(x12++)
-    NOP 
+      LOOPI 16, 2
+        bn.rshi w1, w0, w1 >> 16
+        bn.rshi w0, w31, w0 >> 4
+      bn.and           w1, w1, w2
+      bn.mulv.l.16H.lo w1, w1, sw0.0
+      bn.addv.16H      w1, w1, w5
+      bn.shv.16H       w1, w1 >> 4
+      bn.sid           x4, 0(x12++)
+    NOP
 
   ret
-
-/*
- * Name:        poly_decompress_16 
- *
- * Description: Subroutine of poly_decompress for decompressing 16 coefficients
- *
- * @param[in]   w1: input vector with 16 16-bit coefficients
- * @param[in]   w2: 0x001f
- * @param[in]   w3: 16
- * @param[in]   w6: KYBER_Q
- * @param[in]  w31: all-zero
- * @param[out]  w4: output vector of 16 decompressed coefficients
- *
- * clobbered registers:
- */
-poly_decompress_16:
-LOOPI 16, 6
-  bn.and          w5, w1, w2 /* Mask out one coeff on w5 */
-  bn.rshi         w1, w31, w1 >> 16 /* Shift out used coeff of w1 */
-  bn.mulqacc.wo.z w5, w5.0, w6.0, 0 /* *KYBER_Q */
-  bn.add          w5, w5, w3 /* +16 */
-  bn.rshi         w5, w31, w5 >> 5 /* >> 5 */
-  bn.rshi         w4, w5, w4 >> 16 /* Store res to w4 */
-ret
 
 /*
  * Name:        polyvec_decompress
@@ -332,22 +258,17 @@ ret
  * Description: De-serialize and decompress vector of polynomials;
  *              approximate inverse of polyvec_compress
  *
- * Arguments:   - polyvec *r:       pointer to output vector of polynomials
- *              - const uint8_t *a: pointer to input byte array
- *                                  (of length KYBER_POLYVECCOMPRESSEDBYTES)
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
+ * @param[in]  x10: dptr_input, dmem pointer to input byte array
  * @param[in]  w31: all-zero
- * @param[in]  x10: dptr_input, dmem pointer to input polynomial
- * @param[out] x12: dptr_output, dmem pointer to output byte array
+ * @param[in]  w2: const_0x0fff
+ * @param[in]  w3: (0x00008000)^8
+ * @param[out] x12: dptr_output, dmem pointer to output polynomials
  *
  * clobbered registers: x0-x30, w0-w31
  */
 
 polyvec_decompress:
 
-  bn.rshi w5, w31, w2 >> 242 /* 0x3ff */
-  bn.rshi w7, w31, w3 >> 234 /* 512 */
   LOOPI 6, 69
     /* First WDR: 160 bits of w0 */
     bn.lid x0, 0(x10++)
@@ -414,13 +335,13 @@ polyvec_decompress:
     bn.sid x4, 0(x12++)
 
     /* Seventh WDR: 60 bits + 4 bits + (Reload) 6 bits + 90 bits */
-    LOOPI 6, 2  
+    LOOPI 6, 2
       bn.rshi w1, w0, w1 >> 16
       bn.rshi w0, w31, w0 >> 10
-    bn.rshi w1, w0, w1 >> 4 /* Move the final 4 bits of w0 to w1 */
-    bn.lid  x0, 0(x10++) /* Load the fifth batch of input to w0 */
-    bn.rshi w1, w0, w1 >> 12 /* Move the first 6 bits of w0 to w1 to form 10 bits */
-    bn.rshi w0, w31, w0 >> 6 /* Shift out used bits */
+    bn.rshi      w1, w0, w1 >> 4 /* Move the final 4 bits of w0 to w1 */
+    bn.lid       x0, 0(x10++) /* Load the fifth batch of input to w0 */
+    bn.rshi      w1, w0, w1 >> 12 /* Move the first 6 bits of w0 to w1 to form 10 bits */
+    bn.rshi      w0, w31, w0 >> 6 /* Shift out used bits */
     LOOPI 9, 2
       bn.rshi w1, w0, w1 >> 16
       bn.rshi w0, w31, w0 >> 10
@@ -437,43 +358,31 @@ polyvec_decompress:
   ret
 
 /*
- * Name:        polyvec_decompress_16 
+ * Name:        polyvec_decompress_16
  *
- * Description: Subroutine of polyvec_decompress for decompressing 16 coefficients
+ * Description: Subroutine for decompressing 16 coefficients
  *
- * @param[in]   w1: input vector with 16 16-bit coefficients
- * @param[in]   w5:  0x03ff (if KYBER_K != 4); 0x07ff (if KYBER_K == 4)
- * @param[in]   w7: 512 if (KYBER_K !=4); 1024 (if KYBER_K == 4)
- * @param[in]  w31: all-zero
- * @param[out]  w4: output vector of 16 decompressed coefficients
- *
- * clobbered registers:
+ * @param[inout]   w1: input/output vector with 16 16-bit coefficients
+ * @param[in]     w3: (0x00008000)^8 (const added to ACC before multiply)
+ * @param[in]    w16: KYBER_Q
+ * @param[in]    w31: all-zero
  */
 polyvec_decompress_16:
-LOOPI 16, 6
-  bn.and          w8, w1, w5 /* Mask out one coeff on w8 */
-  bn.rshi         w1, w31, w1 >> 16 /* Shift out used coeff of w1 */
-  bn.mulqacc.wo.z w8, w8.0, w6.0, 0 /* *KYBER_Q */
-  bn.add          w8, w8, w7 /* +1024 */
 
-  bn.rshi         w8, w31, w8 >> 10 /* >> 10 */
-
-  bn.rshi         w4, w8, w4 >> 16 /* Store res on w4 */
-ret
+  bn.shv.16H           w1, w1 << 6 /* *(2**6) */
+  bn.wsrw              0x3, w3 /* Write w3 to ACC */
+  bn.wsrw              0xb, w3 /* Write w3 to ACCH */
+  bn.mulv.l.16H.acc.hi w1, w1, sw0.0 /* *KYBER_Q + ACC */
+  ret
 
 /*
- * Name:        unpack_ciphertext 
+ * Name:        unpack_ciphertext
  *
- * Description: Serialize the secret key
+ * Description: De-serialize and decompress ciphertext
  *
- * Arguments:   - uint8_t *r: pointer to output serialized secret key
- *              - polyvec *sk: pointer to input vector of polynomials (secret key)
- *
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
- * @param[in]  x10: dptr_input, dmem pointer to first input byte array 
+ * @param[in]  x10: dptr_input, dmem pointer to first input byte array
  * @param[in]  x13: const_8
- * @param[in]  x14: modulus
+ * @param[in]  x14: modulus_bn
  * @param[in]  x15: const_0x0fff
  * @param[out] x12: dptr_output, dmem pointer to output ciphertext
  * @param[in]  w31: all-zero
@@ -484,18 +393,26 @@ ret
 .globl unpack_ciphertext
 unpack_ciphertext:
   /* Set up registers for input and output */
-  li x4, 4
+  li x4, 1
   li x5, 2
-  li x6, 6
 
   /* Load const */
-  bn.lid x5++, 0(x15) /* w2 = const_0x0fff */
-  bn.lid x5, 0(x13) /* w3 = const_8 */
-  bn.lid x6, 0(x14) /* w6 = modulus */
+  bn.lid  x5++, 0(x15) /* w2 = const_0x0fff */
+  bn.lid  x5, 0(x13) /* w3 = const_8 */
+
+  /* For polyvec_decompress: w3 = 512 * (2**6) = 32768
+   * For poly_decompress: w3 is overwritten */
+  bn.mov    w5, w3 /* Save w3 */
+  bn.shv.8S w3, w3 << 16 /* w3 = (0x00080000)^8 */
+  bn.shv.8S w3, w3 >> 4  /* w3 = (0x00008000)^8 */
+
+  /* KYBER_Q is in sw0.0 */
+  bn.wsrr w16, 0x0
 
   /* Zeroize w31 */
-  bn.xor w31, w31, w31
-  jal    x1, polyvec_decompress
-  jal    x1, poly_decompress
+  bn.xor     w31, w31, w31
+
+  jal        x1, polyvec_decompress
+  jal        x1, poly_decompress
 
   ret

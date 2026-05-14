@@ -31,22 +31,36 @@ indcpa_keypair:
   sw  x12, -24(fp)
 
   /*** hash_g: SHA3-512 ***/
+  /* 初始化 SHA3-512 (Mode 1) */
+  addi  x10, x0, 1              
+  jal   x1, kmac_init
 
-  li   x11, 64 /* output len */
-  jal  x1, sha3_init
+  /* 发送 seed (32 字节) */
+  lw    x10, -16(fp)            /* 加载 seed 指针 */
+  addi  x11, x0, 32             /* 长度 32 */
+  jal   x1, keccak_send_message
 
-  lw   x11, -16(fp)
-  li   x12, 32 /* input len */
-  jal  x1, sha3_update
+  /* 发送 0x03 字节 */
   addi  x11, x0, 3
-  sw    x11, -128(fp)
-  la    x10, context
-  addi  x11, fp, -128
-  addi  x12, x0, 1
-  jal   x1, sha3_update
+  sw    x11, -128(fp)           /* 将 0x03 存入栈帧临时空间 */
+  addi  x10, fp, -128
+  addi  x11, x0, 1              /* 长度 1 */
+  jal   x1, keccak_send_message
 
-  addi x11, fp, -128
-  jal  x1, sha3_final
+  /* 结束 Absorb，进入 Squeeze */
+  jal   x1, kmac_process
+
+  /* 挤出前 32 字节到 fp-128 */
+  addi  x10, fp, -128
+  jal   x1, kmac_squeeze_32B
+
+  /* 继续挤出后 32 字节到 fp-96 (触发 RUN) */
+  jal   x1, kmac_run
+  addi  x10, fp, -96
+  jal   x1, kmac_squeeze_32B
+
+  /* 释放 KMAC 硬件 */
+  jal   x1, kmac_done
 
   /*** CBD skpv ***/
   li   x15, -2176 
@@ -61,13 +75,18 @@ indcpa_keypair:
     jal  x1, poly_getnoise_eta_1
     addi x12, x12, 1 
 
+
+  bn.wsrr   w16, 0x0 /* w16 = MOD = R | Q */
+  #bn.shv.8S w22, w16 << 1 /* w22 = 2*R | 2*Q */
+  #bn.wsrw   0x0, w22 /* MOD = 2*R | 2*Q */
+
   /*** NTT skpv ***/
-  /* ntt(skpv) */
   li   x10, -3712
   add  x10, fp, x10
+  la  x11, twiddles_ntt
   add  x12, x0, x10
   .rept 3
-    la  x11, twiddles_ntt
+
     jal x1, ntt
   .endr
   
@@ -92,7 +111,7 @@ indcpa_keypair:
     li   x29, -3712
     add  x29, fp, x29 /* point to sk[0] */
     add  x13, x11, x0   /* output at A[0][0] */
-    la   x28, twiddles_ntt
+    la   x28, twiddles_basemul
     jal  x1, basemul
 
     /* After basemul:
@@ -110,20 +129,20 @@ indcpa_keypair:
       /* Mutliply this generated poly with sk */
       addi x11, x11, -512 /* points back to A[0][1] */
       addi x13, x11, -512 /* points back to A[0][0] for accumulation */
-      la   x28, twiddles_ntt
+      la   x28, twiddles_basemul
       jal  x1, basemul_acc
       addi x11, x11, -512 /* points back to A[0][1] */
     .endr 
     addi x12, x12, 253 
   .endr 
   
-  /* toplant */
-  li  x10, -2176 
+  /* poly_tomont */
+  li  x10, -2176
   add x10, fp, x10
-  la  x12, const_toplant
-  .rept 3
-    jal x1, poly_reduce
-  .endr 
+  la  x11, const_tomont
+  LOOPI 3, 2
+    jal x1, poly_tomont
+    NOP
 
   /*** CBD e ***/
   li   x15, -640
@@ -142,9 +161,9 @@ indcpa_keypair:
   /* ntt(skpv) */
   li   x10, -3712
   add  x10, fp, x10
+  la  x11, twiddles_ntt
   add  x12, x0, x10
   .rept 3
-    la  x11, twiddles_ntt
     jal x1, ntt
   .endr
 
@@ -207,18 +226,27 @@ crypto_kem_keypair:
     bn.sid x4, 0(x11++)
 
   /*** hash_h ***/
+  /* 初始化 SHA3-256 (Mode 0) */
+  addi  x10, x0, 0              
+  jal   x1, kmac_init
 
-  li   x11, 32
-  jal  x1, sha3_init
+  /* 发送 pk (1184 字节) */
+  lw    x10, -32(fp)            /* 加载 pk 指针 */
+  addi  x11, x0, 1184           /* 长度 1184 */
+  jal   x1, keccak_send_message
 
-  lw   x11, -32(fp)
-  li   x12, 1184
-  jal  x1, sha3_update
+  /* 结束 Absorb，进入 Squeeze */
+  jal   x1, kmac_process
 
-  lw   x11, -24(fp)
-  addi x11, x11, 1184
-  addi x11, x11, 1152
-  jal  x1, sha3_final
+  /* 挤出 32 字节直接写入 sk 的指定偏移位置 (sk + 2336) */
+  lw    x10, -24(fp)            /* 加载 sk 基地址 */
+  li    x6, 2336                /* 偏移量 1152 + 1184 = 2336 */
+  add   x10, x10, x6            /* x10 = sk + 2336 */
+  jal   x1, kmac_squeeze_32B
+
+  /* 释放 KMAC 硬件 */
+  jal   x1, kmac_done
+
 
   /*** Random bytes ***/
   lw      x10, -16(fp)

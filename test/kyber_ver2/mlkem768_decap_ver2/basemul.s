@@ -1,946 +1,468 @@
-/* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
-
+/* basemul.s — exact port of mlkem_ver2_nold, NO Montgomery change.
+ * x8→x3 (avoid fp). sw0→sw0.
+ */
+.text
 .globl basemul
 basemul:
-  /* save fp to stack */
-  addi sp, sp, -32
-  sw   fp, 0(sp)
-
-  addi fp, sp, 0
-
-  /* Set up constants for input/twiddle factors */
-  li x4, 0
-  li x5, 1
-  li x18, 10
-  li x19, 11
-  li x25, 15
-  li x26, 16
-
-  /* Zero out one register */
-  bn.xor w31, w31, w31
-  /* 0xFFFFFFFF for masking */
-  bn.addi w13, w31, 1
-  bn.rshi w13, w13, w31 >> 224
-  bn.subi w13, w13, 1 
-
-  li     x22, 12 /* w12 */
-  /*Set zero quad word to 1/q % 2^32 */
-  la     x21, qinv
-  bn.lid x22, 0(x21)
-  bn.or  w14, w31, w12
-  /* Set second WLEN/4 quad word to modulus */
-  la     x21, modulus
-  bn.lid x22, 0(x21)
-  bn.or  w14, w14, w12 << 128
-  /* Load alpha to w14.1 */
-  bn.addi w12, w31, 1
-  bn.or   w14, w14, w12 << 64
-  /* Load w13 to w14.3 */
-  bn.or w14, w14, w13 << 192
-
-  /* 0xFFFF for masking */
-  bn.addi w17, w31, 1
-  bn.rshi w17, w17, w31 >> 240
-  bn.subi w17, w17, 1
-  LOOPI 4, 1
-    bn.rshi w13, w17, w13 >> 64
-
-  /* Point to right Twiddle factors for basemul in the twiddles_ntt_base */
-  addi x28, x28, 160
-
-  LOOPI 16, 281
-    bn.lid x4, 0(x29++)
-    bn.lid x5, 0(x11++)
-    bn.lid x25, 0(x28++) /* Load twiddle factors: 4 twds */
-
-    bn.and  w2, w13, w0 /* a0, a4, a8, a12 */
-    bn.and  w3, w13, w0 >> 16 /* a1, a5, a9, a13 */
-    bn.and  w4, w13, w0 >> 32 /* a2, a6, a10, a14 */
-    bn.and  w5, w13, w0 >> 48 /* a3, a7, a11, a15 */
-
-    bn.and  w6, w13, w1 /* b0, b4, b8, b12 */
-    bn.and  w7, w13, w1 >> 16 /* b1, b5, b9, b13 */
-    bn.and  w8, w13, w1 >> 32 /* b2, b6, b10, b14 */
-    bn.and  w9, w13, w1 >> 48 /* b3, b7, b11, b15 */
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a0*b0 */
-    bn.mulqacc.wo.z w12, w2.0, w6.0, 0 /* a0*b0 */
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192      /* a0*b0*qinv % 2^64 */
-    bn.and          w12, w12, w14               /* a0*b0*qinv % 2^32 */
-    bn.add          w12, w14, w12 >> 144        
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a1*b1 */
-    bn.mulqacc.wo.z w12, w3.0, w7.0, 0 
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192      
-    bn.and          w12, w12, w14               
-    bn.add          w12, w14, w12 >> 144        
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a1*b1*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r0 = a1*b1*tf + a0*b0 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a0*b1 */
-    bn.mulqacc.wo.z w12, w2.0, w7.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a1*b0 */
-    bn.mulqacc.wo.z w12, w3.0, w6.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r1 = a0*b1 + a1*b0 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a2*b2 */
-    bn.mulqacc.wo.z w12, w4.0, w8.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a3*b3 */
-    bn.mulqacc.wo.z w12, w5.0, w9.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a3*b3 */
-    bn.subm w11, w31, w11 
-    
-    /* Plantard multiplication: a3*b3*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r2 = a3*b3*(-tf) + a2*b2 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a2*b3 */
-    bn.mulqacc.wo.z w12, w4.0, w9.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a3*b2 */
-    bn.mulqacc.wo.z w12, w5.0, w8.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r3 = a2*b3 + a3*b2 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a4*b4 */
-    bn.mulqacc.wo.z w12, w2.1, w6.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a5*b5 */
-    bn.mulqacc.wo.z w12, w3.1, w7.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a5*b5*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.1, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r4 = a5*b5*tf + a4*b4 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a4*b5 */
-    bn.mulqacc.wo.z w12, w2.1, w7.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a5*b4 */
-    bn.mulqacc.wo.z w12, w3.1, w6.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r5 = a4*b5 + a5*b4 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a6*b6 */
-    bn.mulqacc.wo.z w12, w4.1, w8.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a7*b7 */
-    bn.mulqacc.wo.z w12, w5.1, w9.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a7*b7 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a7*b7*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.1, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r6 = a7*b7*(-tf) + a6*b6 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a6*b7 */
-    bn.mulqacc.wo.z w12, w4.1, w9.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a7*b6 */
-    bn.mulqacc.wo.z w12, w5.1, w8.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r7 = a6*b7 + a7*b6 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a8*b8 */
-    bn.mulqacc.wo.z w12, w2.2, w6.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a9*b9 */
-    bn.mulqacc.wo.z w12, w3.2, w7.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a9*b9*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.2, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r8 = a9*b9*tf + a8*b8 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a8*b9 */
-    bn.mulqacc.wo.z w12, w2.2, w7.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a9*b8 */
-    bn.mulqacc.wo.z w12, w3.2, w6.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r9 = a8*b9 + a9*b8 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a10*b10 */
-    bn.mulqacc.wo.z w12, w4.2, w8.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a11*b11 */
-    bn.mulqacc.wo.z w12, w5.2, w9.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a11*b11 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a11*b11*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.2, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r10 = a11*b11*(-tf) + a10*b10 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a10*b11 */
-    bn.mulqacc.wo.z w12, w4.2, w9.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a11*b10 */
-    bn.mulqacc.wo.z w12, w5.2, w8.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r11 = a10*b11 + a11*b10 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a12*b12 */
-    bn.mulqacc.wo.z w12, w2.3, w6.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a13*b13 */
-    bn.mulqacc.wo.z w12, w3.3, w7.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a13*b13*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.3, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r12 = a13*b13*tf + a12*b12 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a12*b13 */
-    bn.mulqacc.wo.z w12, w2.3, w7.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a13*b12 */
-    bn.mulqacc.wo.z w12, w3.3, w6.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r13 = a12*b13 + a13*b12 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a14*b14 */
-    bn.mulqacc.wo.z w12, w4.3, w8.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a15*b15 */
-    bn.mulqacc.wo.z w12, w5.3, w9.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a15*b15 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a15*b15*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.3, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r14 = a15*b15*(-tf) + a14*b14 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a14*b15 */
-    bn.mulqacc.wo.z w12, w4.3, w9.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a15*b14 */
-    bn.mulqacc.wo.z w12, w5.3, w8.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r15 = a14*b15 + a15*b14 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    bn.sid x26, 0(x13++)
-
-    /* Adjust Twiddle pointer */
-    addi x28, x28, 32
-
-  /* Zero w31 again */
-  bn.xor w31, w31, w31
-
-  /* sp <- fp */
-  addi sp, fp, 0
-  /* Pop ebp */
-  lw fp, 0(sp)
-  addi sp, sp, 32
-  ret
+    li x4,  0
+    li x5,  1
+    li x6,  2
+    li x7,  3
+    li x3,  4
+    li x9,  5
+    li x14, 6
+    li x15, 7
+    li x16, 8
+    li x17, 9
+    li x18, 10
+    li x19, 11
+    li x20, 12
+    li x21, 13
+    li x22, 14
+    li x23, 15
+    bn.xor w31, w31, w31
+
+    LOOPI 2, 164
+        /* Load input 1 (8 WDRs) */
+        bn.lid x4,  0(x29++)
+        bn.lid x5,  0(x29++)
+        bn.lid x6,  0(x29++)
+        bn.lid x7,  0(x29++)
+        bn.lid x3,  0(x29++)
+        bn.lid x9,  0(x29++)
+        bn.lid x14, 0(x29++)
+        bn.lid x15, 0(x29++)
+
+        /* Load input 2 (8 WDRs) */
+        bn.lid x16, 0(x11++)
+        bn.lid x17, 0(x11++)
+        bn.lid x18, 0(x11++)
+        bn.lid x19, 0(x11++)
+        bn.lid x20, 0(x11++)
+        bn.lid x21, 0(x11++)
+        bn.lid x22, 0(x11++)
+        bn.lid x23, 0(x11++)
+
+        /* Multiply ai*bi (8 Montgomery mults) */
+        bn.mulv.16H.acc.z.lo w26, w0, w8
+        bn.mulv.l.16H.lo     w26, w26, sw0.2
+        bn.mulv.l.16H.acc.hi w26, w26, sw0.0
+        bn.addvm.16H         w26, w26, w31
+
+        bn.mulv.16H.acc.z.lo w17, w1, w9
+        bn.mulv.l.16H.lo     w17, w17, sw0.2
+        bn.mulv.l.16H.acc.hi w17, w17, sw0.0
+        bn.addvm.16H         w17, w17, w31
+
+        bn.mulv.16H.acc.z.lo w18, w2, w10
+        bn.mulv.l.16H.lo     w18, w18, sw0.2
+        bn.mulv.l.16H.acc.hi w18, w18, sw0.0
+        bn.addvm.16H         w18, w18, w31
+
+        bn.mulv.16H.acc.z.lo w19, w3, w11
+        bn.mulv.l.16H.lo     w19, w19, sw0.2
+        bn.mulv.l.16H.acc.hi w19, w19, sw0.0
+        bn.addvm.16H         w19, w19, w31
+
+        bn.mulv.16H.acc.z.lo w20, w4, w12
+        bn.mulv.l.16H.lo     w20, w20, sw0.2
+        bn.mulv.l.16H.acc.hi w20, w20, sw0.0
+        bn.addvm.16H         w20, w20, w31
+
+        bn.mulv.16H.acc.z.lo w21, w5, w13
+        bn.mulv.l.16H.lo     w21, w21, sw0.2
+        bn.mulv.l.16H.acc.hi w21, w21, sw0.0
+        bn.addvm.16H         w21, w21, w31
+
+        bn.mulv.16H.acc.z.lo w22, w6, w14
+        bn.mulv.l.16H.lo     w22, w22, sw0.2
+        bn.mulv.l.16H.acc.hi w22, w22, sw0.0
+        bn.addvm.16H         w22, w22, w31
+
+        bn.mulv.16H.acc.z.lo w23, w7, w15
+        bn.mulv.l.16H.lo     w23, w23, sw0.2
+        bn.mulv.l.16H.acc.hi w23, w23, sw0.0
+        bn.addvm.16H         w23, w23, w31
+
+        /* Multiply ai*bi+1, ai+1*bi */
+        bn.rshi              w24, w31, w8 >> 16
+        bn.trn1.16H          w8, w24, w8
+        bn.mulv.16H.acc.z.lo w8, w0, w8
+        bn.mulv.l.16H.lo     w8, w8, sw0.2
+        bn.mulv.l.16H.acc.hi w8, w8, sw0.0
+        bn.addvm.16H         w8, w8, w31
+
+        bn.rshi              w24, w31, w9 >> 16
+        bn.trn1.16H          w9, w24, w9
+        bn.mulv.16H.acc.z.lo w9, w1, w9
+        bn.mulv.l.16H.lo     w9, w9, sw0.2
+        bn.mulv.l.16H.acc.hi w9, w9, sw0.0
+        bn.addvm.16H         w9, w9, w31
+
+        bn.rshi              w24, w31, w10 >> 16
+        bn.trn1.16H          w10, w24, w10
+        bn.mulv.16H.acc.z.lo w10, w2, w10
+        bn.mulv.l.16H.lo     w10, w10, sw0.2
+        bn.mulv.l.16H.acc.hi w10, w10, sw0.0
+        bn.addvm.16H         w10, w10, w31
+
+        bn.rshi              w24, w31, w11 >> 16
+        bn.trn1.16H          w11, w24, w11
+        bn.mulv.16H.acc.z.lo w11, w3, w11
+        bn.mulv.l.16H.lo     w11, w11, sw0.2
+        bn.mulv.l.16H.acc.hi w11, w11, sw0.0
+        bn.addvm.16H         w11, w11, w31
+
+        bn.rshi              w24, w31, w12 >> 16
+        bn.trn1.16H          w12, w24, w12
+        bn.mulv.16H.acc.z.lo w12, w4, w12
+        bn.mulv.l.16H.lo     w12, w12, sw0.2
+        bn.mulv.l.16H.acc.hi w12, w12, sw0.0
+        bn.addvm.16H         w12, w12, w31
+
+        bn.rshi              w24, w31, w13 >> 16
+        bn.trn1.16H          w13, w24, w13
+        bn.mulv.16H.acc.z.lo w13, w5, w13
+        bn.mulv.l.16H.lo     w13, w13, sw0.2
+        bn.mulv.l.16H.acc.hi w13, w13, sw0.0
+        bn.addvm.16H         w13, w13, w31
+
+        bn.rshi              w24, w31, w14 >> 16
+        bn.trn1.16H          w14, w24, w14
+        bn.mulv.16H.acc.z.lo w14, w6, w14
+        bn.mulv.l.16H.lo     w14, w14, sw0.2
+        bn.mulv.l.16H.acc.hi w14, w14, sw0.0
+        bn.addvm.16H         w14, w14, w31
+
+        bn.rshi              w24, w31, w15 >> 16
+        bn.trn1.16H          w15, w24, w15
+        bn.mulv.16H.acc.z.lo w15, w7, w15
+        bn.mulv.l.16H.lo     w15, w15, sw0.2
+        bn.mulv.l.16H.acc.hi w15, w15, sw0.0
+        bn.addvm.16H         w15, w15, w31
+
+        /* Load twiddle factors (4 WDRs) */
+        bn.lid x4,  0(x28++)
+        bn.lid x5,  0(x28++)
+        bn.lid x6,  0(x28++)
+        bn.lid x7,  0(x28++)
+
+        /* Multiply ai*bi*zeta */
+        bn.trn2.16H          w24, w26, w17
+        bn.mulv.16H.acc.z.lo w24, w24, w0
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w26, w26, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w17, w17, w24
+
+        bn.trn2.16H          w24, w18, w19
+        bn.mulv.16H.acc.z.lo w24, w24, w1
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w18, w18, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w19, w19, w24
+
+        bn.trn2.16H          w24, w20, w21
+        bn.mulv.16H.acc.z.lo w24, w24, w2
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w20, w20, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w21, w21, w24
+
+        bn.trn2.16H          w24, w22, w23
+        bn.mulv.16H.acc.z.lo w24, w24, w3
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w22, w22, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w23, w23, w24
+
+        /* Combine ai*bi*zeta + ai+1*bi */
+        bn.trn1.16H  w0, w26, w8
+        bn.trn2.16H  w8, w26, w8
+        bn.trn1.16H  w1, w17, w9
+        bn.trn2.16H  w9, w17, w9
+        bn.trn1.16H  w2, w18, w10
+        bn.trn2.16H  w10, w18, w10
+        bn.trn1.16H  w3, w19, w11
+        bn.trn2.16H  w11, w19, w11
+        bn.trn1.16H  w4, w20, w12
+        bn.trn2.16H  w12, w20, w12
+        bn.trn1.16H  w5, w21, w13
+        bn.trn2.16H  w13, w21, w13
+        bn.trn1.16H  w6, w22, w14
+        bn.trn2.16H  w14, w22, w14
+        bn.trn1.16H  w7, w23, w15
+        bn.trn2.16H  w15, w23, w15
+
+        bn.addvm.16H w0, w0, w8
+        bn.addvm.16H w1, w1, w9
+        bn.addvm.16H w2, w2, w10
+        bn.addvm.16H w3, w3, w11
+        bn.addvm.16H w4, w4, w12
+        bn.addvm.16H w5, w5, w13
+        bn.addvm.16H w6, w6, w14
+        bn.addvm.16H w7, w7, w15
+
+        /* Store (8 WDRs) */
+        bn.sid x4,  0(x13++)
+        bn.sid x5,  0(x13++)
+        bn.sid x6,  0(x13++)
+        bn.sid x7,  0(x13++)
+        bn.sid x3,  0(x13++)
+        bn.sid x9,  0(x13++)
+        bn.sid x14, 0(x13++)
+        bn.sid x15, 0(x13++)
+
+    ret
+
 
 .globl basemul_acc
 basemul_acc:
-  /* save fp to stack */
-  addi sp, sp, -32
-  sw   fp, 0(sp)
-
-  addi fp, sp, 0
-
-  /* Set up constants for input/twiddle factors */
-  li x4, 0
-  li x5, 1
-  li x18, 10
-  li x19, 11
-  li x25, 15
-  li x26, 16
-  li x27, 18
-
-  /* Zero out one register */
-  bn.xor w31, w31, w31
-  /* 0xFFFFFFFF for masking */
-  bn.addi w13, w31, 1
-  bn.rshi w13, w13, w31 >> 224
-  bn.subi w13, w13, 1 
-
-  li     x22, 12 /* w12 */
-  /*Set zero quad word to 1/q % 2^32 */
-  la     x21, qinv
-  bn.lid x22, 0(x21)
-  bn.or  w14, w31, w12
-  /* Set second WLEN/4 quad word to modulus */
-  la     x21, modulus
-  bn.lid x22, 0(x21)
-  bn.or  w14, w14, w12 << 128
-  /* Load alpha to w14.1 */
-  bn.addi w12, w31, 1
-  bn.or   w14, w14, w12 << 64
-  /* Load w13 to w14.3 */
-  bn.or w14, w14, w13 << 192
-
-  /* 0xFFFF for masking */
-  bn.addi w17, w31, 1
-  bn.rshi w17, w17, w31 >> 240
-  bn.subi w17, w17, 1
-  bn.add  w19, w31, w17
-  LOOPI 4, 1
-    bn.rshi w13, w17, w13 >> 64
-
-  addi x28, x28, 160
-
-  LOOPI 16, 283
-    bn.lid x4, 0(x29++)
-    bn.lid x5, 0(x11++)
-    bn.lid x25, 0(x28++) /* Load twiddle factors: 4 twds */
-
-    bn.and  w2, w13, w0 /* a0, a4, a8, a12 */
-    bn.and  w3, w13, w0 >> 16 /* a1, a5, a9, a13 */
-    bn.and  w4, w13, w0 >> 32 /* a2, a6, a10, a14 */
-    bn.and  w5, w13, w0 >> 48 /* a3, a7, a11, a15 */
-
-    bn.and  w6, w13, w1 /* b0, b4, b8, b12 */
-    bn.and  w7, w13, w1 >> 16 /* b1, b5, b9, b13 */
-    bn.and  w8, w13, w1 >> 32 /* b2, b6, b10, b14 */
-    bn.and  w9, w13, w1 >> 48 /* b3, b7, b11, b15 */
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a0*b0 */
-    bn.mulqacc.wo.z w12, w2.0, w6.0, 0 /* a0*b0 */
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192      /* a0*b0*qinv % 2^64 */
-    bn.and          w12, w12, w14               /* a0*b0*qinv % 2^32 */
-    bn.add          w12, w14, w12 >> 144        
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a1*b1 */
-    bn.mulqacc.wo.z w12, w3.0, w7.0, 0 
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192      
-    bn.and          w12, w12, w14               
-    bn.add          w12, w14, w12 >> 144        
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a1*b1*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r0 = a1*b1*tf + a0*b0 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a0*b1 */
-    bn.mulqacc.wo.z w12, w2.0, w7.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a1*b0 */
-    bn.mulqacc.wo.z w12, w3.0, w6.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r1 = a0*b1 + a1*b0 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a2*b2 */
-    bn.mulqacc.wo.z w12, w4.0, w8.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a3*b3 */
-    bn.mulqacc.wo.z w12, w5.0, w9.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a3*b3 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a3*b3*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r2 = a3*b3*(-tf) + a2*b2 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a2*b3 */
-    bn.mulqacc.wo.z w12, w4.0, w9.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a3*b2 */
-    bn.mulqacc.wo.z w12, w5.0, w8.0, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r3 = a2*b3 + a3*b2 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a4*b4 */
-    bn.mulqacc.wo.z w12, w2.1, w6.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a5*b5 */
-    bn.mulqacc.wo.z w12, w3.1, w7.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a5*b5*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.1, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r4 = a5*b5*tf + a4*b4 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a4*b5 */
-    bn.mulqacc.wo.z w12, w2.1, w7.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a5*b4 */
-    bn.mulqacc.wo.z w12, w3.1, w6.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r5 = a4*b5 + a5*b4 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a6*b6 */
-    bn.mulqacc.wo.z w12, w4.1, w8.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a7*b7 */
-    bn.mulqacc.wo.z w12, w5.1, w9.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a7*b7 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a7*b7*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.1, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r6 = a7*b7*(-tf) + a6*b6 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a6*b7 */
-    bn.mulqacc.wo.z w12, w4.1, w9.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a7*b6 */
-    bn.mulqacc.wo.z w12, w5.1, w8.1, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r7 = a6*b7 + a7*b6 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a8*b8 */
-    bn.mulqacc.wo.z w12, w2.2, w6.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a9*b9 */
-    bn.mulqacc.wo.z w12, w3.2, w7.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a9*b9*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.2, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r8 = a9*b9*tf + a8*b8 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a8*b9 */
-    bn.mulqacc.wo.z w12, w2.2, w7.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a9*b8 */
-    bn.mulqacc.wo.z w12, w3.2, w6.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r9 = a8*b9 + a9*b8 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a10*b10 */
-    bn.mulqacc.wo.z w12, w4.2, w8.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a11*b11 */
-    bn.mulqacc.wo.z w12, w5.2, w9.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a11*b11 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a11*b11*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.2, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r10 = a11*b11*(-tf) + a10*b10 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a10*b11 */
-    bn.mulqacc.wo.z w12, w4.2, w9.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a11*b10 */
-    bn.mulqacc.wo.z w12, w5.2, w8.2, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r11 = a10*b11 + a11*b10 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /*-----------------------------------------*/
-    /* Plantard multiplication: a12*b12 */
-    bn.mulqacc.wo.z w12, w2.3, w6.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a13*b13 */
-    bn.mulqacc.wo.z w12, w3.3, w7.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* Plantard multiplication: a13*b13*tf */
-    bn.mulqacc.wo.z w12, w11.0, w15.3, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r12 = a13*b13*tf + a12*b12 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a12*b13 */
-    bn.mulqacc.wo.z w12, w2.3, w7.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a13*b12 */
-    bn.mulqacc.wo.z w12, w3.3, w6.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r13 = a12*b13 + a13*b12 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a14*b14 */
-    bn.mulqacc.wo.z w12, w4.3, w8.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a15*b15 */
-    bn.mulqacc.wo.z w12, w5.3, w9.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-    
-    /* -a15*b15 */
-    bn.subm w11, w31, w11  
-    
-    /* Plantard multiplication: a15*b15*(-tf) */
-    bn.mulqacc.wo.z w12, w11.0, w15.3, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r14 = a15*b15*(-tf) + a14*b14 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* Plantard multiplication: a14*b15 */
-    bn.mulqacc.wo.z w12, w4.3, w9.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w10, w31, w12 >> 16
-
-    /* Plantard multiplication: a15*b14 */
-    bn.mulqacc.wo.z w12, w5.3, w8.3, 0
-    bn.mulqacc.wo.z w12, w12.0, w14.0, 192
-    bn.and          w12, w12, w14
-    bn.add          w12, w14, w12 >> 144
-    bn.mulqacc.wo.z w12, w12.1, w14.2, 0
-    bn.rshi         w11, w31, w12 >> 16
-
-    /* r15 = a14*b15 + a15*b14 */
-    bn.addm w10, w10, w11 
-    bn.rshi w16, w10, w16 >> 16
-
-    /* accumulating */
-    bn.lid x27, 0(x13)
-    bn.add w16, w16,w18
-    bn.sid x26, 0(x13++)
-
-    addi x28, x28, 32
-
-  /* Zero w31 again */
-  bn.xor w31, w31, w31
-
-  /* sp <- fp */
-  addi sp, fp, 0
-  /* Pop ebp */
-  lw fp, 0(sp)
-  addi sp, sp, 32
-  ret
+    li x4,  0
+    li x5,  1
+    li x6,  2
+    li x7,  3
+    li x3,  4
+    li x9,  5
+    li x14, 6
+    li x15, 7
+    li x16, 8
+    li x17, 9
+    li x18, 10
+    li x19, 11
+    li x20, 12
+    li x21, 13
+    li x22, 14
+    li x23, 15
+    bn.xor w31, w31, w31
+
+    LOOPI 2, 181
+        /* Load input 1 */
+        bn.lid x4,  0(x29++)
+        bn.lid x5,  0(x29++)
+        bn.lid x6,  0(x29++)
+        bn.lid x7,  0(x29++)
+        bn.lid x3,  0(x29++)
+        bn.lid x9,  0(x29++)
+        bn.lid x14, 0(x29++)
+        bn.lid x15, 0(x29++)
+
+        /* Load input 2 */
+        bn.lid x16, 0(x11++)
+        bn.lid x17, 0(x11++)
+        bn.lid x18, 0(x11++)
+        bn.lid x19, 0(x11++)
+        bn.lid x20, 0(x11++)
+        bn.lid x21, 0(x11++)
+        bn.lid x22, 0(x11++)
+        bn.lid x23, 0(x11++)
+
+        /* Multiply ai*bi */
+        bn.mulv.16H.acc.z.lo w26, w0, w8
+        bn.mulv.l.16H.lo     w26, w26, sw0.2
+        bn.mulv.l.16H.acc.hi w26, w26, sw0.0
+        bn.addvm.16H         w26, w26, w31
+
+        bn.mulv.16H.acc.z.lo w17, w1, w9
+        bn.mulv.l.16H.lo     w17, w17, sw0.2
+        bn.mulv.l.16H.acc.hi w17, w17, sw0.0
+        bn.addvm.16H         w17, w17, w31
+
+        bn.mulv.16H.acc.z.lo w18, w2, w10
+        bn.mulv.l.16H.lo     w18, w18, sw0.2
+        bn.mulv.l.16H.acc.hi w18, w18, sw0.0
+        bn.addvm.16H         w18, w18, w31
+
+        bn.mulv.16H.acc.z.lo w19, w3, w11
+        bn.mulv.l.16H.lo     w19, w19, sw0.2
+        bn.mulv.l.16H.acc.hi w19, w19, sw0.0
+        bn.addvm.16H         w19, w19, w31
+
+        bn.mulv.16H.acc.z.lo w20, w4, w12
+        bn.mulv.l.16H.lo     w20, w20, sw0.2
+        bn.mulv.l.16H.acc.hi w20, w20, sw0.0
+        bn.addvm.16H         w20, w20, w31
+
+        bn.mulv.16H.acc.z.lo w21, w5, w13
+        bn.mulv.l.16H.lo     w21, w21, sw0.2
+        bn.mulv.l.16H.acc.hi w21, w21, sw0.0
+        bn.addvm.16H         w21, w21, w31
+
+        bn.mulv.16H.acc.z.lo w22, w6, w14
+        bn.mulv.l.16H.lo     w22, w22, sw0.2
+        bn.mulv.l.16H.acc.hi w22, w22, sw0.0
+        bn.addvm.16H         w22, w22, w31
+
+        bn.mulv.16H.acc.z.lo w23, w7, w15
+        bn.mulv.l.16H.lo     w23, w23, sw0.2
+        bn.mulv.l.16H.acc.hi w23, w23, sw0.0
+        bn.addvm.16H         w23, w23, w31
+
+        /* Multiply ai*bi+1, ai+1*bi */
+        bn.rshi              w24, w31, w8 >> 16
+        bn.trn1.16H          w8, w24, w8
+        bn.mulv.16H.acc.z.lo w8, w0, w8
+        bn.mulv.l.16H.lo     w8, w8, sw0.2
+        bn.mulv.l.16H.acc.hi w8, w8, sw0.0
+        bn.addvm.16H         w8, w8, w31
+
+        bn.rshi              w24, w31, w9 >> 16
+        bn.trn1.16H          w9, w24, w9
+        bn.mulv.16H.acc.z.lo w9, w1, w9
+        bn.mulv.l.16H.lo     w9, w9, sw0.2
+        bn.mulv.l.16H.acc.hi w9, w9, sw0.0
+        bn.addvm.16H         w9, w9, w31
+
+        bn.rshi              w24, w31, w10 >> 16
+        bn.trn1.16H          w10, w24, w10
+        bn.mulv.16H.acc.z.lo w10, w2, w10
+        bn.mulv.l.16H.lo     w10, w10, sw0.2
+        bn.mulv.l.16H.acc.hi w10, w10, sw0.0
+        bn.addvm.16H         w10, w10, w31
+
+        bn.rshi              w24, w31, w11 >> 16
+        bn.trn1.16H          w11, w24, w11
+        bn.mulv.16H.acc.z.lo w11, w3, w11
+        bn.mulv.l.16H.lo     w11, w11, sw0.2
+        bn.mulv.l.16H.acc.hi w11, w11, sw0.0
+        bn.addvm.16H         w11, w11, w31
+
+        bn.rshi              w24, w31, w12 >> 16
+        bn.trn1.16H          w12, w24, w12
+        bn.mulv.16H.acc.z.lo w12, w4, w12
+        bn.mulv.l.16H.lo     w12, w12, sw0.2
+        bn.mulv.l.16H.acc.hi w12, w12, sw0.0
+        bn.addvm.16H         w12, w12, w31
+
+        bn.rshi              w24, w31, w13 >> 16
+        bn.trn1.16H          w13, w24, w13
+        bn.mulv.16H.acc.z.lo w13, w5, w13
+        bn.mulv.l.16H.lo     w13, w13, sw0.2
+        bn.mulv.l.16H.acc.hi w13, w13, sw0.0
+        bn.addvm.16H         w13, w13, w31
+
+        bn.rshi              w24, w31, w14 >> 16
+        bn.trn1.16H          w14, w24, w14
+        bn.mulv.16H.acc.z.lo w14, w6, w14
+        bn.mulv.l.16H.lo     w14, w14, sw0.2
+        bn.mulv.l.16H.acc.hi w14, w14, sw0.0
+        bn.addvm.16H         w14, w14, w31
+
+        bn.rshi              w24, w31, w15 >> 16
+        bn.trn1.16H          w15, w24, w15
+        bn.mulv.16H.acc.z.lo w15, w7, w15
+        bn.mulv.l.16H.lo     w15, w15, sw0.2
+        bn.mulv.l.16H.acc.hi w15, w15, sw0.0
+        bn.addvm.16H         w15, w15, w31
+
+        /* Load twiddle factors */
+        bn.lid x4,  0(x28++)
+        bn.lid x5,  0(x28++)
+        bn.lid x6,  0(x28++)
+        bn.lid x7,  0(x28++)
+
+        /* Multiply ai*bi*zeta */
+        bn.trn2.16H          w24, w26, w17
+        bn.mulv.16H.acc.z.lo w24, w24, w0
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w26, w26, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w17, w17, w24
+
+        bn.trn2.16H          w24, w18, w19
+        bn.mulv.16H.acc.z.lo w24, w24, w1
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w18, w18, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w19, w19, w24
+
+        bn.trn2.16H          w24, w20, w21
+        bn.mulv.16H.acc.z.lo w24, w24, w2
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w20, w20, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w21, w21, w24
+
+        bn.trn2.16H          w24, w22, w23
+        bn.mulv.16H.acc.z.lo w24, w24, w3
+        bn.mulv.l.16H.lo     w24, w24, sw0.2
+        bn.mulv.l.16H.acc.hi w24, w24, sw0.0
+        bn.addvm.16H         w24, w24, w31
+        bn.trn1.16H          w22, w22, w24
+        bn.rshi              w24, w31, w24 >> 16
+        bn.trn1.16H          w23, w23, w24
+
+        /* Combine */
+        bn.trn1.16H  w0, w26, w8
+        bn.trn2.16H  w8, w26, w8
+        bn.trn1.16H  w1, w17, w9
+        bn.trn2.16H  w9, w17, w9
+        bn.trn1.16H  w2, w18, w10
+        bn.trn2.16H  w10, w18, w10
+        bn.trn1.16H  w3, w19, w11
+        bn.trn2.16H  w11, w19, w11
+        bn.trn1.16H  w4, w20, w12
+        bn.trn2.16H  w12, w20, w12
+        bn.trn1.16H  w5, w21, w13
+        bn.trn2.16H  w13, w21, w13
+        bn.trn1.16H  w6, w22, w14
+        bn.trn2.16H  w14, w22, w14
+        bn.trn1.16H  w7, w23, w15
+        bn.trn2.16H  w15, w23, w15
+
+        bn.addvm.16H w0, w0, w8
+        bn.addvm.16H w1, w1, w9
+        bn.addvm.16H w2, w2, w10
+        bn.addvm.16H w3, w3, w11
+        bn.addvm.16H w4, w4, w12
+        bn.addvm.16H w5, w5, w13
+        bn.addvm.16H w6, w6, w14
+        bn.addvm.16H w7, w7, w15
+
+        /* Load previous accumulated result */
+        bn.lid x16, 0(x13++)
+        bn.lid x17, 0(x13++)
+        bn.lid x18, 0(x13++)
+        bn.lid x19, 0(x13++)
+        bn.lid x20, 0(x13++)
+        bn.lid x21, 0(x13++)
+        bn.lid x22, 0(x13++)
+        bn.lid x23, 0(x13++)
+
+        /* Accumulate: w0-w7 += loaded w8-w15 */
+        bn.addvm.16H w0, w0, w8
+        bn.addvm.16H w1, w1, w9
+        bn.addvm.16H w2, w2, w10
+        bn.addvm.16H w3, w3, w11
+        bn.addvm.16H w4, w4, w12
+        bn.addvm.16H w5, w5, w13
+        bn.addvm.16H w6, w6, w14
+        bn.addvm.16H w7, w7, w15
+
+        /* Reset pointer and store */
+        addi x13, x13, -256
+
+        bn.sid x4,  0(x13++)
+        bn.sid x5,  0(x13++)
+        bn.sid x6,  0(x13++)
+        bn.sid x7,  0(x13++)
+        bn.sid x3,  0(x13++)
+        bn.sid x9,  0(x13++)
+        bn.sid x14, 0(x13++)
+        bn.sid x15, 0(x13++)
+
+    ret

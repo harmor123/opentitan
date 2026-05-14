@@ -1,42 +1,45 @@
 /* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
 /* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
 /* SPDX-License-Identifier: Apache-2.0 */
+/* Modified by Ruben Niederhagen and Hoang Nguyen Hien Pham - authors of */
+/* "Improving ML-KEM & ML-DSA on OpenTitan - Efficient Multiplication Vector Instructions for OTBN" */
+/* (https://eprint.iacr.org/2025/2028) */
+/* Copyright Ruben Niederhagen and Hoang Nguyen Hien Pham. */
 
-/**
- * Constant Time Dilithium inverse NTT (base)
+.text
+
+/*
+ * Constant-time Kyber inverse INTT
  *
  * Returns: INTT(input)
  *
- * This implements the in-place INTT for Dilithium, where n=256, q=8380417.
+ * This implements the in-place INTT for Kyber, where n=256, q=3329.
  *
  * Flags: -
  *
  * @param[in]  x10: dptr_input, dmem pointer to first word of input polynomial
  * @param[in]  x11: dptr_tw, dmem pointer to array of twiddle factors,
-      last element is n^{-1} mod q
+          last element is n^{-1} mod q
+ * @param[in]  x12: dptr_output, dmem pointer to output polynomial
  * @param[in]  w31: all-zero
- * @param[out] x10: dmem pointer to result
  *
  * clobbered registers: x4-x30, w0-w23, w30
  */
-.global intt
+
+.globl intt
 intt:
-  /* save fp to stack */
-  addi sp, sp, -32
-  sw   fp, 0(sp)
+  /* Empty w18 */
+  bn.xor w18, w18, w18
 
-  addi fp, sp, 0
-  
-  /* Adjust sp to accomodate local variables */
-  addi sp, sp, -512
-
-
-  /* In place */
-  /* addi x12, x10, 0 */
-
-  /* Set up constants for input/twiddle factors */
-  li x23, 16
-
+  /* Set up wide registers for input and intermediate states */
+  li x4, 0
+  li x5, 1 
+  li x6, 2 
+  li x7, 3 
+  li x3, 4 
+  li x9, 5 
+  li x13, 6 
+  li x14, 7 
   li x15, 8
   li x16, 9
   li x17, 10
@@ -46,1197 +49,636 @@ intt:
   li x21, 14
   li x22, 15
 
-  li x4, 31
-  li x5, 30
-  li x6, 29
-  li x7, 28
-  li x3, 27
-  li x9, 26
-  li x13, 25
-  li x14, 24
-  li x24, 17
-  li x25, 18
-  li x26, 19
-  li x29, 21
-  li x30, 23
+  /* Set up wide registers for input and twiddle factors */
+  li x23, 17
 
-  /* Zero out one register */
-  bn.xor w18, w18, w18
-  /* 0xFFFFFFFF for masking */
-  bn.addi w17, w18, 1
-  bn.rshi w17, w17, w18 >> 224
-  bn.subi w17, w17, 1 
+  /* Load input */
+  bn.lid x4,  0(x10++)
+  bn.lid x5,  0(x10++)
+  bn.lid x6,  0(x10++)
+  bn.lid x7,  0(x10++)
+  bn.lid x3,  0(x10++)
+  bn.lid x9,  0(x10++)
+  bn.lid x13, 0(x10++)
+  bn.lid x14, 0(x10++)
+  bn.lid x15, 0(x10++)
+  bn.lid x16, 0(x10++)
+  bn.lid x17, 0(x10++)
+  bn.lid x18, 0(x10++)
+  bn.lid x19, 0(x10++)
+  bn.lid x20, 0(x10++)
+  bn.lid x21, 0(x10++)
+  bn.lid x22, 0(x10++)
 
-  /* Set second WLEN/4 quad word to modulus */
-  la     x27, modulus
-  li     x28, 20 /* Load q to w20 */
-  bn.lid x28, 0(x27)
-  bn.and w20, w20, w17
-  bn.or  w22, w18, w20 << 128
-  /* Load alpha to w22.1 */
-  bn.addi w20, w18, 1
-  bn.or   w22, w22, w20 << 64
-  /* Load mask to w22.3 */
-  bn.or w22, w22, w17 << 192   
-
-  bn.rshi w17, w18, w17 >> 16
-
-  LOOPI 16, 204
-    /* Load Data */
-    bn.lid  x4, 0(x10)
-    bn.and  w0, w17, w31 >> 0
-    bn.and  w1, w17, w31 >> 16
-    bn.and  w2, w17, w31 >> 32
-    bn.and  w3, w17, w31 >> 48
-    bn.and  w4, w17, w31 >> 64
-    bn.and  w5, w17, w31 >> 80
-    bn.and  w6, w17, w31 >> 96
-    bn.and  w7, w17, w31 >> 112
-    bn.and  w8, w17, w31 >> 128
-    bn.and  w9, w17, w31 >> 144
-    bn.and  w10, w17, w31 >> 160
-    bn.and  w11, w17, w31 >> 176
-    bn.and  w12, w17, w31 >> 192
-    bn.and  w13, w17, w31 >> 208
-    bn.and  w14, w17, w31 >> 224
-    bn.and  w15, w17, w31 >> 240
-
-    /* Layer 7, stride 2 */
-    /* Load layer 7 4x */
-    bn.lid x23, 0(x11++)
-
-    bn.subm w20, w0, w2
-    bn.addm w0, w0, w2
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w2, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w1, w3
-    bn.addm w1, w1, w3
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w4, w6
-    bn.addm w4, w4, w6
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w5, w7
-    bn.addm w5, w5, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w8, w10
-    bn.addm w8, w8, w10
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w10, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w9, w11
-    bn.addm w9, w9, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w12, w14
-    bn.addm w12, w12, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w13, w15
-    bn.addm w13, w13, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 6, stride 4 */
-    /* Load layer 6 x2 + layer 5 x1 + pad */
-    bn.lid x23, 0(x11++)
-
-    bn.subm w20, w0, w4
-    bn.addm w0, w0, w4
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w4, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w1, w5
-    bn.addm w1, w1, w5
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w2, w6
-    bn.addm w2, w2, w6
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w3, w7
-    bn.addm w3, w3, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w8, w12
-    bn.addm w8, w8, w12
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w12, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w9, w13
-    bn.addm w9, w9, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w10, w14
-    bn.addm w10, w10, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w11, w15
-    bn.addm w11, w11, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 5, stride 8 */   
-
-    bn.subm w20, w0, w8
-    bn.addm w0, w0, w8
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w8, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w1, w9
-    bn.addm w1, w1, w9
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w9, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w2, w10
-    bn.addm w2, w2, w10
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w10, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w3, w11
-    bn.addm w3, w3, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w4, w12
-    bn.addm w4, w4, w12
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w12, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w5, w13
-    bn.addm w5, w5, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w6, w14
-    bn.addm w6, w6, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-      
-    bn.subm w20, w7, w15
-    bn.addm w7, w7, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Reassemble WDRs and store */
-    bn.rshi w31, w0, w31 >> 16
-    bn.rshi w31, w1, w31 >> 16
-    bn.rshi w31, w2, w31 >> 16
-    bn.rshi w31, w3, w31 >> 16
-    bn.rshi w31, w4, w31 >> 16
-    bn.rshi w31, w5, w31 >> 16
-    bn.rshi w31, w6, w31 >> 16
-    bn.rshi w31, w7, w31 >> 16
-    bn.rshi w31, w8, w31 >> 16
-    bn.rshi w31, w9, w31 >> 16
-    bn.rshi w31, w10, w31 >> 16
-    bn.rshi w31, w11, w31 >> 16
-    bn.rshi w31, w12, w31 >> 16
-    bn.rshi w31, w13, w31 >> 16
-    bn.rshi w31, w14, w31 >> 16
-    bn.rshi w31, w15, w31 >> 16
-    bn.sid x4, 0(x10++)
-
-  /* Restore output pointer */
-  addi x10, x10, -512
-
-  /* Set up constants for input/twiddle factors */
-  li x23, 16   
-
-  /* We can process 16 coefficients each iteration and need to process N=256, meaning we require 16 iterations. */
-  bn.lid x4, 0(x10)
-  bn.lid x5, 32(x10)
-  bn.lid x6, 64(x10)
-  bn.lid x7, 96(x10)
-  bn.lid x3, 128(x10)
-  bn.lid x9, 160(x10)
-  bn.lid x13, 192(x10)
-  bn.lid x14, 224(x10)
-  bn.lid x24, 256(x10)
-  bn.lid x25, 288(x10)
-  bn.lid x26, 320(x10)
-  bn.lid x29, 352(x10)
-  bn.lid x30, 384(x10)
-  LOOPI 8, 635
-    /* Extract coefficients from buffer registers into working state */
-    bn.and w0, w31, w22 >> 208
-    bn.and w1, w30, w22 >> 208
-    bn.and w2, w29, w22 >> 208
-    bn.and w3, w28, w22 >> 208
-    bn.and w4, w27, w22 >> 208
-    bn.and w5, w26, w22 >> 208
-    bn.and w6, w25, w22 >> 208
-    bn.and w7, w24, w22 >> 208
-    bn.and w8, w17, w22 >> 208
-    bn.and w9, w18, w22 >> 208
-#    bn.and w10, w18, w22 >> 208
-    bn.and w10, w19, w22 >> 208
-    bn.and w11, w21, w22 >> 208
-    bn.and w12, w23, w22 >> 208
-
-    /* Coeff 13 */
-    lw     x27, 416(x10)
-    sw     x27, -448(fp)
-    bn.lid x20, -448(x8)
-    bn.and w13, w13, w22 >> 208
-
-    /* Coeff 14 */
-    lw     x27, 448(x10)
-    sw     x27, -480(fp)
-    bn.lid x21, -480(x8)
-    bn.and w14, w14, w22 >> 208
-
-    /* Coeff 15 */
-    lw     x27, 480(x10)
-    sw     x27, -512(fp)
-    bn.lid x22, -512(x8)
-    bn.and w15, w15, w22 >> 208
-
-    bn.lid x23, 0(x11)
-
-    /* Layer 4, stride 16 */    
-    bn.subm w20, w0, w1
-    bn.addm w0, w0, w1
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w1, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w2, w3
-    bn.addm w2, w2, w3
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w4, w5
-    bn.addm w4, w4, w5
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w6, w7
-    bn.addm w6, w6, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-    
-    /* Load layer 4 twiddle 4x */
-    bn.lid x23, 32(x11)
-
-    bn.subm w20, w8, w9
-    bn.addm w8, w8, w9
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w9, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w10, w11
-    bn.addm w10, w10, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w12, w13
-    bn.addm w12, w12, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w14, w15
-    bn.addm w14, w14, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 3, stride 32 */
-    /* Load layer 3 4x */
-    bn.lid x23, 64(x11)
-
-    bn.subm w20, w0, w2
-    bn.addm w0, w0, w2
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w2, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w1, w3
-    bn.addm w1, w1, w3
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w4, w6
-    bn.addm w4, w4, w6
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w5, w7
-    bn.addm w5, w5, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w8, w10
-    bn.addm w8, w8, w10
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w10, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w9, w11
-    bn.addm w9, w9, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w12, w14
-    bn.addm w12, w12, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w13, w15
-    bn.addm w13, w13, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 2, stride 64 */
-    /* Load layer 2 x2 + layer 1 x1 + pad */
-    bn.lid x23, 96(x11)
-
-    bn.subm w20, w0, w4
-    bn.addm w0, w0, w4
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w4, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w1, w5
-    bn.addm w1, w1, w5
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w2, w6
-    bn.addm w2, w2, w6
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w3, w7
-    bn.addm w3, w3, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w8, w12
-    bn.addm w8, w8, w12
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w12, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w9, w13
-    bn.addm w9, w9, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w10, w14
-    bn.addm w10, w10, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w11, w15
-    bn.addm w11, w11, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 1, stride 128 */   
-
-    bn.subm w20, w0, w8
-    bn.addm w0, w0, w8
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w8, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w1, w9
-    bn.addm w1, w1, w9
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w9, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w2, w10
-    bn.addm w2, w2, w10
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w10, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w3, w11
-    bn.addm w3, w3, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w4, w12
-    bn.addm w4, w4, w12
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w12, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w5, w13
-    bn.addm w5, w5, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w6, w14
-    bn.addm w6, w6, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w7, w15
-    bn.addm w7, w7, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Mul ninv */
-    bn.mulqacc.wo.z w20, w0.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w0, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w1.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w1, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w2.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w2, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w3.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w4.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w4, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w5.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w6.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w7.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-
-    /* Shift result values into the top of buffer registers */
-    /* implicitly removes the old value */
-    bn.rshi w31, w0, w31 >> 16
-    bn.rshi w30, w1, w30 >> 16
-    bn.rshi w29, w2, w29 >> 16
-    bn.rshi w28, w3, w28 >> 16
-    bn.rshi w27, w4, w27 >> 16
-    bn.rshi w26, w5, w26 >> 16
-    bn.rshi w25, w6, w25 >> 16
-    bn.rshi w24, w7, w24 >> 16
-    bn.rshi w17, w8, w17 >> 16
-    bn.rshi w18, w9, w18 >> 16
-#    bn.rshi w18, w10, w18 >> 16    
-    bn.rshi w19, w10, w19 >> 16
-    bn.rshi w21, w11, w21 >> 16
-    bn.rshi w23, w12, w23 >> 16
-
-    /* Store unbuffered values */
-    /* Coeff13 */
-    bn.sid x20, -416(x8)
-    lw     x27, -416(fp)
-    sw     x27, 416(x12)
-    /* Coeff14 */
-    bn.sid x21, -416(x8)
-    lw     x27, -416(fp)
-    sw     x27, 448(x12)
-    /* Coeff15 */
-    bn.sid x22, -416(x8)
-    lw     x27, -416(fp)
-    sw     x27, 480(x12)
-
-    /* Extract coefficients from buffer registers into working state */
-    bn.and w0, w31, w22 >> 208
-    bn.and w1, w30, w22 >> 208
-    bn.and w2, w29, w22 >> 208
-    bn.and w3, w28, w22 >> 208
-    bn.and w4, w27, w22 >> 208
-    bn.and w5, w26, w22 >> 208
-    bn.and w6, w25, w22 >> 208
-    bn.and w7, w24, w22 >> 208
-    bn.and w8, w17, w22 >> 208
-    bn.and w9, w18, w22 >> 208
-#    bn.and w10, w18, w22 >> 208    
-    bn.and w10, w19, w22 >> 208
-    bn.and w11, w21, w22 >> 208
-    bn.and w12, w23, w22 >> 208
-
-    /* Coeff 13 */
-    bn.lid  x20, -448(x8)
-    bn.rshi w13, w22, w13 >> 16
-
-    /* Coeff 14 */
-    bn.lid  x21, -480(x8)
-    bn.rshi w14, w22, w14 >> 16
-
-    /* Coeff 15 */
-    bn.lid  x22, -512(x8)
-    bn.rshi w15, w22, w15 >> 16
-
-    bn.lid x23, 0(x11)
-
-    /* Layer 4, stride 16 */    
-    bn.subm w20, w0, w1
-    bn.addm w0, w0, w1
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w1, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w2, w3
-    bn.addm w2, w2, w3
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w4, w5
-    bn.addm w4, w4, w5
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w6, w7
-    bn.addm w6, w6, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-    
-    /* Load layer 4 twiddle 4x */
-    bn.lid x23, 32(x11)
-
-    bn.subm w20, w8, w9
-    bn.addm w8, w8, w9
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w9, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w10, w11
-    bn.addm w10, w10, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w12, w13
-    bn.addm w12, w12, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w14, w15
-    bn.addm w14, w14, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 3, stride 32 */
-    /* Load layer 3 4x */
-    bn.lid x23, 64(x11)
-
-    bn.subm w20, w0, w2
-    bn.addm w0, w0, w2
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w2, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w1, w3
-    bn.addm w1, w1, w3
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w4, w6
-    bn.addm w4, w4, w6
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w5, w7
-    bn.addm w5, w5, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w8, w10
-    bn.addm w8, w8, w10
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w10, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w9, w11
-    bn.addm w9, w9, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w12, w14
-    bn.addm w12, w12, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w13, w15
-    bn.addm w13, w13, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 2, stride 64 */
-    /* Load layer 2 x2 + layer 1 x1 + pad */
-    bn.lid x23, 96(x11)
-
-    bn.subm w20, w0, w4
-    bn.addm w0, w0, w4
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w4, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w1, w5
-    bn.addm w1, w1, w5
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w2, w6
-    bn.addm w2, w2, w6
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w3, w7
-    bn.addm w3, w3, w7
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.0, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w8, w12
-    bn.addm w8, w8, w12
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w12, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w9, w13
-    bn.addm w9, w9, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w10, w14
-    bn.addm w10, w10, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w11, w15
-    bn.addm w11, w11, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.1, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Layer 1, stride 128 */   
-
-    bn.subm w20, w0, w8
-    bn.addm w0, w0, w8
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w8, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w1, w9
-    bn.addm w1, w1, w9
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w9, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w2, w10
-    bn.addm w2, w2, w10
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w10, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w3, w11
-    bn.addm w3, w3, w11
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w11, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w4, w12
-    bn.addm w4, w4, w12
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w12, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w5, w13
-    bn.addm w5, w5, w13
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w13, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w6, w14
-    bn.addm w6, w6, w14
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w14, w22, w20 >> 16 /* >> l */
-    
-    bn.subm w20, w7, w15
-    bn.addm w7, w7, w15
-    /* Plantard multiplication: Twiddle * (a-b) */
-    bn.mulqacc.wo.z w20, w20.0, w16.2, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w15, w22, w20 >> 16 /* >> l */
-
-    /* Mul ninv */
-    bn.mulqacc.wo.z w20, w0.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w0, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w1.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w1, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w2.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w2, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w3.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w3, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w4.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w4, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w5.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w5, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w6.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w6, w22, w20 >> 16 /* >> l */
-
-    bn.mulqacc.wo.z w20, w7.0, w16.3, 192 /* a*bq' */
-    bn.and          w20, w20, w22
-    bn.add          w20, w22, w20 >> 144 /* + 2^alpha = 2^8 */
-    bn.mulqacc.wo.z w20, w20.1, w22.2, 0 /* *q */
-    bn.rshi         w7, w22, w20 >> 16 /* >> l */
-
-    /* Shift result values into the top of buffer registers */
-    /* implicitly removes the old value */
-    bn.rshi w31, w0, w31 >> 16
-    bn.rshi w30, w1, w30 >> 16
-    bn.rshi w29, w2, w29 >> 16
-    bn.rshi w28, w3, w28 >> 16
-    bn.rshi w27, w4, w27 >> 16
-    bn.rshi w26, w5, w26 >> 16
-    bn.rshi w25, w6, w25 >> 16
-    bn.rshi w24, w7, w24 >> 16
-    bn.rshi w17, w8, w17 >> 16
-    bn.rshi w18, w9, w18 >> 16
-#    bn.rshi w18, w10, w18 >> 16    
-    bn.rshi w19, w10, w19 >> 16
-    bn.rshi w21, w11, w21 >> 16
-    bn.rshi w23, w12, w23 >> 16
-
-    /* Store unbuffered values */
-    /* Coeff13 */
-    bn.sid x20, -416(x8)
-    lw     x27, -416(fp)
-    sll    x27, x27, 16
-    lw     x28, 416(x12)
-    xor    x27, x27, x28
-    sw     x27, 416(x12)
+  /* Transpose for Layers 7--5 */
+  /* First trans w24-w31 */
+  bn.trn1.8S w24, w0, w1
+  bn.trn2.8S w25, w0, w1 
+  bn.trn1.8S w26, w2, w3  
+  bn.trn2.8S w27, w2, w3
+  bn.trn1.8S w28, w4, w5
+  bn.trn2.8S w29, w4, w5
+  bn.trn1.8S w30, w6, w7
+  bn.trn2.8S w31, w6, w7 
   
-    /* Coeff14 */
-    bn.sid x21, -416(x8)
-    lw     x27, -416(fp)
-    sll    x27, x27, 16
-    lw     x28, 448(x12)
-    xor    x27, x27, x28
-    sw     x27, 448(x12)
+  bn.trn1.4D w0, w24, w26
+  bn.trn2.4D w2, w24, w26 
+  bn.trn1.4D w1, w25, w27
+  bn.trn2.4D w3, w25, w27 
+  bn.trn1.4D w4, w28, w30 
+  bn.trn2.4D w6, w28, w30 
+  bn.trn1.4D w5, w29, w31
+  bn.trn2.4D w7, w29, w31 
+  
+  bn.trn1.2Q w24, w0, w4 
+  bn.trn2.2Q w28, w0, w4 
+  bn.trn1.2Q w25, w1, w5 
+  bn.trn2.2Q w29, w1, w5 
+  bn.trn1.2Q w26, w2, w6
+  bn.trn2.2Q w30, w2, w6
+  bn.trn1.2Q w27, w3, w7
+  bn.trn2.2Q w31, w3, w7  
 
-    /* Coeff15 */
-    bn.sid x22, -416(x8)
-    lw     x27, -416(fp)
-    sll    x27, x27, 16
-    lw     x28, 480(x12)
-    xor    x27, x27, x28
-    sw     x27, 480(x12)
-    
-    /* Go to next coefficient for the unbuffered loads/stores */
-    addi x10, x10, 4
-    addi x12, x12, 4
+  /* Second trans w0-w7 */
+  bn.trn1.8S w0, w8, w9
+  bn.trn2.8S w1, w8, w9 
+  bn.trn1.8S w2, w10, w11  
+  bn.trn2.8S w3, w10, w11
+  bn.trn1.8S w4, w12, w13
+  bn.trn2.8S w5, w12, w13
+  bn.trn1.8S w6, w14, w15
+  bn.trn2.8S w7, w14, w15 
 
-  addi x12, x12, -32
-  addi x10, x10, 480 /* for next input poly */
-  /* Subtract 32 from offset to account for the increment inside the LOOP 8 */
-  bn.sid x4, 0(x12)
-  bn.sid x5, 32(x12)
-  bn.sid x6, 64(x12)
-  bn.sid x7, 96(x12)
-  bn.sid x3, 128(x12)
-  bn.sid x9, 160(x12)
-  bn.sid x13, 192(x12)
-  bn.sid x14, 224(x12)
-  bn.sid x24, 256(x12)
-  bn.sid x25, 288(x12)
-  bn.sid x26, 320(x12)
-  bn.sid x29, 352(x12)
-  bn.sid x30, 384(x12)
+  bn.trn1.4D w8, w0, w2
+  bn.trn2.4D w10, w0, w2 
+  bn.trn1.4D w9, w1, w3
+  bn.trn2.4D w11, w1, w3 
+  bn.trn1.4D w12, w4, w6 
+  bn.trn2.4D w14, w4, w6 
+  bn.trn1.4D w13, w5, w7
+  bn.trn2.4D w15, w5, w7 
 
-  /* Zero w31 again */
-  bn.xor w31, w31, w31
+  bn.trn1.2Q w0, w8, w12 
+  bn.trn2.2Q w4, w8, w12 
+  bn.trn1.2Q w1, w9, w13 
+  bn.trn2.2Q w5, w9, w13 
+  bn.trn1.2Q w2, w10, w14
+  bn.trn2.2Q w6, w10, w14
+  bn.trn1.2Q w3, w11, w15
+  bn.trn2.2Q w7, w11, w15 
 
-  addi x12, x12, 512 /* for next output poly */
+  /* Layer 7, stride 2 */
 
-  /* sp <- fp */
-  addi sp, fp, 0
-  /* Pop ebp */
-  lw   fp, 0(sp)
-  addi sp, sp, 32
+
+  bn.lid x23, 0(x11) /* Load twiddle factors */
+
+  /* Butterflies */
+  bn.subvm.16H         w8, w24, w25
+  bn.addvm.16H         w24, w24, w25
+  bn.mulv.16H.acc.z.lo w25, w8, w17
+  bn.mulv.l.16H.lo     w25, w25, sw0.2
+  bn.mulv.l.16H.acc.hi w25, w25, sw0.0
+  bn.addvm.16H         w25, w25, w18
+
+  bn.lid x23, 32(x11) /* Load twiddle factors */
+  
+  bn.subvm.16H         w8, w26, w27
+  bn.addvm.16H         w26, w26, w27
+  bn.mulv.16H.acc.z.lo w27, w8, w17
+  bn.mulv.l.16H.lo     w27, w27, sw0.2
+  bn.mulv.l.16H.acc.hi w27, w27, sw0.0
+  bn.addvm.16H         w27, w27, w18
+  
+  bn.lid x23, 64(x11) /* Load twiddle factors */
+  
+  bn.subvm.16H         w8, w28, w29
+  bn.addvm.16H         w28, w28, w29
+  bn.mulv.16H.acc.z.lo w29, w8, w17
+  bn.mulv.l.16H.lo     w29, w29, sw0.2
+  bn.mulv.l.16H.acc.hi w29, w29, sw0.0
+  bn.addvm.16H         w29, w29, w18
+
+  bn.lid x23, 96(x11) /* Load twiddle factors */
+  
+  bn.subvm.16H         w8, w30, w31
+  bn.addvm.16H         w30, w30, w31
+  bn.mulv.16H.acc.z.lo w31, w8, w17
+  bn.mulv.l.16H.lo     w31, w31, sw0.2
+  bn.mulv.l.16H.acc.hi w31, w31, sw0.0
+  bn.addvm.16H         w31, w31, w18
+
+  bn.lid x23, 128(x11) /* Load twiddle factors */
+  
+  bn.subvm.16H         w8, w0, w1
+  bn.addvm.16H         w0, w0, w1
+  bn.mulv.16H.acc.z.lo w1, w8, w17
+  bn.mulv.l.16H.lo     w1, w1, sw0.2
+  bn.mulv.l.16H.acc.hi w1, w1, sw0.0
+  bn.addvm.16H         w1, w1, w18
+
+  bn.lid x23, 160(x11) /* Load twiddle factors */
+  
+  bn.subvm.16H         w8, w2, w3
+  bn.addvm.16H         w2, w2, w3
+  bn.mulv.16H.acc.z.lo w3, w8, w17
+  bn.mulv.l.16H.lo     w3, w3, sw0.2
+  bn.mulv.l.16H.acc.hi w3, w3, sw0.0
+  bn.addvm.16H         w3, w3, w18
+
+  bn.lid x23, 192(x11) /* Load twiddle factors */
+
+  bn.subvm.16H         w8, w4, w5
+  bn.addvm.16H         w4, w4, w5
+  bn.mulv.16H.acc.z.lo w5, w8, w17
+  bn.mulv.l.16H.lo     w5, w5, sw0.2
+  bn.mulv.l.16H.acc.hi w5, w5, sw0.0
+  bn.addvm.16H         w5, w5, w18
+
+  bn.lid x23, 224(x11) /* Load twiddle factors */
+
+  bn.subvm.16H         w8, w6, w7
+  bn.addvm.16H         w6, w6, w7
+  bn.mulv.16H.acc.z.lo w7, w8, w17
+  bn.mulv.l.16H.lo     w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi w7, w7, sw0.0
+  bn.addvm.16H         w7, w7, w18
+
+  /* Layer 6, stride 4 */
+
+  bn.lid x23, 256(x11) /* Load twiddle factors */
+  
+  /* Butterflies */
+  bn.subvm.16H         w8, w24, w26
+  bn.addvm.16H         w24, w24, w26
+  bn.mulv.16H.acc.z.lo w26, w8, w17
+  bn.mulv.l.16H.lo     w26, w26, sw0.2
+  bn.mulv.l.16H.acc.hi w26, w26, sw0.0
+  bn.addvm.16H         w26, w26, w18
+
+  bn.subvm.16H         w8, w25, w27
+  bn.addvm.16H         w25, w25, w27
+  bn.mulv.16H.acc.z.lo w27, w8, w17
+  bn.mulv.l.16H.lo     w27, w27, sw0.2
+  bn.mulv.l.16H.acc.hi w27, w27, sw0.0
+  bn.addvm.16H         w27, w27, w18
+
+  bn.lid x23, 288(x11) /* Load twiddle factors */
+
+  bn.subvm.16H         w8, w28, w30
+  bn.addvm.16H         w28, w28, w30
+  bn.mulv.16H.acc.z.lo w30, w8, w17
+  bn.mulv.l.16H.lo     w30, w30, sw0.2
+  bn.mulv.l.16H.acc.hi w30, w30, sw0.0
+  bn.addvm.16H         w30, w30, w18
+
+  bn.subvm.16H         w8, w29, w31
+  bn.addvm.16H         w29, w29, w31
+  bn.mulv.16H.acc.z.lo w31, w8, w17
+  bn.mulv.l.16H.lo     w31, w31, sw0.2
+  bn.mulv.l.16H.acc.hi w31, w31, sw0.0
+  bn.addvm.16H         w31, w31, w18
+
+  bn.lid x23, 320(x11) /* Load twiddle factors */
+
+  bn.subvm.16H         w8, w0, w2
+  bn.addvm.16H         w0, w0, w2
+  bn.mulv.16H.acc.z.lo w2, w8, w17
+  bn.mulv.l.16H.lo     w2, w2, sw0.2
+  bn.mulv.l.16H.acc.hi w2, w2, sw0.0
+  bn.addvm.16H         w2, w2, w18
+
+  bn.subvm.16H         w8, w1, w3
+  bn.addvm.16H         w1, w1, w3
+  bn.mulv.16H.acc.z.lo w3, w8, w17
+  bn.mulv.l.16H.lo     w3, w3, sw0.2
+  bn.mulv.l.16H.acc.hi w3, w3, sw0.0
+  bn.addvm.16H         w3, w3, w18
+
+  bn.lid x23, 352(x11) /* Load twiddle factors */
+
+  bn.subvm.16H         w8, w4, w6
+  bn.addvm.16H         w4, w4, w6
+  bn.mulv.16H.acc.z.lo w6, w8, w17
+  bn.mulv.l.16H.lo     w6, w6, sw0.2
+  bn.mulv.l.16H.acc.hi w6, w6, sw0.0
+  bn.addvm.16H         w6, w6, w18
+
+  bn.subvm.16H         w8, w5, w7
+  bn.addvm.16H         w5, w5, w7
+  bn.mulv.16H.acc.z.lo w7, w8, w17
+  bn.mulv.l.16H.lo     w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi w7, w7, sw0.0
+  bn.addvm.16H         w7, w7, w18
+
+  /* Layer 5, stride 8 */
+
+  bn.lid x23, 384(x11) /* Load twiddle factors */ 
+
+  /* Butterflies */
+  bn.subvm.16H         w8, w24, w28
+  bn.addvm.16H         w24, w24, w28
+  bn.mulv.16H.acc.z.lo w28, w8, w17
+  bn.mulv.l.16H.lo     w28, w28, sw0.2
+  bn.mulv.l.16H.acc.hi w28, w28, sw0.0
+  bn.addvm.16H         w28, w28, w18
+
+  bn.subvm.16H         w8, w25, w29
+  bn.addvm.16H         w25, w25, w29
+  bn.mulv.16H.acc.z.lo w29, w8, w17
+  bn.mulv.l.16H.lo     w29, w29, sw0.2
+  bn.mulv.l.16H.acc.hi w29, w29, sw0.0
+  bn.addvm.16H         w29, w29, w18
+
+  bn.subvm.16H         w8, w26, w30
+  bn.addvm.16H         w26, w26, w30
+  bn.mulv.16H.acc.z.lo w30, w8, w17
+  bn.mulv.l.16H.lo     w30, w30, sw0.2
+  bn.mulv.l.16H.acc.hi w30, w30, sw0.0
+  bn.addvm.16H         w30, w30, w18
+
+  bn.subvm.16H         w8, w27, w31
+  bn.addvm.16H         w27, w27, w31
+  bn.mulv.16H.acc.z.lo w31, w8, w17
+  bn.mulv.l.16H.lo     w31, w31, sw0.2
+  bn.mulv.l.16H.acc.hi w31, w31, sw0.0
+  bn.addvm.16H         w31, w31, w18
+
+  bn.lid x23, 416(x11) /* Load twiddle factors */
+
+  bn.subvm.16H         w8, w0, w4
+  bn.addvm.16H         w0, w0, w4
+  bn.mulv.16H.acc.z.lo w4, w8, w17
+  bn.mulv.l.16H.lo     w4, w4, sw0.2
+  bn.mulv.l.16H.acc.hi w4, w4, sw0.0
+  bn.addvm.16H         w4, w4, w18
+
+  bn.subvm.16H         w8, w1, w5
+  bn.addvm.16H         w1, w1, w5
+  bn.mulv.16H.acc.z.lo w5, w8, w17
+  bn.mulv.l.16H.lo     w5, w5, sw0.2
+  bn.mulv.l.16H.acc.hi w5, w5, sw0.0
+  bn.addvm.16H         w5, w5, w18
+
+  bn.subvm.16H         w8, w2, w6
+  bn.addvm.16H         w2, w2, w6
+  bn.mulv.16H.acc.z.lo w6, w8, w17
+  bn.mulv.l.16H.lo     w6, w6, sw0.2
+  bn.mulv.l.16H.acc.hi w6, w6, sw0.0
+  bn.addvm.16H         w6, w6, w18
+
+  bn.subvm.16H         w8, w3, w7
+  bn.addvm.16H         w3, w3, w7
+  bn.mulv.16H.acc.z.lo w7, w8, w17
+  bn.mulv.l.16H.lo     w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi w7, w7, sw0.0
+  bn.addvm.16H         w7, w7, w18
+
+  /* Transpose back */
+  /* First trans w8-w15 */
+  bn.trn1.8S w8, w0, w1
+  bn.trn2.8S w9, w0, w1 
+  bn.trn1.8S w10, w2, w3  
+  bn.trn2.8S w11, w2, w3
+  bn.trn1.8S w12, w4, w5
+  bn.trn2.8S w13, w4, w5
+  bn.trn1.8S w14, w6, w7
+  bn.trn2.8S w15, w6, w7 
+  
+  bn.trn1.4D w0, w8, w10
+  bn.trn2.4D w2, w8, w10 
+  bn.trn1.4D w1, w9, w11
+  bn.trn2.4D w3, w9, w11 
+  bn.trn1.4D w4, w12, w14 
+  bn.trn2.4D w6, w12, w14 
+  bn.trn1.4D w5, w13, w15
+  bn.trn2.4D w7, w13, w15 
+  
+  bn.trn1.2Q w8, w0, w4 
+  bn.trn2.2Q w12, w0, w4 
+  bn.trn1.2Q w9, w1, w5 
+  bn.trn2.2Q w13, w1, w5 
+  bn.trn1.2Q w10, w2, w6
+  bn.trn2.2Q w14, w2, w6
+  bn.trn1.2Q w11, w3, w7
+  bn.trn2.2Q w15, w3, w7  
+
+  /* Second trans w0-w7 */
+  bn.trn1.8S w0, w24, w25
+  bn.trn2.8S w1, w24, w25 
+  bn.trn1.8S w2, w26, w27  
+  bn.trn2.8S w3, w26, w27
+  bn.trn1.8S w4, w28, w29
+  bn.trn2.8S w5, w28, w29
+  bn.trn1.8S w6, w30, w31
+  bn.trn2.8S w7, w30, w31 
+
+  bn.trn1.4D w24, w0, w2
+  bn.trn2.4D w26, w0, w2 
+  bn.trn1.4D w25, w1, w3
+  bn.trn2.4D w27, w1, w3 
+  bn.trn1.4D w28, w4, w6 
+  bn.trn2.4D w30, w4, w6 
+  bn.trn1.4D w29, w5, w7
+  bn.trn2.4D w31, w5, w7 
+
+  bn.trn1.2Q w0, w24, w28 
+  bn.trn2.2Q w4, w24, w28 
+  bn.trn1.2Q w1, w25, w29 
+  bn.trn2.2Q w5, w25, w29 
+  bn.trn1.2Q w2, w26, w30
+  bn.trn2.2Q w6, w26, w30
+  bn.trn1.2Q w3, w27, w31
+  bn.trn2.2Q w7, w27, w31 
+
+  /* Layer 4, stride 16 */
+  /* Load twiddle factors */
+  bn.lid x23, 448(x11) 
+
+  /* Butterflies */
+  bn.subvm.16H           w30, w0, w1
+  bn.addvm.16H           w0, w0, w1
+  bn.mulv.l.16H.acc.z.lo w1, w30, sw1.0
+  bn.mulv.l.16H.lo       w1, w1, sw0.2
+  bn.mulv.l.16H.acc.hi   w1, w1, sw0.0
+  bn.addvm.16H           w1, w1, w18
+
+  bn.subvm.16H           w30, w2, w3
+  bn.addvm.16H           w2, w2, w3
+  bn.mulv.l.16H.acc.z.lo w3, w30, sw1.1
+  bn.mulv.l.16H.lo       w3, w3, sw0.2
+  bn.mulv.l.16H.acc.hi   w3, w3, sw0.0
+  bn.addvm.16H           w3, w3, w18
+
+  bn.subvm.16H           w30, w4, w5
+  bn.addvm.16H           w4, w4, w5
+  bn.mulv.l.16H.acc.z.lo w5, w30, sw1.2
+  bn.mulv.l.16H.lo       w5, w5, sw0.2
+  bn.mulv.l.16H.acc.hi   w5, w5, sw0.0
+  bn.addvm.16H           w5, w5, w18
+
+  bn.subvm.16H           w30, w6, w7
+  bn.addvm.16H           w6, w6, w7
+  bn.mulv.l.16H.acc.z.lo w7, w30, sw1.3
+  bn.mulv.l.16H.lo       w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi   w7, w7, sw0.0
+  bn.addvm.16H           w7, w7, w18
+
+  bn.subvm.16H           w30, w8, w9
+  bn.addvm.16H           w8, w8, w9
+  bn.mulv.l.16H.acc.z.lo w9, w30, sw1.4
+  bn.mulv.l.16H.lo       w9, w9, sw0.2
+  bn.mulv.l.16H.acc.hi   w9, w9, sw0.0
+  bn.addvm.16H           w9, w9, w18
+
+  bn.subvm.16H           w30, w10, w11
+  bn.addvm.16H           w10, w10, w11
+  bn.mulv.l.16H.acc.z.lo w11, w30, sw1.5
+  bn.mulv.l.16H.lo       w11, w11, sw0.2
+  bn.mulv.l.16H.acc.hi   w11, w11, sw0.0
+  bn.addvm.16H           w11, w11, w18
+
+  bn.subvm.16H           w30, w12, w13
+  bn.addvm.16H           w12, w12, w13
+  bn.mulv.l.16H.acc.z.lo w13, w30, sw1.6
+  bn.mulv.l.16H.lo       w13, w13, sw0.2
+  bn.mulv.l.16H.acc.hi   w13, w13, sw0.0
+  bn.addvm.16H           w13, w13, w18
+
+  bn.subvm.16H           w30, w14, w15
+  bn.addvm.16H           w14, w14, w15
+  bn.mulv.l.16H.acc.z.lo w15, w30, sw1.7
+  bn.mulv.l.16H.lo       w15, w15, sw0.2
+  bn.mulv.l.16H.acc.hi   w15, w15, sw0.0
+  bn.addvm.16H           w15, w15, w18
+
+  /* Layer 3, stride 32 */
+  bn.subvm.16H           w30, w0, w2
+  bn.addvm.16H           w0, w0, w2
+  bn.mulv.l.16H.acc.z.lo w2, w30, sw1.8
+  bn.mulv.l.16H.lo       w2, w2, sw0.2
+  bn.mulv.l.16H.acc.hi   w2, w2, sw0.0
+  bn.addvm.16H           w2, w2, w18
+
+  bn.subvm.16H           w30, w1, w3
+  bn.addvm.16H           w1, w1, w3
+  bn.mulv.l.16H.acc.z.lo w3, w30, sw1.8
+  bn.mulv.l.16H.lo       w3, w3, sw0.2
+  bn.mulv.l.16H.acc.hi   w3, w3, sw0.0
+  bn.addvm.16H           w3, w3, w18
+
+  bn.subvm.16H           w30, w4, w6
+  bn.addvm.16H           w4, w4, w6
+  bn.mulv.l.16H.acc.z.lo w6, w30, sw1.9
+  bn.mulv.l.16H.lo       w6, w6, sw0.2
+  bn.mulv.l.16H.acc.hi   w6, w6, sw0.0
+  bn.addvm.16H           w6, w6, w18
+
+  bn.subvm.16H           w30, w5, w7
+  bn.addvm.16H           w5, w5, w7
+  bn.mulv.l.16H.acc.z.lo w7, w30, sw1.9
+  bn.mulv.l.16H.lo       w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi   w7, w7, sw0.0
+  bn.addvm.16H           w7, w7, w18
+
+  bn.subvm.16H           w30, w8, w10
+  bn.addvm.16H           w8, w8, w10
+  bn.mulv.l.16H.acc.z.lo w10, w30, sw1.10
+  bn.mulv.l.16H.lo       w10, w10, sw0.2
+  bn.mulv.l.16H.acc.hi   w10, w10, sw0.0
+  bn.addvm.16H           w10, w10, w18
+
+  bn.subvm.16H           w30, w9, w11
+  bn.addvm.16H           w9, w9, w11
+  bn.mulv.l.16H.acc.z.lo w11, w30, sw1.10
+  bn.mulv.l.16H.lo       w11, w11, sw0.2
+  bn.mulv.l.16H.acc.hi   w11, w11, sw0.0
+  bn.addvm.16H           w11, w11, w18
+
+  bn.subvm.16H           w30, w12, w14
+  bn.addvm.16H           w12, w12, w14
+  bn.mulv.l.16H.acc.z.lo w14, w30, sw1.11
+  bn.mulv.l.16H.lo       w14, w14, sw0.2
+  bn.mulv.l.16H.acc.hi   w14, w14, sw0.0
+  bn.addvm.16H           w14, w14, w18
+
+  bn.subvm.16H           w30, w13, w15
+  bn.addvm.16H           w13, w13, w15
+  bn.mulv.l.16H.acc.z.lo w15, w30, sw1.11
+  bn.mulv.l.16H.lo       w15, w15, sw0.2
+  bn.mulv.l.16H.acc.hi   w15, w15, sw0.0
+  bn.addvm.16H           w15, w15, w18
+
+  /* Layer 2, stride 64 */
+  bn.subvm.16H           w30, w0, w4
+  bn.addvm.16H           w0, w0, w4
+  bn.mulv.l.16H.acc.z.lo w4, w30, sw1.12
+  bn.mulv.l.16H.lo       w4, w4, sw0.2
+  bn.mulv.l.16H.acc.hi   w4, w4, sw0.0
+  bn.addvm.16H           w4, w4, w18
+
+  bn.subvm.16H           w30, w1, w5
+  bn.addvm.16H           w1, w1, w5
+  bn.mulv.l.16H.acc.z.lo w5, w30, sw1.12
+  bn.mulv.l.16H.lo       w5, w5, sw0.2
+  bn.mulv.l.16H.acc.hi   w5, w5, sw0.0
+  bn.addvm.16H           w5, w5, w18
+
+  bn.subvm.16H           w30, w2, w6
+  bn.addvm.16H           w2, w2, w6
+  bn.mulv.l.16H.acc.z.lo w6, w30, sw1.12
+  bn.mulv.l.16H.lo       w6, w6, sw0.2
+  bn.mulv.l.16H.acc.hi   w6, w6, sw0.0
+  bn.addvm.16H           w6, w6, w18
+
+  bn.subvm.16H           w30, w3, w7
+  bn.addvm.16H           w3, w3, w7
+  bn.mulv.l.16H.acc.z.lo w7, w30, sw1.12
+  bn.mulv.l.16H.lo       w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi   w7, w7, sw0.0
+  bn.addvm.16H           w7, w7, w18
+
+  bn.subvm.16H           w30, w8, w12
+  bn.addvm.16H           w8, w8, w12
+  bn.mulv.l.16H.acc.z.lo w12, w30, sw1.13
+  bn.mulv.l.16H.lo       w12, w12, sw0.2
+  bn.mulv.l.16H.acc.hi   w12, w12, sw0.0
+  bn.addvm.16H           w12, w12, w18
+
+  bn.subvm.16H           w30, w9, w13
+  bn.addvm.16H           w9, w9, w13
+  bn.mulv.l.16H.acc.z.lo w13, w30, sw1.13
+  bn.mulv.l.16H.lo       w13, w13, sw0.2
+  bn.mulv.l.16H.acc.hi   w13, w13, sw0.0
+  bn.addvm.16H           w13, w13, w18
+
+  bn.subvm.16H           w30, w10, w14
+  bn.addvm.16H           w10, w10, w14
+  bn.mulv.l.16H.acc.z.lo w14, w30, sw1.13
+  bn.mulv.l.16H.lo       w14, w14, sw0.2
+  bn.mulv.l.16H.acc.hi   w14, w14, sw0.0
+  bn.addvm.16H           w14, w14, w18
+
+  bn.subvm.16H           w30, w11, w15
+  bn.addvm.16H           w11, w11, w15
+  bn.mulv.l.16H.acc.z.lo w15, w30, sw1.13
+  bn.mulv.l.16H.lo       w15, w15, sw0.2
+  bn.mulv.l.16H.acc.hi   w15, w15, sw0.0
+  bn.addvm.16H           w15, w15, w18
+
+  /* Layer 1, stride 128 */
+  bn.subvm.16H           w30, w0, w8
+  bn.addvm.16H           w0, w0, w8
+  bn.mulv.l.16H.acc.z.lo w8, w30, sw1.14
+  bn.mulv.l.16H.lo       w8, w8, sw0.2
+  bn.mulv.l.16H.acc.hi   w8, w8, sw0.0
+  bn.addvm.16H           w8, w8, w18
+
+  bn.subvm.16H           w30, w1, w9
+  bn.addvm.16H           w1, w1, w9
+  bn.mulv.l.16H.acc.z.lo w9, w30, sw1.14
+  bn.mulv.l.16H.lo       w9, w9, sw0.2
+  bn.mulv.l.16H.acc.hi   w9, w9, sw0.0
+  bn.addvm.16H           w9, w9, w18
+
+  bn.subvm.16H           w30, w2, w10
+  bn.addvm.16H           w2, w2, w10
+  bn.mulv.l.16H.acc.z.lo w10, w30, sw1.14
+  bn.mulv.l.16H.lo       w10, w10, sw0.2
+  bn.mulv.l.16H.acc.hi   w10, w10, sw0.0
+  bn.addvm.16H           w10, w10, w18
+
+  bn.subvm.16H           w30, w3, w11
+  bn.addvm.16H           w3, w3, w11
+  bn.mulv.l.16H.acc.z.lo w11, w30, sw1.14
+  bn.mulv.l.16H.lo       w11, w11, sw0.2
+  bn.mulv.l.16H.acc.hi   w11, w11, sw0.0
+  bn.addvm.16H           w11, w11, w18
+
+  bn.subvm.16H           w30, w4, w12
+  bn.addvm.16H           w4, w4, w12
+  bn.mulv.l.16H.acc.z.lo w12, w30, sw1.14
+  bn.mulv.l.16H.lo       w12, w12, sw0.2
+  bn.mulv.l.16H.acc.hi   w12, w12, sw0.0
+  bn.addvm.16H           w12, w12, w18
+
+  bn.subvm.16H           w30, w5, w13
+  bn.addvm.16H           w5, w5, w13
+  bn.mulv.l.16H.acc.z.lo w13, w30, sw1.14
+  bn.mulv.l.16H.lo       w13, w13, sw0.2
+  bn.mulv.l.16H.acc.hi   w13, w13, sw0.0
+  bn.addvm.16H           w13, w13, w18
+
+  bn.subvm.16H           w30, w6, w14
+  bn.addvm.16H           w6, w6, w14
+  bn.mulv.l.16H.acc.z.lo w14, w30, sw1.14
+  bn.mulv.l.16H.lo       w14, w14, sw0.2
+  bn.mulv.l.16H.acc.hi   w14, w14, sw0.0
+  bn.addvm.16H           w14, w14, w18
+
+  bn.subvm.16H           w30, w7, w15
+  bn.addvm.16H           w7, w7, w15
+  bn.mulv.l.16H.acc.z.lo w15, w30, sw1.14
+  bn.mulv.l.16H.lo       w15, w15, sw0.2
+  bn.mulv.l.16H.acc.hi   w15, w15, sw0.0
+  bn.addvm.16H           w15, w15, w18
+
+  /* Multiply n^{-1} */
+  bn.mulv.l.16H.acc.z.lo w0, w0, sw1.15
+  bn.mulv.l.16H.lo       w0, w0, sw0.2
+  bn.mulv.l.16H.acc.hi   w0, w0, sw0.0
+  bn.addvm.16H           w0, w0, w18
+
+  bn.mulv.l.16H.acc.z.lo w1, w1, sw1.15
+  bn.mulv.l.16H.lo       w1, w1, sw0.2
+  bn.mulv.l.16H.acc.hi   w1, w1, sw0.0
+  bn.addvm.16H           w1, w1, w18
+
+  bn.mulv.l.16H.acc.z.lo w2, w2, sw1.15
+  bn.mulv.l.16H.lo       w2, w2, sw0.2
+  bn.mulv.l.16H.acc.hi   w2, w2, sw0.0
+  bn.addvm.16H           w2, w2, w18
+
+  bn.mulv.l.16H.acc.z.lo w3, w3, sw1.15
+  bn.mulv.l.16H.lo       w3, w3, sw0.2
+  bn.mulv.l.16H.acc.hi   w3, w3, sw0.0
+  bn.addvm.16H           w3, w3, w18
+
+  bn.mulv.l.16H.acc.z.lo w4, w4, sw1.15
+  bn.mulv.l.16H.lo       w4, w4, sw0.2
+  bn.mulv.l.16H.acc.hi   w4, w4, sw0.0
+  bn.addvm.16H           w4, w4, w18
+
+  bn.mulv.l.16H.acc.z.lo w5, w5, sw1.15
+  bn.mulv.l.16H.lo       w5, w5, sw0.2
+  bn.mulv.l.16H.acc.hi   w5, w5, sw0.0
+  bn.addvm.16H           w5, w5, w18
+
+  bn.mulv.l.16H.acc.z.lo w6, w6, sw1.15
+  bn.mulv.l.16H.lo       w6, w6, sw0.2
+  bn.mulv.l.16H.acc.hi   w6, w6, sw0.0
+  bn.addvm.16H           w6, w6, w18
+
+  bn.mulv.l.16H.acc.z.lo w7, w7, sw1.15
+  bn.mulv.l.16H.lo       w7, w7, sw0.2
+  bn.mulv.l.16H.acc.hi   w7, w7, sw0.0
+  bn.addvm.16H           w7, w7, w18
+
+  /* Store output */
+  bn.sid x4, 0(x12++)
+  bn.sid x5, 0(x12++)
+  bn.sid x6, 0(x12++)
+  bn.sid x7, 0(x12++)
+  bn.sid x3, 0(x12++)
+  bn.sid x9, 0(x12++)
+  bn.sid x13, 0(x12++)
+  bn.sid x14, 0(x12++)
+  bn.sid x15, 0(x12++)
+  bn.sid x16, 0(x12++)
+  bn.sid x17, 0(x12++)
+  bn.sid x18, 0(x12++)
+  bn.sid x19, 0(x12++)
+  bn.sid x20, 0(x12++)
+  bn.sid x21, 0(x12++)
+  bn.sid x22, 0(x12++)
+
   ret
