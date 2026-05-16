@@ -29,9 +29,8 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
     exit 1
 fi
 
-# Use ISA version with .16H support (Paper 2 ver2 as our ver1)
-export OTBN_ISA_VER=ver1
-export BNMULV_VER=1
+# Use ISA version with .16H support 
+export BNMULV_VER=2 
 
 
 # 工具路径
@@ -47,9 +46,9 @@ mkdir -p "$TMPDIR"
 
 # 汇编 .s 文件
 "$OTBN_AS" -o "$TMPDIR/mlkem_base_encap_test.o" "$SOURCE_DIR/mlkem_base_encap_test.s"
-"$OTBN_AS" -o "$TMPDIR/pack_ciphertext.o" "$SOURCE_DIR/pack_ciphertext.s"
-"$OTBN_AS" -o "$TMPDIR/pack_keys.o" "$SOURCE_DIR/pack_keys.s"
 "$OTBN_AS" -o "$TMPDIR/kmac_sha3_template.o" "$SOURCE_DIR/kmac_sha3_template.s"
+"$OTBN_AS" -o "$TMPDIR/pack_keys.o" "$SOURCE_DIR/pack_keys.s"
+"$OTBN_AS" -o "$TMPDIR/pack_ciphertext.o" "$SOURCE_DIR/pack_ciphertext.s"
 "$OTBN_AS" -o "$TMPDIR/poly_gen_matrix.o" "$SOURCE_DIR/poly_gen_matrix.s"
 "$OTBN_AS" -o "$TMPDIR/poly.o" "$SOURCE_DIR/poly.s"
 "$OTBN_AS" -o "$TMPDIR/cbd.o" "$SOURCE_DIR/cbd.s"
@@ -61,9 +60,9 @@ mkdir -p "$TMPDIR"
 # 链接生成 .elf 文件
 "$OTBN_LD" -o "$TMPDIR/kyber768_mklem_encap_test.elf" \
     "$TMPDIR/mlkem_base_encap_test.o" \
-    "$TMPDIR/pack_ciphertext.o" \
-    "$TMPDIR/pack_keys.o" \
     "$TMPDIR/kmac_sha3_template.o" \
+    "$TMPDIR/pack_keys.o" \
+    "$TMPDIR/pack_ciphertext.o" \
     "$TMPDIR/poly_gen_matrix.o" \
     "$TMPDIR/poly.o" \
     "$TMPDIR/cbd.o" \

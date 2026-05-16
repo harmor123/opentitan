@@ -153,3 +153,10 @@
     This WSR transfers share 1 of the second input secrets towards the MAI.
     The inputs are considered as eight 32-bit values.
     Writing to this WSR while MAI is not ready will cause a MAI_ERROR software error.
+
+- name: acch
+  address: 16
+  doc: |
+    The second (upper 256-bit) accumulator register used by the extended vectorized
+    multiplication instruction (BN.MULV with accumulator flags, BNMULV_VER >= 2).
+    Together with ACC, forms a 512-bit accumulator for 16-bit vector multiplications.

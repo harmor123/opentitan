@@ -29,9 +29,8 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
     exit 1
 fi
 
-# Use ISA version with .16H support (Paper 2 ver2 as our ver1)
-export OTBN_ISA_VER=ver1
-export BNMULV_VER=1
+# Use ISA version with .16H support 
+export BNMULV_VER=2 
 
 # 工具路径
 OTBN_AS="$OT_ROOT/hw/ip/otbn/util/otbn_as.py"

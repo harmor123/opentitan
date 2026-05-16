@@ -1,31 +1,5 @@
-/* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
-
-/*
- * Name:        indcpa_keypair
- *
- * Description: Generates public and private key for the CPA-secure
- *              public-key encryption scheme underlying Kyber
- *
- * Arguments:   - uint8_t *pk: pointer to output public key
- *                             (of length 1184 bytes)
- *              - uint8_t *sk: pointer to output private key
- *                             (of length 1152 bytes)
- *
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
- * @param[in]  x10 (x10): pointer to seed (32 = 32)
- * @param[out] x11 (x11): dmem pointer to public key pk_addr
- * @param[out] x12 (x12): dmem pointer to secret key sk_addr
- *
- * clobbered registers: x10-x14, x5-x30, w8, w16
- */
-.global indcpa_keypair
 indcpa_keypair:
 
-
-  /* Store parameters to stack */
   sw  x10, -16(fp)
   sw  x11, -32(fp)
   sw  x12, -24(fp)
@@ -63,7 +37,7 @@ indcpa_keypair:
   jal   x1, kmac_done
 
   /*** CBD skpv ***/
-  li   x15, -2176 
+  li   x15, -2176
   li   x11, -3712
   add  x11, fp, x11
   li   x13, -64
@@ -73,31 +47,30 @@ indcpa_keypair:
     addi x10, fp, -96
     sw   x12, -64(fp)
     jal  x1, poly_getnoise_eta_1
-    addi x12, x12, 1 
-
+    addi x12, x12, 1
 
   bn.wsrr   w16, 0x0 /* w16 = MOD = R | Q */
-  #bn.shv.8S w22, w16 << 1 /* w22 = 2*R | 2*Q */
-  #bn.wsrw   0x0, w22 /* MOD = 2*R | 2*Q */
-
+  bn.shv.8S w22, w16 << 1 /* w22 = 2*R | 2*Q */
+  bn.wsrw   0x0, w22 /* MOD = 2*R | 2*Q */
   /*** NTT skpv ***/
   li   x10, -3712
   add  x10, fp, x10
-  la  x11, twiddles_ntt
+  la   x11, twiddles_ntt
   add  x12, x0, x10
   .rept 3
-
     jal x1, ntt
   .endr
-  
+  bn.wsrw 0x0, w16 /* Restore MOD = R | Q */
+
   /*** Packing sk ***/
   li   x10, -3712
   add  x10, fp, x10
   lw   x13, -24(fp)
   jal  x1, pack_sk
 
-  /*** Matrix generation ***/
-  li   x11, -2176 
+  bn.wsrw 0x0, w22 /* MOD = 2*R | 2*Q */
+  /*** Matrix-vector multiplication ***/
+  li   x11, -2176
   add  x11, fp, x11
   li   x12, 0
   .rept 3
@@ -114,13 +87,7 @@ indcpa_keypair:
     la   x28, twiddles_basemul
     jal  x1, basemul
 
-    /* After basemul:
-       x11 points to A[0][1]: for storing next generated vector
-       x10: reloaded for seed
-       x12: untouched by basemul
-       x29: accumulated to always point to next poly
-       x13: output of basemul, must always points to A[0][0] */
-    .rept 3-1
+    .rept 2
       /* Gen next mat poly */
       addi x10, fp, -128
       jal  x1, poly_gen_matrix
@@ -135,8 +102,10 @@ indcpa_keypair:
     .endr 
     addi x12, x12, 253 
   .endr 
-  
-  /* poly_tomont */
+  bn.wsrw 0x0, w16 /* Restore MOD = R | Q */
+
+  /* After basemul, w16 is still R | Q */
+  /*** poly_tomont ***/
   li  x10, -2176
   add x10, fp, x10
   la  x11, const_tomont
@@ -155,20 +124,23 @@ indcpa_keypair:
     addi x10, fp, -96
     sw   x12, -64(fp)
     jal  x1, poly_getnoise_eta_1
-    addi x12, x12, 1 
+    addi x12, x12, 1
 
+  /* After cbd, w16 is still R | Q */
+  bn.shv.8S w0, w16 << 1 /* w0 = 2*R | 2*Q */
+  bn.wsrw   0x0, w0 /* MOD = 2*R | 2*Q */
   /*** NTT e ***/
-  /* ntt(skpv) */
   li   x10, -3712
   add  x10, fp, x10
-  la  x11, twiddles_ntt
+  la   x11, twiddles_ntt
   add  x12, x0, x10
   .rept 3
     jal x1, ntt
   .endr
+  bn.wsrw 0x0, w16 /* Restore MOD = R | Q */
 
   /* Polyvec add */
-  li   x10, -2176 
+  li   x10, -2176
   add  x10, fp, x10
   li   x11, -3712 
   add  x11, fp, x11 
@@ -177,38 +149,19 @@ indcpa_keypair:
     jal x1, poly_add
   .endr
   
-  /*** Packing pk ***/
-
+  /*** Packing ***/
   lw   x13, -32(fp)
-  li   x10, -2176 
+  li   x10, -2176
   add  x10, fp, x10 
   addi x11, fp, -128
   jal  x1, pack_pk
 
   ret 
 
-/*
- * Name:        crypto_kem_keypair
- *
- * Description: Generates public and private key
- *              for CCA-secure Kyber key encapsulation mechanism
- *
- * Arguments:   - uint8_t *pk: pointer to output public key
- *                (an already allocated array of 1184 bytes)
- *              - uint8_t *sk: pointer to output private key
- *                (an already allocated array of 2400 bytes)
- * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
- *
- * @param[in]  x10 (x10): pointer to seed (2*32 = 64)
- * @param[out] x11 (x11): dmem pointer to kem_pk
- * @param[out] x12 (x12): dmem pointer to kem_sk 
- *
- * clobbered registers: x10-x14, x5-x30, w8, w16
- */
 
 .globl crypto_kem_keypair
 crypto_kem_keypair: 
-  /* Set frame pointer */
+
   addi fp, sp, 0 
 
     li  x5, -3712

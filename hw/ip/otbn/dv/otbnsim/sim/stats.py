@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from collections import Counter, defaultdict, namedtuple
 from typing import Dict, Iterator, List, Optional
 
@@ -10,9 +11,20 @@ from elftools.elf.elffile import ELFFile  # type: ignore
 from elftools.elf.sections import SymbolTableSection  # type: ignore
 from tabulate import tabulate
 
-from .insn import BEQ, BNE, ECALL, JAL, JALR, LOOP, LOOPI
 from .isa import OTBNInsn
 from .state import OTBNState
+
+# Import control-flow instruction classes from the version-specific module
+# so that isinstance() checks work correctly with the executing instruction objects.
+_bnmulv_ver = os.environ.get('BNMULV_VER', '0')
+if _bnmulv_ver == '1':
+    from .insn_ver1 import BEQ, BNE, ECALL, JAL, JALR, LOOP, LOOPI
+elif _bnmulv_ver == '2':
+    from .insn_ver2 import BEQ, BNE, ECALL, JAL, JALR, LOOP, LOOPI
+elif _bnmulv_ver == '3':
+    from .insn_ver3 import BEQ, BNE, ECALL, JAL, JALR, LOOP, LOOPI
+else:
+    from .insn import BEQ, BNE, ECALL, JAL, JALR, LOOP, LOOPI
 
 
 class ExecutionStats:

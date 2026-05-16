@@ -1,30 +1,3 @@
-/* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
-/* Modified by Ruben Niederhagen and Hoang Nguyen Hien Pham - authors of */
-/* "Improving ML-KEM & ML-DSA on OpenTitan - Efficient Multiplication Vector Instructions for OTBN" */
-/* (https://eprint.iacr.org/2025/2028) */
-/* Copyright Ruben Niederhagen and Hoang Nguyen Hien Pham. */
-
-.text
-/*
- * Constant-time Kyber basemul
- *
- * Returns: NTT(a)*NTT(b)
- *
- * This implements the basemul for Kyber, where n=256, q=3329.
- *
- * Flags: -
- *
- * @param[in]  x29: dptr_input1, dmem pointer to first word of input polynomial
- * @param[in]  x11: dptr_input2, dmem pointer to second word of input polynomial
- * @param[in]  x28: dptr_tw, dmem pointer to array of twiddles_basemul
- * @param[in]  w16: sw0, where sw0.0 = Q, sw0.2 = Q^-1 mod 2^32
- * @param[out] x13: dmem pointer to result
- *
- * clobbered registers: x4-x30, w0-w23, w30
- */
-
 .globl basemul
 basemul:
   /* Set up wide registers for inputs*/

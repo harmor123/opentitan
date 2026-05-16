@@ -109,3 +109,4 @@ class WsrAddrs(IntEnum):
     MAI_IN0_S1 = 13
     MAI_IN1_S0 = 14
     MAI_IN1_S1 = 15
+    ACCH = 16  # Second accumulator register (BNMULV_VER >= 2)

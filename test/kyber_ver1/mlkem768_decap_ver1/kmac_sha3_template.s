@@ -60,6 +60,7 @@ kmac_init:
  * ================================================================ */
 .globl keccak_send_message
 keccak_send_message:
+  bn.xor  w31, w31, w31
   bn.xor  w1, w1, w1
   srli    x5, x11, 5
   beq     x5, x0, _no_full_wdr
@@ -98,7 +99,8 @@ _wait_rdy_tail:
   bn.lid  x0, 0(x10)
 
   /* 修复 OverflowError：动态生成掩码，清零 w0 高位垃圾数据 */
-  bn.addi w1, w31, 1         /* w1 = 1 (省去一条 bn.xor) */
+  bn.xor  w1, w1, w1
+  bn.addi w1, w1, 1          /* w1 = 1 */
   addi    x7, x5, 0          /* x7 = x5 */
 _mask_loop:
   beq     x7, x0, _mask_done

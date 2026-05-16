@@ -1,6 +1,0 @@
-id,operation,cycles,stalls,stall_pct
-1,hash_test,58639,2110,3.6
-2,mlkem768_keypair,573690,46833,8.16
-3,mlkem768_encap,617192,48263,7.82
-4,mlkem768_decap,699121,51064,7.3
-5,p256_ecdh,603173,21829,3.62

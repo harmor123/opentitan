@@ -1,8 +1,4 @@
-/* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
 
-.text
 
 /*
  * Name:        poly_tobytes
@@ -22,12 +18,19 @@
  */
 
 poly_tobytes:
-  LOOPI 4, 33
+  LOOPI 4, 37
     /* Load inputs */
     bn.lid x4, 0(x10++)
     bn.lid x5, 0(x10++)
     bn.lid x6, 0(x10++)
     bn.lid x7, 0(x10++)
+
+    /* Reduce inputs to [0,q). This is because outputs of NTT without final conditional subtraction
+     * in Montgomery multiplication are in [0,2q). */
+    bn.addvm.16H w0, w0, w31
+    bn.addvm.16H w1, w1, w31
+    bn.addvm.16H w2, w2, w31
+    bn.addvm.16H w3, w3, w31
 
     /* First 32 bytes */
     LOOPI 16, 2                    /* 16 coeffs in w0 = 24 bytes: 8 bytes left */
@@ -80,6 +83,7 @@ poly_tobytes:
  *
  * @param[in]  x10: dptr_input, dmem pointer to input pk
  * @param[in]  x11: dptr_seed, dmem pointer to input public seed
+ * @param[in]  x12: modulus_bn
  * @param[out] x13; dptr_output, dmem pointer to output serialized pk
  * @param[in]  w31: all-zero
  *
@@ -120,6 +124,7 @@ pack_pk:
  * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
  *
  * @param[in]  x10: dptr_input, dmem pointer to input sk
+ * @param[in]  x12: modulus_bn 
  * @param[out] x13: dptr_output, dmem pointer to output serialized sk
  * @param[in]  w31: all-zero
  *
@@ -232,7 +237,6 @@ poly_frombytes:
 
 .globl unpack_pk
 unpack_pk:
-
   /* Set up wide registers for input and output */
   li x4, 0
   li x5, 1
@@ -267,7 +271,7 @@ unpack_pk:
  *
  * @param[in]  x10: dptr_input, dmem pointer to input serialized sk
  * @param[in]  x15: dptr_modulus, dmem pointer to const_0x0fff
- * @param[out] x12: dptr_output, dmem pointer to output polyvec sk
+ * @param[out]  x12: dptr_output, dmem pointer to output polyvec sk
  * @param[in]  w31: all-zero
  *
  * clobbered registers: x4-x3, w0-w5, w31
@@ -275,7 +279,6 @@ unpack_pk:
 
 .globl unpack_sk
 unpack_sk:
-
   /* Set up wide registers for input and output */
   li x4, 0
   li x5, 1

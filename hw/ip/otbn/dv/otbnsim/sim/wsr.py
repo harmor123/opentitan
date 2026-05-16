@@ -246,6 +246,7 @@ class WSRFile:
         self.RND = RandWSR('RND', ext_regs)
         self.URND = URNDWSR('URND')
         self.ACC = DumbISPR('ACC', 256)
+        self.ACCH = DumbISPR('ACCH', 256)  # Second accumulator (BNMULV_VER >= 2)
         self.KeyS0L = KeyWSR('KeyS0L', 0, self.KeyS0)
         self.KeyS0H = KeyWSR('KeyS0H', 256, self.KeyS0)
         self.KeyS1L = KeyWSR('KeyS1L', 0, self.KeyS1)
@@ -263,6 +264,7 @@ class WSRFile:
             WsrAddrs.RND: self.RND,
             WsrAddrs.URND: self.URND,
             WsrAddrs.ACC: self.ACC,
+            WsrAddrs.ACCH: self.ACCH,
             WsrAddrs.KEY_S0_L: self.KeyS0L,
             WsrAddrs.KEY_S0_H: self.KeyS0H,
             WsrAddrs.KEY_S1_L: self.KeyS1L,
@@ -337,6 +339,7 @@ class WSRFile:
         self.RND.commit()
         self.URND.commit()
         self.ACC.commit()
+        self.ACCH.commit()
         self.KeyS0.commit()
         self.KeyS1.commit()
         self.KMAC_DATA.commit()
@@ -352,6 +355,7 @@ class WSRFile:
         self.RND.abort()
         self.URND.abort()
         self.ACC.abort()
+        self.ACCH.abort()
         self.KMAC_DATA.abort()
         # We commit changes to the sideloaded keys from outside, even if the
         # instruction itself gets aborted.
@@ -372,6 +376,7 @@ class WSRFile:
         ret += self.MOD.changes()
         ret += self.RND.changes()
         ret += self.ACC.changes()
+        ret += self.ACCH.changes()
         ret += self.KeyS0.changes()
         ret += self.KeyS1.changes()
         ret += self.KMAC_DATA.changes()
@@ -392,6 +397,7 @@ class WSRFile:
     def wipe(self) -> None:
         self.MOD.write_invalid()
         self.ACC.write_invalid()
+        self.ACCH.write_invalid()
         self.MAI_RES_S0.write_invalid()
         self.MAI_RES_S1.write_invalid()
         self.MAI_IN0_S0.write_invalid()

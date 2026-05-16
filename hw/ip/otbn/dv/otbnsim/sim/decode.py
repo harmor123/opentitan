@@ -4,15 +4,33 @@
 
 '''Code to load instruction words into a simulator'''
 
+import os
 import struct
 from typing import Iterator, List, Optional, Tuple
 
 from .constants import ErrBits
-from .isa import INSNS_FILE, OTBNInsn
-from .insn import INSN_CLASSES
+from .isa import get_insns_file, OTBNInsn
 from .state import OTBNState
 
-MNEM_TO_CLASS = {cls.insn.mnemonic: cls for cls in INSN_CLASSES}
+
+def get_insn_classes():
+    '''Import INSN_CLASSES from the correct insn module depending on the
+    environment variable BNMULV_VER set either by the user or by standalone.py.
+    '''
+    bnmulv_version_id = os.environ.get('BNMULV_VER', '0')
+
+    if bnmulv_version_id == '1':
+        from .insn_ver1 import INSN_CLASSES
+    elif bnmulv_version_id == '2':
+        from .insn_ver2 import INSN_CLASSES
+    elif bnmulv_version_id == '3':
+        from .insn_ver3 import INSN_CLASSES
+    else:
+        from .insn import INSN_CLASSES
+    return {cls.insn.mnemonic: cls for cls in INSN_CLASSES}
+
+
+MNEM_TO_CLASS = get_insn_classes()
 
 
 class IllegalInsn(OTBNInsn):
@@ -63,7 +81,8 @@ class EmptyInsn(OTBNInsn):
 
 
 def _decode_word(pc: int, word: int) -> OTBNInsn:
-    mnem = INSNS_FILE.mnem_for_word(word)
+    insns_file = get_insns_file()
+    mnem = insns_file.mnem_for_word(word)
     if mnem is None:
         return IllegalInsn(pc, word, 'No legal decoding')
 

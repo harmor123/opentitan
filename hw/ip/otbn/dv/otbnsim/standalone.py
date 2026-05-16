@@ -7,16 +7,19 @@ import argparse
 import os
 import sys
 
-from sim.load_elf import load_elf
-from sim.standalonesim import StandaloneSim
-from sim.stats import ExecutionStatAnalyzer
-from shared.testcase import OtbnTestCase
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('elf')
     parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument(
+        '--bnmulv_version_id',
+        type=str,
+        default=os.environ.get('BNMULV_VER', '0'),
+        help=("specify the version of bnmulv (0=base, 1=ver1, 2=ver2, 3=ver3). "
+              "Defaults to BNMULV_VER env var if set. "
+              "Determines which ISA YAML and instruction classes are loaded.")
+    )
     parser.add_argument(
         '--testcase',
         type=argparse.FileType('r'),
@@ -46,6 +49,16 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    # Read --bnmulv_version_id given by user and set the os variable BNMULV_VER.
+    # Since all of the dependencies depend on isa.py, we need to set
+    # the environment variable first before importing them.
+    os.environ['BNMULV_VER'] = args.bnmulv_version_id
+
+    from sim.load_elf import load_elf
+    from sim.standalonesim import StandaloneSim
+    from sim.stats import ExecutionStatAnalyzer
+    from shared.testcase import OtbnTestCase
 
     collect_stats = args.dump_stats is not None
 

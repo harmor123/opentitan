@@ -420,10 +420,13 @@ def make_isr_dict(path: str) -> IsrMap:
 _DEFAULT_INSNS_FILE: Optional[InsnsFile] = None
 
 
-def load_insns_yaml() -> InsnsFile:
+def load_insns_yaml(bnmulv_version_id: str = '0') -> InsnsFile:
     '''Load the insns.yml file from its default location.
 
     Caches its result. Raises a RuntimeError on syntax or schema error.
+
+    If bnmulv_version_id is '1', '2', or '3', loads insns-ver{id}.yml instead.
+    This allows switching between BNMULV hardware versions at runtime.
 
     '''
     global _DEFAULT_INSNS_FILE
@@ -436,7 +439,12 @@ def load_insns_yaml() -> InsnsFile:
     csrs = make_isr_dict(os.path.join(data_path, 'csr.yml'))
     wsrs = make_isr_dict(os.path.join(data_path, 'wsr.yml'))
 
-    _DEFAULT_INSNS_FILE = load_file(os.path.join(data_path, 'insns.yml'),
-                                    IsrMaps(csrs, wsrs))
+    if bnmulv_version_id == '0':
+        _DEFAULT_INSNS_FILE = load_file(os.path.join(data_path, 'insns.yml'),
+                                        IsrMaps(csrs, wsrs))
+    else:
+        _DEFAULT_INSNS_FILE = load_file(os.path.join(data_path,
+                                        f'insns-ver{bnmulv_version_id}.yml'),
+                                        IsrMaps(csrs, wsrs))
 
     return _DEFAULT_INSNS_FILE

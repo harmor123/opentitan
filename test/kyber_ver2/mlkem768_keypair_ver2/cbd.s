@@ -1,30 +1,33 @@
 /* cbd.s — exact port of mlkem_ver2_nold, x8→x3 */
 .text
-
 .globl cbd2
 cbd2:
+    /* Set up wide registers for input and intermediate states */
     li x4, 0
     li x5, 1
-    li x6, 2
+    li x6, 6
     li x7, 3
     li x3, 4
     li x9, 5
 
+    /* Load cbd2_const */
     la x17, cbd2_const
     bn.lid x7, 0(x17++)
     bn.lid x3, 0(x17++)
+    la x18, modulus_bn
+    bn.lid x9, 0(x18)
 
-    LOOPI 4, 19
-        bn.lid  x4, 0(x10++)
-        bn.and  w1, w0, w3
-        bn.rshi w0, w31, w0 >> 1
-        bn.and  w0, w0, w3
-        bn.add  w0, w0, w1
-        bn.and  w1, w0, w4
-        bn.rshi w0, w31, w0 >> 2
-        bn.and  w0, w0, w4
+    LOOPI 4, 20
+        bn.lid  x4, 0(x10++)      /* Load input array of 2*256/4=128 bytes --> 4 wrs */
+        bn.and  w1, w0, w3        /* Extract even bits */
+        bn.rshi w0, w31, w0 >> 1  /* w0 >> 1 */
+        bn.and  w0, w0, w3        /* Extract odd bits */
+        bn.add  w0, w0, w1        /* Add even and odd bits */
+        bn.and  w1, w0, w4        /* Extract even bit couple */
+        bn.rshi w0, w31, w0 >> 2  /* w0 >> 2 */
+        bn.and  w0, w0, w4        /* Extract odd bit couple */
 
-        LOOPI 4,  9
+        LOOPI 4,  10
             LOOPI 16, 6
                 bn.rshi w6, w1, w6 >> 4
                 bn.rshi w7, w0, w7 >> 4
@@ -32,10 +35,12 @@ cbd2:
                 bn.rshi w7, w31, w7 >> 12
                 bn.rshi w1, w31, w1 >> 4
                 bn.rshi w0, w31, w0 >> 4
-            bn.subvm.16H w2, w6, w7
+            bn.add w6, w6, w5 
+            bn.sub w6, w6, w7 
             bn.sid x6, 0(x11++)
         NOP
-    ret
+
+    ret    
 
 
 .globl cbd3

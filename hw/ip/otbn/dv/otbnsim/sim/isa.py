@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import sys
 from typing import Dict, Iterator, Optional, Tuple, Callable
 
@@ -10,12 +11,26 @@ from shared.insn_yaml import Insn, DummyInsn, load_insns_yaml
 from .state import OTBNState
 
 
+def get_insns_file():
+    ''' Get the correct INSNS_FILE from the correct yaml file depending on the
+    environment variable BNMULV_VER set either by the user or by standalone.py.
+    '''
+    try:
+        bnmulv_version_id = os.environ.get('BNMULV_VER', '0')
+        insns_file = load_insns_yaml(bnmulv_version_id)
+    except RuntimeError as err:
+        sys.stderr.write('{}\n'.format(err))
+        sys.exit(1)
+
+    return insns_file
+
+
 # Load the insns.yml file at module load time: we'll use its data while
 # declaring the classes. The point is that an OTBNInsn below is an instance of
 # a particular Insn object from shared.insn_yaml, so we want a class variable
 # on the OTBNInsn that points at the corresponding Insn.
 try:
-    INSNS_FILE = load_insns_yaml()
+    INSNS_FILE = get_insns_file()
 except RuntimeError as err:
     sys.stderr.write('{}\n'.format(err))
     sys.exit(1)
@@ -31,7 +46,8 @@ def insn_for_mnemonic(mnemonic: str, num_operands: int) -> Insn:
     on this way).
 
     '''
-    insn = INSNS_FILE.mnemonic_to_insn.get(mnemonic)
+    insns_file = get_insns_file()
+    insn = insns_file.mnemonic_to_insn.get(mnemonic)
     if insn is None:
         sys.stderr.write('Failed to find an instruction for mnemonic {!r} in '
                          'insns.yml.\n'
@@ -254,8 +270,11 @@ def element_length_in_bits(elen: int) -> int:
     0        | .8s  |  32
     1        | .4d  |  64
     2        | .2q  | 128
+    3        | .16H |  16
     '''
-    assert 0 <= elen <= 2
+    assert 0 <= elen <= 3
+    if elen == 3:
+        return 16
     return 32 * (1 << elen)
 
 
@@ -276,6 +295,34 @@ def map_elems(op: Callable[[int, int], int], size: int, vec_a: int, vec_b: int) 
         elem_c = elem_c & ((1 << size) - 1)
         result |= elem_c << (elem * size)
     return result
+
+
+def extract_sub_word(value: int, size: int, index: int) -> int:
+    '''Returns the index-th sub-word of size bits from a 256-bit value.'''
+    assert 0 <= value < (1 << 256)
+    return (value >> (index * size)) & ((1 << size) - 1)
+
+
+def bit_shift(value: int, shift_type: int, shift_bits: int,
+              size: int, arith: bool = False) -> int:
+    '''Logical or arithmetic shift within size-bit width.
+
+    shift_type=0 is left, shift_type=1 is right.
+    '''
+    mask = (1 << size) - 1
+    assert 0 <= value <= mask
+    assert 0 <= shift_type <= 1
+    assert 0 <= shift_bits
+
+    if shift_type == 0:
+        result = (value << shift_bits) & mask
+    else:
+        result = value >> shift_bits
+        if arith and ((value >> (size - 1)) & 1):
+            fill = ((1 << shift_bits) - 1) << (size - shift_bits)
+            result |= fill
+
+    return result & mask
 
 
 def montgomery_mul_no_cond_subtraction(a: int, b: int, q: int, mu: int, size: int) -> int:

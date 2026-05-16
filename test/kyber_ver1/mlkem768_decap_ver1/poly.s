@@ -114,19 +114,14 @@ poly_tomsg:
 
 .globl poly_getnoise_eta_1
 poly_getnoise_eta_1:
-  addi x2, x2, -8
+  addi x2, x2, -12
   sw   x11, 4(x2)
   sw   x6, 0(x2)
-
-  .irp reg,x5,x6,x7,x28,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4
-    sw \reg, 0(sp)
-  .endr
 
   /* Initialize a SHAKE256 operation. */
   add x3, x0, x10
   add x9, fp, x13
-  add x19, x0, x6
+  add x20, x0, x6
 
   /*  初始化 SHAKE256 (Mode 3) */
   addi x10, x0, 3       
@@ -146,32 +141,28 @@ poly_getnoise_eta_1:
   jal  x1, kmac_process
 
   /*  1次直接挤出 + 3次循环挤出 */
-  add  x10, x0, x19 
+  add  x10, x0, x20 
   jal  x1, kmac_squeeze_32B
 
   addi x9, x0, 32
 
   LOOPI 3, 4
     jal  x1, kmac_run
-    add  x10, x9, x19
+    add  x10, x9, x20
     jal  x1, kmac_squeeze_32B
     addi x9, x9, 32
 
   /*  释放 KMAC 硬件回到 IDLE */
   jal  x1, kmac_done
       
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x28,x7,x6,x5
-    lw \reg, 0(sp)
-    addi sp, sp, 4
-  .endr
-
   lw     x10, 0(x2)
   lw     x11, 4(x2)
   bn.add w8, w0, w0
 
   jal x1, cbd2
 
-  addi x2, x2, 8
+
+  addi x2, x2, 12
   ret
 
 /*
@@ -198,19 +189,14 @@ poly_getnoise_eta_1:
 
 .globl poly_getnoise_eta_2
 poly_getnoise_eta_2:
-  addi x2, x2, -8
+  addi x2, x2, -12
   sw   x11, 4(x2)
-  sw   x6, 0(x2)  
-
-  .irp reg,x5,x6,x7,x28,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4
-    sw \reg, 0(sp)
-  .endr
+  sw   x6, 0(x2)
 
   /* Initialize a SHAKE256 operation. */
   add x3, x0, x10
   add x9, fp, x13
-  add x19, x0, x6
+  add x20, x0, x6
 
   /*  初始化 SHAKE256 (Mode 3) */
   addi x10, x0, 3       
@@ -230,31 +216,26 @@ poly_getnoise_eta_2:
   jal  x1, kmac_process
 
   /*  1次直接挤出 + 3次循环挤出 */
-  add  x10, x0, x19 
+  add  x10, x0, x20 
   jal  x1, kmac_squeeze_32B
 
   addi x9, x0, 32
 
   LOOPI 3, 4
     jal  x1, kmac_run
-    add  x10, x9, x19
+    add  x10, x9, x20
     jal  x1, kmac_squeeze_32B
     addi x9, x9, 32
 
   /*  释放 KMAC 硬件回到 IDLE */
   jal  x1, kmac_done
       
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x28,x7,x6,x5
-    lw \reg, 0(sp)
-    addi sp, sp, 4
-  .endr
-
   lw     x10, 0(x2)
   lw     x11, 4(x2)
   bn.add w8, w0, w0
   jal    x1, cbd2
 
-  addi x2, x2, 8
+  addi x2, x2, 12
   ret
 
 /*

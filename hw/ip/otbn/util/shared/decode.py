@@ -3,6 +3,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import struct
 import sys
 from typing import Dict, List
@@ -12,7 +13,8 @@ from shared.insn_yaml import Insn, load_insns_yaml
 
 # Load the insns.yml file at module load time.
 try:
-    INSNS_FILE = load_insns_yaml()
+    bnmulv_version_id = os.environ.get('BNMULV_VER', '0')
+    INSNS_FILE = load_insns_yaml(bnmulv_version_id)
 except RuntimeError as err:
     sys.stderr.write('{}\n'.format(err))
     sys.exit(1)

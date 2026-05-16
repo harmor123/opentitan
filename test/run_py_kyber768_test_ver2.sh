@@ -43,6 +43,9 @@ if [[ -z "$OT_ROOT" ]]; then
 fi
 echo "OpenTitan root: $OT_ROOT"
 
+# Use ISA version with .16H support 
+export BNMULV_VER=2 
+
 PYTHON_SCRIPT="$SCRIPT_DIR/bench_mlkem768.py"
 SIMULATOR="$OT_ROOT/hw/ip/otbn/dv/otbnsim/standalone.py"
 
@@ -153,41 +156,35 @@ echo "--------------------------------------------"
 export PYTHONPATH="$OT_ROOT:$PYTHONPATH"
 
 # ==========================================
-# 执行测试（共 5 项）
+# 执行测试（共 4 项）
 # ==========================================
-# echo ""
-# echo ">>> [1/5] Hash"
-# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-#     "hash_test#$ELF_HASH" \
-#     hash_test
-
-# echo ""
-# echo ">>> [2/5] ML-KEM-768 Keypair"
-# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-#     "mlkem768_keypair#$ELF_KEYPAIR" \
-#     mlkem768_keypair
-
-# echo ""
-# echo ">>> [3/5] ML-KEM-768 Encap"
-# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-#     "mlkem768_encap#$ELF_ENCAP" \
-#     mlkem768_encap
-
-# echo ""
-# echo ">>> [4/5] ML-KEM-768 Decap"
-# python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
-#     "mlkem768_decap#$ELF_DECAP" \
-#     mlkem768_decap
+echo ""
+echo ">>> [1/4] ML-KEM-768 Keypair"
+python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+    "mlkem768_keypair#$ELF_KEYPAIR" \
+    mlkem768_keypair
 
 echo ""
-echo ">>> [5/5] P-256 ECDH Shared Key"
+echo ">>> [2/4] ML-KEM-768 Encap"
+python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+    "mlkem768_encap#$ELF_ENCAP" \
+    mlkem768_encap
+
+echo ""
+echo ">>> [3/4] ML-KEM-768 Decap"
+python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+    "mlkem768_decap#$ELF_DECAP" \
+    mlkem768_decap
+
+echo ""
+echo ">>> [4/4] P-256 ECDH Shared Key"
 python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
     "p256_ecdh#$ELF_P256" \
     p256_ecdh
 
 echo ""
 echo "============================================"
-echo " All 5 tests passed!"
+echo " All 4 tests passed!"
 echo " DB saved to: $SCRIPT_DIR/kyber_bench.db"
 echo " Log saved to: $LOG_FILE"
 echo "============================================"

@@ -1210,7 +1210,8 @@ def main(argv: List[str]) -> int:
     # (rather than '-') denotes standard input.
 
     try:
-        insns_file = load_insns_yaml()
+        bnmulv_version_id = os.environ.get('BNMULV_VER', '0')
+        insns_file = load_insns_yaml(bnmulv_version_id)
     except RuntimeError as err:
         sys.stderr.write('{}\n'.format(err))
         return 1
