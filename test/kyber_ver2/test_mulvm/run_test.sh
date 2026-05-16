@@ -22,9 +22,8 @@ fi
 
 echo "OpenTitan root: $OT_ROOT"
 
-# Use ISA version with .16H support (Paper 2 ver2 as our ver1)
-export OTBN_ISA_VER=ver1
-export BNMULV_VER=1
+
+export BNMULV_VER=2
 
 # 源文件目录
 SOURCE_DIR="$OT_ROOT/test/kyber_ver2/test_mulvm"
