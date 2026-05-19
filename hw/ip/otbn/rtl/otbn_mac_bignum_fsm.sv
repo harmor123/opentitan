@@ -14,6 +14,9 @@ module otbn_mac_bignum_fsm
 
   input  logic                  start_i,
   input  logic                  mac_en_i,
+`ifdef BNMULV
+  input  logic                  mulv_i,
+`endif
   input  logic                  is_vec_i,
   input  logic                  is_mod_i,
   input  logic                  is_lane_i,
@@ -297,7 +300,11 @@ module otbn_mac_bignum_fsm
       predec_dyn.mul_merger_en       = is_mod_i ? 1'b0 : mac_en_i;
     end else begin
       // Regular multiplications are single cycle, set valid flag immediately.
+`ifdef BNMULV
+      predec_dyn.operation_valid_raw = mac_en_i | mulv_i;
+`else
       predec_dyn.operation_valid_raw = mac_en_i;
+`endif
       predec_dyn.mul_shift_en        = mac_en_i;
       predec_dyn.add_res_en          = mac_en_i;
     end
@@ -333,6 +340,10 @@ module otbn_mac_bignum_fsm
     mul_merger_en:       predec_dyn.mul_merger_en,
     add_res_en:          predec_dyn.add_res_en,
     operation_valid_raw: predec_dyn.operation_valid_raw
+`ifdef BNMULV
+    ,
+    mulv:               mulv_i
+`endif
   };
 
   assign is_busy_o = current_cycle != 0;
@@ -357,7 +368,11 @@ module otbn_mac_bignum_fsm
 
   assign current_cycle = cycle_count_q;
 
-  assign cycle_clear     = predec_dyn.operation_valid_raw || sec_wipe_i;
+  assign cycle_clear     = predec_dyn.operation_valid_raw || sec_wipe_i
+`ifdef BNMULV
+                             || mulv_i
+`endif
+                             ;
   assign cycle_do_step   = mac_en_i && (start_i || is_busy_o);
   assign cycle_increment = CycleCountWidth'(1);
 

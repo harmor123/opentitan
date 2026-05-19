@@ -3,11 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import List, Optional, Tuple
+import os
 from .constants import WsrAddrs
 from .ext_regs import OTBNExtRegs
 from .ispr import ISPR, DumbISPR, ISPRChange
 from .kmac_ispr import KmacDataWSRs
 from .mai_ispr import MaiInputWSR, MaiOutputWSR
+
+# ACCH (second accumulator) exists when BNMULV_VER >= 2
+_HAS_ACCH = int(os.environ.get('BNMULV_VER', '0')) >= 2
 from .trace import Trace
 from .trivium import CipherType, SeedType, Trivium
 
@@ -376,7 +380,8 @@ class WSRFile:
         ret += self.MOD.changes()
         ret += self.RND.changes()
         ret += self.ACC.changes()
-        ret += self.ACCH.changes()
+        if _HAS_ACCH:
+            ret += self.ACCH.changes()
         ret += self.KeyS0.changes()
         ret += self.KeyS1.changes()
         ret += self.KMAC_DATA.changes()
@@ -397,7 +402,8 @@ class WSRFile:
     def wipe(self) -> None:
         self.MOD.write_invalid()
         self.ACC.write_invalid()
-        self.ACCH.write_invalid()
+        if _HAS_ACCH:
+            self.ACCH.write_invalid()
         self.MAI_RES_S0.write_invalid()
         self.MAI_RES_S1.write_invalid()
         self.MAI_IN0_S0.write_invalid()

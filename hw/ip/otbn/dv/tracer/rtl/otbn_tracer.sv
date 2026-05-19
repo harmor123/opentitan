@@ -96,6 +96,9 @@ module otbn_tracer (
     unique case (ispr)
       IsprMod: return "MOD";
       IsprAcc: return "ACC";
+`ifdef BNMULV_ACCH
+      IsprAccH: return "ACCH";
+`endif
       IsprRnd: return "RND";
       IsprFlags: return "FLAGS";
       IsprUrnd: return "URND";
@@ -131,6 +134,9 @@ module otbn_tracer (
       IsprMaiIn0S1,
       IsprMaiIn1S0,
       IsprMaiIn1S1: return WLEN;
+`ifdef BNMULV_ACCH
+      IsprAccH: return WLEN;
+`endif
       IsprFlags,
       IsprMaiCtrl,
       IsprMaiStatus: return 32;

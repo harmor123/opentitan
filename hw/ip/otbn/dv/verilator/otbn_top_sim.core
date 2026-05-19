@@ -27,6 +27,16 @@ filesets:
       - otbn_top_sim_waivers.vlt
     file_type: vlt
 
+parameters:
+  MAC_ADDER:
+    datatype: str
+    paramtype: vlogdefine
+    default: "buffer_bit"
+  ALU_ADDER:
+    datatype: str
+    paramtype: vlogdefine
+    default: "buffer_bit"
+
 targets:
   default: &default_target
     filesets:
@@ -50,6 +60,9 @@ targets:
   sim:
     <<: *default_target
     default_tool: verilator
+    parameters:
+      - MAC_ADDER
+      - ALU_ADDER
     tools:
       vcs:
         vcs_options:
@@ -65,9 +78,16 @@ targets:
           - '--trace-structs'
           - '--trace-params'
           - '--trace-max-array 1024'
+          - 'bnmulv_ver2 ? (-DTOWARDS_BASE)'
+          - 'bnmulv_ver2 ? (-DBNMULV -DBNMULV_ACCH)'
+          - 'bnmulv_ver2 ? (-CFLAGS "-DBNMULV_VER=2")'
           - '-CFLAGS "-std=c++17 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=otbn_top_sim"'
           - '-LDFLAGS "-pthread -lutil -lelf"'
           - "-Wall"
+          - "-Wno-UNDRIVEN"
+          - "-Wno-UNUSED"
+          - "-Wno-UNOPTFLAT"
+          - "-Wno-WIDTH"
           # RAM primitives wider than 64bit (required for ECC) fail to build in
           # Verilator without increasing the unroll count (see Verilator#1266)
           - "--unroll-count 72"

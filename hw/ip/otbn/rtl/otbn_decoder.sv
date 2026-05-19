@@ -189,6 +189,24 @@ module otbn_decoder
   logic [VLEN/QWLEN-1:0] mac_adder_carry_sel_bignum;
   logic [2:0]            mac_lane_index_bignum;
 
+
+`ifdef BNMULV
+  logic                  mac_mulv_bignum;
+  logic                  mac_data_type_bignum;
+  logic                  mac_sel_bignum;
+  logic                  mac_lane_mode_bignum;
+  logic                  mac_lane_word_32_bignum;
+  logic                  mac_lane_word_16_bignum;
+  logic [1:0]            mac_exec_mode_bignum;
+`endif
+
+`ifdef TOWARDS_BASE
+  alu_vector_type_t      alu_vector_type_bignum;
+  logic                  alu_vector_sel_bignum;
+  alu_trn_type_t         alu_trn_type_bignum;
+  assign                 alu_trn_type_bignum = alu_trn_type_t'(insn[27:25]);
+`endif
+
   assign mac_wr_hw_sel_upper_bignum = insn[29];
   assign mac_pre_acc_shift_bignum   = insn[14:13];
   assign mac_shift_out_bignum       = insn[30];
@@ -270,6 +288,11 @@ module otbn_decoder
     alu_sel_flag:           alu_sel_flag_bignum,
     alu_flag_en:            alu_flag_en_bignum,
     alu_op:                 alu_operator_bignum,
+`ifdef TOWARDS_BASE
+    vector_type:            alu_vector_type_bignum,
+    vector_sel:             alu_vector_sel_bignum,
+    alu_trn_type:           alu_trn_type_bignum,
+`endif
     alu_op_b_sel:           alu_op_b_mux_sel_bignum,
     mac_flag_en:            mac_flag_en_bignum,
     mac_op_a_qw_sel_raw:    mac_op_a_qw_sel_raw_bignum,
@@ -279,6 +302,15 @@ module otbn_decoder
     mac_pre_acc_shift:      mac_pre_acc_shift_bignum,
     mac_acc_add_en:         mac_acc_add_en,
     mac_shift_out:          mac_shift_out_bignum,
+`ifdef BNMULV
+    mac_mulv:               mac_mulv_bignum,
+    mac_data_type:          mac_data_type_bignum,
+    mac_sel:                mac_sel_bignum,
+    mac_lane_mode:          mac_lane_mode_bignum,
+    mac_lane_word_32:       mac_lane_word_32_bignum,
+    mac_lane_word_16:       mac_lane_word_16_bignum,
+    mac_exec_mode:          mac_exec_mode_bignum,
+`endif
     mac_en:                 mac_en_bignum,
     mac_is_vec:             mac_is_vec_bignum,
     mac_is_mod:             mac_is_mod_bignum,
@@ -339,6 +371,21 @@ module otbn_decoder
     mac_is_lane_bignum            = 1'b0;
     mac_elen_bignum               = MacElen64; // Default is regular 64-bit multiplication
     mac_acc_add_en                = 1'b0;
+
+`ifdef BNMULV
+    mac_mulv_bignum               = 1'b0;
+    mac_data_type_bignum          = 1'b0;
+    mac_sel_bignum                = 1'b0;
+    mac_lane_mode_bignum          = 1'b0;
+    mac_lane_word_32_bignum       = 1'b0;
+    mac_lane_word_16_bignum       = 1'b0;
+    mac_exec_mode_bignum          = 2'b0;
+`endif
+
+`ifdef TOWARDS_BASE
+    alu_vector_type_bignum        = alu_vector_type_t'('0);
+    alu_vector_sel_bignum         = 1'b0;
+`endif
 
     rf_a_indirect_bignum = 1'b0;
     rf_b_indirect_bignum = 1'b0;
@@ -582,6 +629,10 @@ module otbn_decoder
               2'b00:   alu_elen_bignum = AluElen32;
               default: illegal_insn    = 1'b1;
             endcase
+`ifdef TOWARDS_BASE
+            alu_vector_type_bignum = alu_vector_type_t'(insn[27:26]);
+            alu_vector_sel_bignum  = insn[25];
+`endif
           end
           3'b101: begin
             // BN.TRN1/BN.TRN2
@@ -607,6 +658,10 @@ module otbn_decoder
               2'b00:   alu_elen_bignum = AluElen32;
               default: illegal_insn    = 1'b1;
             endcase
+`ifdef TOWARDS_BASE
+            alu_vector_type_bignum = alu_vector_type_t'(insn[27:26]);
+            alu_vector_sel_bignum  = insn[25];
+`endif
           end
           3'b011,
           3'b100: begin
@@ -620,6 +675,12 @@ module otbn_decoder
             mac_is_vec_bignum   = 1'b1;
             mac_is_mod_bignum   = insn[14:12] == 3'b100;
             mac_is_lane_bignum  = insn[27];
+`ifdef BNMULV
+            mac_mulv_bignum     = 1'b0;
+            mac_data_type_bignum = 1'b0;
+            mac_sel_bignum       = 1'b0;
+            mac_lane_mode_bignum = 1'b0;
+`endif
 
             unique case (mac_vec_elen_raw_bignum)
               1'b0:    mac_elen_bignum = MacElen32;
@@ -640,6 +701,59 @@ module otbn_decoder
       end
 
       ///////////////////////////////////////
+  `ifdef BNMULV
+        //            BN.MULV/BN.MULV.L          //
+  
+        InsnOpcodeBignumMulv: begin
+          unique case (insn[14:12])
+            3'b110: begin
+              insn_subset              = InsnSubsetBignum;
+              rf_ren_a_bignum          = 1'b1;
+              rf_ren_b_bignum          = 1'b1;
+              rf_wdata_sel_bignum      = RfWdSelMac;
+              rf_we_bignum             = 1'b1;
+              mac_en_bignum            = insn[29:28] == 2'b00 ? 1'b0 : 1'b1;
+              mac_shift_out_bignum     = 1'b0;
+              mac_acc_add_en           = insn[29:28] == 2'b01 ? 1'b1 : 1'b0;
+              mac_mulv_bignum          = 1'b1;
+              mac_data_type_bignum     = insn[26];
+              mac_sel_bignum          = insn[27];
+              mac_lane_mode_bignum    = insn[25];
+              mac_is_vec_bignum       = 1'b0;
+              mac_exec_mode_bignum    = insn[31:30];
+              if (insn[25] == 1'b1) begin
+                insn_rs2 = {{4'b1000}, insn[24]};
+                if (mac_data_type_bignum == 1'b0) begin
+                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[23:22]};
+                  mac_lane_word_32_bignum  = insn[21];
+                  mac_lane_word_16_bignum  = insn[20];
+                end else begin
+                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[22:21]};
+                  mac_lane_word_32_bignum  = insn[20];
+                end
+              end else begin
+
+              end
+            end
+            default: begin
+              insn_subset              = InsnSubsetBignum;
+              rf_ren_a_bignum          = 1'b1;
+              rf_ren_b_bignum          = 1'b1;
+              rf_wdata_sel_bignum      = RfWdSelMac;
+              rf_we_bignum             = 1'b1;
+              mac_en_bignum            = insn[29:28] == 2'b00 ? 1'b0 : 1'b1;
+              mac_shift_out_bignum     = 1'b0;
+              mac_acc_add_en           = insn[29:28] == 2'b01 ? 1'b1 : 1'b0;
+              mac_mulv_bignum          = 1'b1;
+              mac_data_type_bignum     = insn[26];
+              mac_sel_bignum          = insn[27];
+              mac_is_vec_bignum        = 1'b0;
+              mac_exec_mode_bignum     = insn[31:30];
+              mac_lane_mode_bignum     = insn[25];
+            end
+          endcase
+        end
+  `endif
       // Bignum logical/BN.RSHI/LOOP/LOOPI //
       ///////////////////////////////////////
 
@@ -1083,6 +1197,59 @@ module otbn_decoder
       end
 
       ///////////////////////////////////////
+  `ifdef BNMULV
+        //            BN.MULV/BN.MULV.L          //
+  
+        InsnOpcodeBignumMulv: begin
+          unique case (insn[14:12])
+            3'b110: begin
+              insn_subset              = InsnSubsetBignum;
+              rf_ren_a_bignum          = 1'b1;
+              rf_ren_b_bignum          = 1'b1;
+              rf_wdata_sel_bignum      = RfWdSelMac;
+              rf_we_bignum             = 1'b1;
+              mac_en_bignum            = insn[29:28] == 2'b00 ? 1'b0 : 1'b1;
+              mac_shift_out_bignum     = 1'b0;
+              mac_acc_add_en           = insn[29:28] == 2'b01 ? 1'b1 : 1'b0;
+              mac_mulv_bignum          = 1'b1;
+              mac_data_type_bignum     = insn[26];
+              mac_sel_bignum          = insn[27];
+              mac_lane_mode_bignum    = insn[25];
+              mac_is_vec_bignum       = 1'b0;
+              mac_exec_mode_bignum    = insn[31:30];
+              if (insn[25] == 1'b1) begin
+                insn_rs2 = {{4'b1000}, insn[24]};
+                if (mac_data_type_bignum == 1'b0) begin
+                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[23:22]};
+                  mac_lane_word_32_bignum  = insn[21];
+                  mac_lane_word_16_bignum  = insn[20];
+                end else begin
+                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[22:21]};
+                  mac_lane_word_32_bignum  = insn[20];
+                end
+              end else begin
+
+              end
+            end
+            default: begin
+              insn_subset              = InsnSubsetBignum;
+              rf_ren_a_bignum          = 1'b1;
+              rf_ren_b_bignum          = 1'b1;
+              rf_wdata_sel_bignum      = RfWdSelMac;
+              rf_we_bignum             = 1'b1;
+              mac_en_bignum            = insn[29:28] == 2'b00 ? 1'b0 : 1'b1;
+              mac_shift_out_bignum     = 1'b0;
+              mac_acc_add_en           = insn[29:28] == 2'b01 ? 1'b1 : 1'b0;
+              mac_mulv_bignum          = 1'b1;
+              mac_data_type_bignum     = insn[26];
+              mac_sel_bignum          = insn[27];
+              mac_is_vec_bignum        = 1'b0;
+              mac_exec_mode_bignum     = insn[31:30];
+              mac_lane_mode_bignum     = insn[25];
+            end
+          endcase
+        end
+  `endif
       // Bignum logical/BN.RSHI/LOOP/LOOPI //
       ///////////////////////////////////////
 

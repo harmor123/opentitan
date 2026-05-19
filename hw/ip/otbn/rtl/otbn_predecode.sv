@@ -104,6 +104,9 @@ module otbn_predecode
   logic                  mac_bignum_is_vec;
   logic                  mac_bignum_is_mod;
   logic                  mac_bignum_is_lane;
+`ifdef BNMULV
+  logic                  mac_bignum_mulv;
+`endif
   logic [2:0]            mac_bignum_lane_index;
   logic [1:0]            mac_bignum_op_a_qw_sel;
   logic [2:0]            mac_bignum_op_b_elem0_sel;
@@ -112,7 +115,11 @@ module otbn_predecode
   mac_elen_e             mac_bignum_elen;
   logic [VLEN/QWLEN-1:0] mac_bignum_adder_carry_sel;
 
-  // Fully instruction-static BN MAC blankers
+`ifdef TOWARDS_BASE
+  alu_vector_type_t alu_bignum_vector_type;
+  logic             alu_bignum_vector_sel;
+  alu_trn_type_t    alu_bignum_trn_type;
+`endif  // Fully instruction-static BN MAC blankers
   logic mac_bignum_acc_add_en;
 
   logic ispr_rd_en;
@@ -232,6 +239,9 @@ module otbn_predecode
     mac_bignum_is_vec          = 1'b0;
     mac_bignum_is_mod          = 1'b0;
     mac_bignum_is_lane         = 1'b0;
+`ifdef BNMULV
+    mac_bignum_mulv            = 1'b0;
+`endif
     mac_bignum_op_a_qw_sel     = '0;
     mac_bignum_op_b_elem0_sel  = '0;
     mac_bignum_op_b_elem1_sel  = '0;
@@ -239,7 +249,11 @@ module otbn_predecode
     mac_bignum_acc_add_en      = 1'b0;
     mac_bignum_adder_carry_sel = '0;
 
-    ispr_rd_en = 1'b0;
+`ifdef TOWARDS_BASE
+    alu_bignum_vector_type = alu_vector_type_t'('0);
+    alu_bignum_vector_sel  = 1'b0;
+    alu_bignum_trn_type    = alu_trn_type_t'('0);
+`endif    ispr_rd_en = 1'b0;
     ispr_wr_en = 1'b0;
 
     csr_addr_sel = 1'b0;
@@ -447,6 +461,11 @@ module otbn_predecode
                 2'b00:   alu_bignum_alu_elen = AluElen32;
                 default: alu_bignum_alu_elen = AluElen256;
               endcase
+
+`ifdef TOWARDS_BASE
+              alu_bignum_vector_type = alu_vector_type_t'(imem_rdata_i[27:26]);
+              alu_bignum_vector_sel  = imem_rdata_i[25];
+`endif
 
               if (imem_rdata_i[28]) begin // vectorized MOD operation
                 alu_bignum_adder_x_en          = 1'b1;
@@ -705,6 +724,48 @@ module otbn_predecode
           mac_bignum_acc_add_en = ~imem_rdata_i[12];
         end
 
+`ifdef BNMULV
+        ///////////////////////////////////////////
+        //            BN.MULV/BN.MULV.L          //
+        ///////////////////////////////////////////
+
+        InsnOpcodeBignumMulv: begin
+          unique case (imem_rdata_i[14:12])
+            3'b110: begin
+              rf_ren_a_bignum  = 1'b1;
+              rf_ren_b_bignum  = 1'b1;
+              // Match decoder: mac_en=0 for plain mulv (insn[29:28]==00)
+              mac_bignum_mac_en = imem_rdata_i[29:28] != 2'b00;
+`ifdef BNMULV
+              mac_bignum_mulv   = 1'b1;
+`endif
+              rf_we_bignum     = 1'b1;
+
+              if (imem_rdata_i[25] == 1'b1) begin  // lane mode
+                insn_rs2 = {{4'b1000}, imem_rdata_i[24]};
+              end
+
+              if (imem_rdata_i[29:28] == 2'b01) begin
+                mac_bignum_acc_add_en = 1'b1;
+              end
+            end
+            default: begin
+              rf_ren_a_bignum  = 1'b1;
+              rf_ren_b_bignum  = 1'b1;
+              mac_bignum_mac_en = imem_rdata_i[29:28] != 2'b00;
+`ifdef BNMULV
+              mac_bignum_mulv   = 1'b1;
+`endif
+              rf_we_bignum     = 1'b1;
+
+              if (imem_rdata_i[29:28] == 2'b01) begin
+                mac_bignum_acc_add_en = 1'b1;
+              end
+            end
+          endcase
+        end
+`endif
+
         default: ;
       endcase
 
@@ -846,6 +907,9 @@ module otbn_predecode
   assign mac_bignum_predec_raw_o.mul_merger_en       = '0;
   assign mac_bignum_predec_raw_o.add_res_en          = '0;
   assign mac_bignum_predec_raw_o.operation_valid_raw = '0;
+`ifdef BNMULV
+  assign mac_bignum_predec_raw_o.mulv                = mac_bignum_mulv;
+`endif
 
   assign insn_rs1 = imem_rdata_i[19:15];
   assign insn_rs2 = imem_rdata_i[24:20];

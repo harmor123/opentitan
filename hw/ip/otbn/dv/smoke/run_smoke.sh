@@ -41,10 +41,16 @@ mkdir -p $SMOKE_BIN_DIR
 
 OTBN_UTIL=$ROOT_DIR/hw/ip/otbn/util
 
+# 确保 BNMULV_VER=0，避免前一个 BNMULV 测试污染汇编器和 ISS
+export BNMULV_VER=0
+
 $OTBN_UTIL/otbn_as.py -o $SMOKE_BIN_DIR/$SMOKE_NAME.o $SMOKE_SRC_DIR/$SMOKE_NAME.s || \
     fail "Failed to assemble $SMOKE_NAME.s"
 $OTBN_UTIL/otbn_ld.py -o $SMOKE_BIN_DIR/$SMOKE_NAME.elf $SMOKE_BIN_DIR/$SMOKE_NAME.o || \
     fail "Failed to link $SMOKE_NAME.o"
+
+# 清理之前的 Verilator 构建产物，防止 BNMULV 构建污染基线构建
+rm -rf $ROOT_DIR/build/lowrisc_ip_otbn_top_sim_0.1
 
 (cd $ROOT_DIR;
  fusesoc --cores-root=. run --target=sim --setup --build \

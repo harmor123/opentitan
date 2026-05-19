@@ -387,7 +387,6 @@ module otbn_controller
                             (insn_dec_shared_i.subset == InsnSubsetBignum) &
                             insn_dec_bignum_i.mac_en &
                             (~mac_bignum_operation_valid_i);
-
   assign stall = mem_stall | ispr_stall | rf_indirect_stall | mac_bignum_stall;
 
   // OTBN is done when it was executing something (in state OtbnStateRun or OtbnStateStall)
@@ -1061,7 +1060,15 @@ module otbn_controller
   assign mac_bignum_operation_o.is_mod             = insn_dec_bignum_i.mac_is_mod;
   assign mac_bignum_operation_o.is_lane            = insn_dec_bignum_i.mac_is_lane;
   assign mac_bignum_operation_o.lane_index         = insn_dec_bignum_i.mac_lane_index;
-  assign mac_bignum_operation_o.elen               = insn_dec_bignum_i.mac_elen;
+`ifdef BNMULV
+  assign mac_bignum_operation_o.mulv            = insn_dec_bignum_i.mac_mulv;
+  assign mac_bignum_operation_o.data_type       = insn_dec_bignum_i.mac_data_type;
+  assign mac_bignum_operation_o.sel             = insn_dec_bignum_i.mac_sel;
+  assign mac_bignum_operation_o.lane_mode       = insn_dec_bignum_i.mac_lane_mode;
+  assign mac_bignum_operation_o.lane_word_32    = insn_dec_bignum_i.mac_lane_word_32;
+  assign mac_bignum_operation_o.lane_word_16    = insn_dec_bignum_i.mac_lane_word_16;
+  assign mac_bignum_operation_o.exec_mode       = insn_dec_bignum_i.mac_exec_mode;
+`endif  assign mac_bignum_operation_o.elen               = insn_dec_bignum_i.mac_elen;
   assign mac_bignum_operation_o.adder_carry_sel    = insn_dec_bignum_i.mac_adder_carry_sel;
 
   assign mac_bignum_en_o     = insn_valid_i & insn_dec_bignum_i.mac_en;

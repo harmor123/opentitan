@@ -20,6 +20,7 @@ from .isa import (OTBNInsn, RV32RegReg, RV32RegImm,
                   bit_shift,
                   extract_quarter_word, extract_sub_word)
 from .state import OTBNState
+from .wsr import _HAS_ACCH
 
 DEBUG_MEM = False
 DEBUG_BRANCH = False
@@ -1693,7 +1694,8 @@ class BNMULV(OTBNInsn):
             accl = acc_o & ((1 << 256) - 1)
             acch = (acc_o >> 256) & ((1 << 256) - 1)
             state.wsrs.ACC.write_unsigned(accl)
-            state.wsrs.ACCH.write_unsigned(acch)
+            if _HAS_ACCH:
+                state.wsrs.ACCH.write_unsigned(acch)
 
         if DEBUG_ARITH:
             eprint(f"result at the end = {hex(result)}")
@@ -1802,7 +1804,8 @@ class BNMULVL(OTBNInsn):
             accl = acc_o & ((1 << 256) - 1)
             acch = (acc_o >> 256) & ((1 << 256) - 1)
             state.wsrs.ACC.write_unsigned(accl)
-            state.wsrs.ACCH.write_unsigned(acch)
+            if _HAS_ACCH:
+                state.wsrs.ACCH.write_unsigned(acch)
 
         if DEBUG_ARITH:
             eprint(f"result at the end = {hex(result)}")

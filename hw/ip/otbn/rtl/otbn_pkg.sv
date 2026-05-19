@@ -240,6 +240,13 @@ package otbn_pkg;
     InsnOpcodeBignumMulqacc  = 7'h3B,
     InsnOpcodeBignumVec      = 7'h5B,
     InsnOpcodeBignumBaseMisc = 7'h7B
+`ifdef BNMULV
+    ,InsnOpcodeBignumMulv     = 7'h4B
+`endif
+`ifdef TOWARDS_BASE
+    ,InsnOpcodeBignumTrn      = 7'h5F
+    ,InsnOpcodeBignumShiftv   = 7'h7F
+`endif
   } insn_opcode_e;
 
   typedef enum logic [3:0] {
@@ -285,6 +292,23 @@ package otbn_pkg;
 
     AluOpBignumNone
   } alu_op_bignum_e;
+
+`ifdef TOWARDS_BASE
+  // Vector element type for ALU vector instructions (bn.addv, bn.subv, bn.shv)
+  typedef enum logic [1:0] {
+    alu_8s,     // b00: 8 x 32-bit elements
+    alu_16h,    // b01: 16 x 16-bit elements
+    alu_m8s,    // b10: 8 x 32-bit elements with modular reduction
+    alu_m16h    // b11: 16 x 16-bit elements with modular reduction
+  } alu_vector_type_t;
+
+  // Vector element type for bn.trn1 / bn.trn2
+  typedef enum logic [2:0] {
+    trn1_16h, trn1_8s, trn1_4d, trn1_2q,
+    trn2_16h, trn2_8s, trn2_4d, trn2_2q
+  } alu_trn_type_t;
+`endif
+
 
   typedef enum logic [1:0] {
     AluOpLogicXor = 2'h0,
@@ -444,7 +468,11 @@ package otbn_pkg;
   // Internal Special Purpose Registers (ISPRs)
   // CSRs and WSRs have some overlap into what they map into. ISPRs are the actual registers in the
   // design which CSRs and WSRs are mapped on to.
+`ifdef BNMULV_ACCH
+  parameter int NIspr = 18;
+`else
   parameter int NIspr = 17;
+`endif
   parameter int IsprNumWidth = $clog2(NIspr);
   typedef enum logic [IsprNumWidth-1:0] {
     IsprMod       = 'd0,
@@ -464,7 +492,18 @@ package otbn_pkg;
     IsprMaiIn1S1  = 'd14,
     IsprMaiCtrl   = 'd15,
     IsprMaiStatus = 'd16
+`ifdef BNMULV_ACCH
+   ,IsprAccH      = 'd17
+`endif
   } ispr_e;
+
+  // Required for BNMULV adders and multipliers (also used by buffer_bit.sv always)
+  typedef enum logic [1:0] {
+    VecType_h16  = 2'b00,
+    VecType_s32  = 2'b01,
+    VecType_d64  = 2'b10,
+    VecType_v256 = 2'b11
+  } vec_type_e;
 
   typedef logic [$clog2(NFlagGroups)-1:0] flag_group_t;
 
@@ -551,6 +590,12 @@ package otbn_pkg;
     // Shift mask for vectorized shifting. Replicated for all chunks.
     logic [VChunkLEN-1:0]    alu_shift_mask;
 
+`ifdef TOWARDS_BASE
+    alu_vector_type_t        vector_type;
+    logic                    vector_sel;
+    alu_trn_type_t           alu_trn_type;
+`endif
+
     flag_group_t             alu_flag_group;
     flag_e                   alu_sel_flag;
     logic                    alu_flag_en;
@@ -569,6 +614,15 @@ package otbn_pkg;
     logic                    mac_is_vec;
     logic                    mac_is_mod;
     logic                    mac_is_lane;
+`ifdef BNMULV
+    logic                    mac_mulv;
+    logic                    mac_data_type;
+    logic                    mac_sel;
+    logic                    mac_lane_mode;
+    logic                    mac_lane_word_32;
+    logic                    mac_lane_word_16;
+    logic [1:0]              mac_exec_mode;
+`endif
     mac_elen_e               mac_elen;
     logic [VLEN/QWLEN-1:0]   mac_adder_carry_sel;
     logic [2:0]              mac_lane_index;
@@ -654,6 +708,9 @@ package otbn_pkg;
     logic                  mul_merger_en;
     logic                  add_res_en;
     logic                  operation_valid_raw;
+`ifdef BNMULV
+    logic                  mulv;
+`endif
   } mac_bignum_predec_t;
 
   typedef struct packed {
@@ -692,6 +749,11 @@ package otbn_pkg;
     logic [WLEN-1:0]         operand_b;
     alu_elen_e               alu_elen;
     trn_elen_e               trn_elen;
+`ifdef TOWARDS_BASE
+    alu_vector_type_t        vector_type;
+    logic                    vector_sel;
+    alu_trn_type_t           trn_type;
+`endif
     logic                    adder_carry_sel;
     logic                    shift_right;
     logic [$clog2(WLEN)-1:0] shift_amt;
@@ -720,6 +782,15 @@ package otbn_pkg;
     mac_elen_e             elen;
     logic [VLEN/QWLEN-1:0] adder_carry_sel;
     logic [2:0]            lane_index;
+`ifdef BNMULV
+    logic                  mulv;
+    logic                  data_type;
+    logic                  sel;
+    logic                  lane_mode;
+    logic                  lane_word_32;
+    logic                  lane_word_16;
+    logic [1:0]            exec_mode;
+`endif
   } mac_bignum_operation_t;
 
   // Encoding generated with:

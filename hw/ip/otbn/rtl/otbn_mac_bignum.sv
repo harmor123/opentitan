@@ -127,6 +127,12 @@ module otbn_mac_bignum
   input  logic [ExtWLEN-1:0] ispr_acc_wr_data_intg_i,
   input  logic               ispr_acc_wr_en_i,
 
+`ifdef BNMULV_ACCH
+  output logic [ExtWLEN-1:0] ispr_acch_intg_o,
+  input  logic [ExtWLEN-1:0] ispr_acch_wr_data_intg_i,
+  input  logic               ispr_acch_wr_en_i,
+`endif
+
   input  logic [ExtWLEN-1:0] ispr_mod_intg_i,
 
   output logic state_err_o
@@ -179,6 +185,11 @@ module otbn_mac_bignum
     if (acc_wr_en) begin
       acc_intg_q <= acc_intg_d;
     end
+`ifdef BNMULV_ACCH
+    if (acch_wr_en) begin
+      acch_intg_q <= acch_intg_d;
+    end
+`endif
   end
 
   ////////////////
@@ -261,6 +272,34 @@ module otbn_mac_bignum
     end
   end
 
+`ifdef BNMULV_ACCH
+  ////////////////////
+  // ACCH Register  //
+  ////////////////////
+  logic               acch_wr_en;
+  logic [ExtWLEN-1:0] acch_intg_d;
+  logic [ExtWLEN-1:0] acch_intg_q;
+  logic [ExtWLEN-1:0] acch_intg_calc;
+  logic [WLEN-1:0]    acch_no_intg_d;
+  logic [WLEN-1:0]    acch_no_intg_q;
+  logic [WLEN-1:0]    acch_blanked;
+  logic [2*BaseWordsPerWLEN-1:0] acch_intg_err;
+
+  for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_acch_words
+    prim_secded_inv_39_32_enc i_acch_secded_enc (
+      .data_i(acch_no_intg_d[i_word * 32 +: 32]),
+      .data_o(acch_intg_calc[i_word * 39 +: 39])
+    );
+    prim_secded_inv_39_32_dec i_acch_secded_dec (
+      .data_i    (acch_intg_q[i_word * 39 +: 39]),
+      .data_o    (/* unused because we abort on any integrity error */),
+      .syndrome_o(/* unused */),
+      .err_o     (acch_intg_err[i_word * 2 +: 2])
+    );
+    assign acch_no_intg_q[i_word * 32 +: 32] = acch_intg_q[i_word * 39 +: 32];
+  end
+`endif // BNMULV_ACCH
+
   ////////////////////
   // Input blanking //
   ////////////////////
@@ -270,14 +309,22 @@ module otbn_mac_bignum
   // SEC_CM: DATA_REG_SW.SCA
   prim_blanker #(.Width(WLEN)) u_operand_a_blanker (
     .in_i (operation_i.operand_a),
-    .en_i (predec_i.mac_en),
+    .en_i (predec_i.mac_en
+`ifdef BNMULV
+           | operation_i.mulv
+`endif
+           ),
     .out_o(operand_a_blanked)
   );
 
   // SEC_CM: DATA_REG_SW.SCA
   prim_blanker #(.Width(WLEN)) u_operand_b_blanker (
     .in_i (operation_i.operand_b),
-    .en_i (predec_i.mac_en),
+    .en_i (predec_i.mac_en
+`ifdef BNMULV
+           | operation_i.mulv
+`endif
+           ),
     .out_o(operand_b_blanked)
   );
 
@@ -362,6 +409,34 @@ module otbn_mac_bignum
     .result_o   (mul_res)
   );
 
+`ifdef BNMULV
+  ///////////////////////////////////
+  // BNMULV: unified multiplier   //
+  ///////////////////////////////////
+  // unified_mul replaces otbn_vec_multiplier for bn.mulv instructions.
+`ifdef BNMULV_ACCH
+  logic [2*WLEN-1:0] bnmulv_mul_res;
+`else
+  logic [WLEN-1:0]   bnmulv_mul_res;
+`endif
+  unified_mul u_bnmulv_mul (
+    .word_mode  ({operation_i.mulv, operation_i.data_type}),
+    .word_sel_A (operation_i.op_a_qw_sel_raw),
+    .word_sel_B (operation_i.op_b_elem0_sel_raw[2:1]),
+`ifdef BNMULV_ACCH
+    .exec_mode  (operation_i.exec_mode),
+`endif
+    .half_sel   (operation_i.sel),
+    .lane_mode  (operation_i.lane_mode),
+    .lane_word_32(operation_i.lane_word_32),
+    .lane_word_16(operation_i.lane_word_16),
+    .A          (operand_a_blanked),
+    .B          (operand_b_blanked),
+    .data_type_64_shift(operation_i.pre_acc_shift_imm),
+    .result     (bnmulv_mul_res)
+  );
+`endif // BNMULV
+
   //////////////////////////////////////////////////////////
   // Multiplier result handling for vectorized Montgomery //
   //////////////////////////////////////////////////////////
@@ -403,7 +478,11 @@ module otbn_mac_bignum
   ///////////////////////////////////////////////////////////
   // Blank and shift result prior to accumulation
   logic [HWLEN-1:0] mul_res_pre_shifted;
+`ifdef BNMULV_ACCH
+  logic [2*WLEN-1:0] mul_res_shifted;
+`else
   logic [WLEN-1:0]  mul_res_shifted;
+`endif
 
   // SEC_CM: DATA_REG_SW.SCA
   prim_blanker #(.Width(HWLEN)) u_mul_res_shift_blanker (
@@ -416,6 +495,11 @@ module otbn_mac_bignum
   // supplied in the instruction (pre_acc_shift_imm). The shift is on a QWORD granularity and a
   // 192-bit shift will drop the upper QWORD of the multiply result.
   always_comb begin
+`ifdef BNMULV
+    if (operation_i.mulv) begin
+      mul_res_shifted = bnmulv_mul_res;
+    end else begin
+`endif
     mul_res_shifted = '0;
 
     unique case (operation_i.pre_acc_shift_imm)
@@ -423,9 +507,11 @@ module otbn_mac_bignum
       2'd1:    mul_res_shifted = {{QWLEN{1'b0}}, mul_res_pre_shifted, {QWLEN{1'b0}}};
       2'd2:    mul_res_shifted = {mul_res_pre_shifted, {QWLEN * 2{1'b0}}};
       2'd3:    mul_res_shifted = {mul_res_pre_shifted[QWLEN-1:0], {QWLEN * 3{1'b0}}};
-      // The default is the first case but with the blanker disabled, so the output is '0.
       default: mul_res_shifted = {{QWLEN * 2{1'b0}}, mul_res_pre_shifted};
     endcase
+`ifdef BNMULV
+    end
+`endif
   end
 
   `ASSERT_KNOWN_IF(PreAccShiftImmKnown, operation_i.pre_acc_shift_imm, mac_en_i)
@@ -435,9 +521,15 @@ module otbn_mac_bignum
   //////////////////////
   logic [HWLEN-1:0] c_blanked;
   logic [WLEN-1:0]  acc_add_blanked;
+`ifdef BNMULV_ACCH
+  logic [2*WLEN-1:0] adder_op_a;
+  logic [2*WLEN-1:0] adder_op_b;
+  logic [2*WLEN-1:0] adder_result;
+`else
   logic [WLEN-1:0]  adder_op_a;
   logic [WLEN-1:0]  adder_op_b;
   logic [WLEN-1:0]  adder_result;
+`endif
 
   // SEC_CM: DATA_REG_SW.SCA
   prim_blanker #(.Width(HWLEN)) u_reg_c_blanker (
@@ -454,6 +546,15 @@ module otbn_mac_bignum
     .out_o(acc_add_blanked)
   );
 
+`ifdef BNMULV_ACCH
+  // SEC_CM: DATA_REG_SW.SCA
+  prim_blanker #(.Width(WLEN)) u_acch_blanker (
+    .in_i (acch_no_intg_q),
+    .en_i (predec_i.acc_add_en & operation_i.mulv),
+    .out_o(acch_blanked)
+  );
+`endif
+
   // Perform the additions. The vectorized path only uses the lower 128 bits of the adder and
   // operates on 64-bit elements. The full 256 bit width is used for bn.mulqacc instructions.
   // Here the MUXs can be implemented with OR gates because input signals are exclusively blanked
@@ -465,8 +566,39 @@ module otbn_mac_bignum
   //   Vice versa acc_add_blanked is only non zero for regular multiplications where mul_res_add is
   //   blanked.
   assign adder_op_a = {{128{1'b0}}, c_blanked} | mul_res_shifted;
+`ifdef BNMULV_ACCH
+  assign adder_op_b = {acch_blanked, acc_add_blanked} | {mul_res_add, mul_res_add};
+`else
   assign adder_op_b = mul_res_add              | acc_add_blanked;
+`endif
 
+`ifdef BNMULV
+  // BNMULV: use configurable MAC_ADDER (buffer_bit or towards_mac_adder)
+  vec_type_e mac_adder_mode;
+  assign mac_adder_mode = operation_i.mulv ? (operation_i.data_type == 1'b0 ? VecType_s32 : VecType_d64) : VecType_v256;
+
+  `ifndef MAC_ADDER
+    `define MAC_ADDER buffer_bit
+  `endif
+  `MAC_ADDER u_mac_adder (
+    .A        (adder_op_a[WLEN-1:0]),
+    .B        (adder_op_b[WLEN-1:0]),
+    .word_mode(mac_adder_mode),
+    .cin      (1'b0),
+    .res      (adder_result[WLEN-1:0]),
+    .cout     ()
+  );
+`ifdef BNMULV_ACCH
+  `MAC_ADDER u_mac_adder_h (
+    .A        (adder_op_a[WLEN+:WLEN]),
+    .B        (adder_op_b[WLEN+:WLEN]),
+    .word_mode(operation_i.data_type == 1'b0 ? VecType_s32 : VecType_d64),
+    .cin      (1'b0),
+    .res      (adder_result[WLEN+:WLEN]),
+    .cout     ()
+  );
+`endif
+`else
   otbn_vec_adder #(
     .LVLEN(WLEN),
     .LVChunkLEN(QWLEN)
@@ -479,6 +611,7 @@ module otbn_mac_bignum
     .sum_o             (adder_result),
     .carries_out_o     (/* unused */)
   );
+`endif
 
   /////////////////////////////////////////////
   // Vectorized adder modulo result handling //
@@ -537,7 +670,7 @@ module otbn_mac_bignum
   logic [WLEN-1:0] regular_acc_update_value;
 
   prim_blanker #(.Width(WLEN)) u_add_res_blanker (
-    .in_i (adder_result),
+    .in_i (adder_result[WLEN-1:0]),
     .en_i (predec_i.add_res_en),
     .out_o(adder_result_blanked)
   );
@@ -559,16 +692,28 @@ module otbn_mac_bignum
 
   assign operation_flags_o.L    = adder_result_blanked[0];
   // L is always updated for .WO, and for .SO when writing to the lower half-word
+`ifdef BNMULV
+  assign operation_flags_en_o.L = operation_i.mulv                    ? 1'b0 :
+                                  predec_i.is_vec                     ? 1'b0 :
+                                  operation_i.shift_acc               ? ~operation_i.wr_hw_sel_upper : 1'b1;
+`else
   assign operation_flags_en_o.L = predec_i.is_vec       ? 1'b0                         :
                                   operation_i.shift_acc ? ~operation_i.wr_hw_sel_upper : 1'b1;
+`endif
 
   // For .SO M is taken from the top-bit of shifted out half-word, otherwise it is taken from the
   // top-bit of the full result.
   assign operation_flags_o.M    = operation_i.shift_acc ? adder_result_blanked[WLEN/2-1] :
                                                           adder_result_blanked[WLEN-1];
   // M is always updated for .WO, and for .SO when writing to the upper half-word.
+`ifdef BNMULV
+  assign operation_flags_en_o.M = operation_i.mulv                    ? 1'b0 :
+                                  predec_i.is_vec                     ? 1'b0 :
+                                  operation_i.shift_acc               ? operation_i.wr_hw_sel_upper : 1'b1;
+`else
   assign operation_flags_en_o.M = predec_i.is_vec       ? 1'b0                        :
                                   operation_i.shift_acc ? operation_i.wr_hw_sel_upper : 1'b1;
+`endif
 
   // For .SO Z is calculated from the shifted out half-word, otherwise it is calculated on the full
   // result.
@@ -578,9 +723,15 @@ module otbn_mac_bignum
   // Z is updated for .WO. For .SO updates are based upon result and half-word:
   // - When writing to lower half-word always update Z.
   // - When writing to upper half-word clear Z if result is non-zero otherwise leave it alone.
+`ifdef BNMULV
+  assign operation_flags_en_o.Z = operation_i.mulv ? 1'b0 :
+                                  predec_i.is_vec                                     ? 1'b0                        :
+                                  operation_i.shift_acc & operation_i.wr_hw_sel_upper ? ~adder_result_hw_is_zero[0] : 1'b1;
+`else
   assign operation_flags_en_o.Z =
       predec_i.is_vec                                     ? 1'b0                        :
       operation_i.shift_acc & operation_i.wr_hw_sel_upper ? ~adder_result_hw_is_zero[0] : 1'b1;
+`endif
 
   // MAC never sets the carry flag
   assign operation_flags_o.C    = 1'b0;
@@ -603,6 +754,13 @@ module otbn_mac_bignum
         if (ispr_acc_wr_en_i) begin
           acc_intg_d = ispr_acc_wr_data_intg_i;
         end else begin
+`ifdef BNMULV
+          if (operation_i.mulv) begin
+            // BNMULV: ACC gets the adder result directly (product + optional old ACC)
+            acc_no_intg_d = adder_result[WLEN-1:0];
+            acc_intg_d    = acc_intg_calc;
+          end else begin
+`endif
           // The MUX for the input selection can be implemented with a simple OR gate because both
           // inputs are exclusively blanked. For regular multiplications acc_merged is zero because
           // the ACC merger just receives zero values. For vectorized multiplications (incl.
@@ -610,10 +768,38 @@ module otbn_mac_bignum
           // These blankers are exclusively used for the whole duration of an instruction.
           acc_no_intg_d = acc_merged | regular_acc_update_value;
           acc_intg_d    = acc_intg_calc;
+`ifdef BNMULV
+          end
+`endif
         end
       end
     endcase
   end
+
+`ifdef BNMULV_ACCH
+  // ACCH write logic
+  always_comb begin
+    acch_no_intg_d = '0;
+    unique case (1'b1)
+      sec_wipe_urnd_i: begin
+        acch_no_intg_d = urnd_data_i;
+        acch_intg_d    = acch_intg_calc;
+      end
+      ispr_acc_wr_en_i: begin
+        acch_no_intg_d = '0;
+        acch_intg_d    = acch_intg_calc;
+      end
+      default: begin
+        if (ispr_acch_wr_en_i) begin
+          acch_intg_d = ispr_acch_wr_data_intg_i;
+        end else begin
+          acch_no_intg_d = adder_result[2*WLEN-1:WLEN];
+          acch_intg_d    = acch_intg_calc;
+        end
+      end
+    endcase
+  end
+`endif // BNMULV_ACCH
 
   ///////////////////////////
   // Register Write Enable //
@@ -630,6 +816,11 @@ module otbn_mac_bignum
                      | sec_wipe_urnd_i;
   assign c_wr_en   = ((c_wr_en_raw | c_clear_en) & (predec_i.mac_en & mac_commit_i))
                      | sec_wipe_urnd_i;
+
+`ifdef BNMULV_ACCH
+  assign acch_wr_en = (predec_i.mac_en & mac_commit_i & operation_i.mulv)
+                       | ispr_acch_wr_en_i | ispr_acc_wr_en_i | sec_wipe_urnd_i;
+`endif
 
   /////////////////////////
   // Multi-cycle control //
@@ -648,6 +839,9 @@ module otbn_mac_bignum
     // signals. Otherwise both FSMs would be controlled with the same control signals.
     .start_i          (mac_en_i),
     .mac_en_i         (mac_en_i),
+`ifdef BNMULV
+    .mulv_i           (operation_i.mulv),
+`endif
     .is_vec_i         (operation_i.is_vec),
     .is_mod_i         (operation_i.is_mod),
     .is_lane_i        (operation_i.is_lane),
@@ -699,8 +893,99 @@ module otbn_mac_bignum
   // an instruction.
   // For a regular multiplication shift_acc only applies to the new value written to the
   // accumulator.
+`ifdef BNMULV
+  // BNMULV result selection (matches paper2: always_comb drives operation_result_o directly)
+  always_comb begin
+    unique case (operation_i.mulv)
+      1'b0: begin
+        operation_result_o = acc_merged | adder_result_blanked;
+      end
+      default: begin
+`ifdef BNMULV_ACCH
+        unique case (operation_i.exec_mode)
+          2'b00: begin  // plain mulv
+            if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
+              operation_result_o = {adder_result[384 + 64*operation_i.sel +: 64],
+                                    adder_result[256 + 64*operation_i.sel +: 64],
+                                    adder_result[128 + 64*operation_i.sel +: 64],
+                                    adder_result[      64*operation_i.sel +: 64]};
+            end else begin  // 16-bit mode (16H)
+              operation_result_o = {adder_result[448 + 32*operation_i.sel +: 32],
+                                    adder_result[384 + 32*operation_i.sel +: 32],
+                                    adder_result[320 + 32*operation_i.sel +: 32],
+                                    adder_result[256 + 32*operation_i.sel +: 32],
+                                    adder_result[192 + 32*operation_i.sel +: 32],
+                                    adder_result[128 + 32*operation_i.sel +: 32],
+                                    adder_result[ 64 + 32*operation_i.sel +: 32],
+                                    adder_result[      32*operation_i.sel +: 32]};
+            end
+          end
+          2'b01: begin  // .acc variant: interleave operand_a with adder result
+            if (operation_i.data_type == 1'b1) begin  // 32-bit mode
+              if (operation_i.sel == 1'b0) begin
+                operation_result_o = {operand_a_blanked[224+:32], adder_result[384+:32],
+                                      operand_a_blanked[160+:32], adder_result[256+:32],
+                                      operand_a_blanked[ 96+:32], adder_result[128+:32],
+                                      operand_a_blanked[ 32+:32], adder_result[  0+:32]};
+              end else begin
+                operation_result_o = {adder_result[384+64+:32], operand_a_blanked[192+:32],
+                                      adder_result[256+64+:32], operand_a_blanked[128+:32],
+                                      adder_result[128+64+:32], operand_a_blanked[ 64+:32],
+                                      adder_result[  0+64+:32], operand_a_blanked[  0+:32]};
+              end
+            end else begin  // 16-bit mode (.lo, exec_mode=01)
+              // With ACCH: all 16 products available, take product LOWER halves
+              operation_result_o = {adder_result[480+:16], adder_result[448+:16],
+                                    adder_result[416+:16], adder_result[384+:16],
+                                    adder_result[352+:16], adder_result[320+:16],
+                                    adder_result[288+:16], adder_result[256+:16],
+                                    adder_result[224+:16], adder_result[192+:16],
+                                    adder_result[160+:16], adder_result[128+:16],
+                                    adder_result[ 96+:16], adder_result[ 64+:16],
+                                    adder_result[ 32+:16], adder_result[  0+:16]};
+            end
+          end
+          default: begin  // exec_mode 10 (.hi) / 11
+            if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
+              if (operation_i.sel == 1'b0) begin
+                operation_result_o = {operand_a_blanked[224+:32], adder_result[416+:32],
+                                      operand_a_blanked[160+:32], adder_result[288+:32],
+                                      operand_a_blanked[ 96+:32], adder_result[160+:32],
+                                      operand_a_blanked[ 32+:32], adder_result[ 32+:32]};
+              end else begin
+                operation_result_o = {adder_result[416+64+:32], operand_a_blanked[192+:32],
+                                      adder_result[288+64+:32], operand_a_blanked[128+:32],
+                                      adder_result[160+64+:32], operand_a_blanked[ 64+:32],
+                                      adder_result[ 32+64+:32], operand_a_blanked[  0+:32]};
+              end
+            end else begin  // 16-bit mode (16H)
+              operation_result_o = {adder_result[496+:16], adder_result[464+:16],
+                                    adder_result[432+:16], adder_result[400+:16],
+                                    adder_result[368+:16], adder_result[336+:16],
+                                    adder_result[304+:16], adder_result[272+:16],
+                                    adder_result[240+:16], adder_result[208+:16],
+                                    adder_result[176+:16], adder_result[144+:16],
+                                    adder_result[112+:16], adder_result[ 80+:16],
+                                    adder_result[ 48+:16], adder_result[ 16+:16]};
+            end
+          end
+        endcase
+`else
+        // Without ACCH: result is 256-bit, use directly
+        operation_result_o = adder_result[WLEN-1:0];
+`endif
+      end
+    endcase
+  end
+`else
   assign operation_result_o = acc_merged | adder_result_blanked;
-  assign operation_valid_o  = predec_i.operation_valid_raw & predec_i.mac_en;
+`endif
+  assign operation_valid_o  = predec_i.operation_valid_raw &
+`ifdef BNMULV
+                               (predec_i.mac_en | operation_i.mulv);
+`else
+                               predec_i.mac_en;
+`endif
 
   /////////////////////
   // Integrity error //
@@ -735,6 +1020,10 @@ module otbn_mac_bignum
   // Register and secure wipe output //
   /////////////////////////////////////
   assign ispr_acc_intg_o = acc_intg_q;
+
+`ifdef BNMULV_ACCH
+  assign ispr_acch_intg_o = acch_intg_q;
+`endif
 
   assign sec_wipe_err_o = sec_wipe_urnd_i & ~sec_wipe_running_i;
 
