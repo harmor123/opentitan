@@ -27,6 +27,8 @@ main:
     jal     x1, test_sha3_256_64b
     jal     x1, test_shake128_64b_run
 
+    jal     x1, test_sha3_256_127b
+
     ecall
 
 /* ==================== 基础测试函数 ==================== */
@@ -168,6 +170,18 @@ test_shake128_64b_run:
     jal     x1, kmac_done
     ret
 
+test_sha3_256_127b:
+    addi    x10, x0, 0             /* Mode 0: SHA3-256 */
+    jal     x1, kmac_init
+    la      x10, msg_127b
+    addi    x11, x0, 127           /* 3 full WDR + 31B tail, pos=16, partial */
+    jal     x1, keccak_send_message
+    jal     x1, kmac_process
+    la      x10, sha3_256_127b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
 /* ==================== 数据段 ==================== */
 .data
 
@@ -202,6 +216,12 @@ msg_35b:
 .balign 32
 msg_64b:
     .zero 64
+
+/* 127 字节消息 (= 3×32 + 31): pos=16, pad=2, 触发 pad+1 修正 */
+.balign 32
+msg_127b:
+    .zero 96           /* 3 full WDRs (96 bytes) */
+    .zero 31           /* partial tail = 31 bytes */
 
 /* 基础测试输出缓冲区 */
 .balign 32
@@ -240,3 +260,6 @@ shake128_64b_out_1:   .zero 32
 
 .balign 32
 shake128_64b_out_2:   .zero 32
+
+.balign 32
+sha3_256_127b_out:    .zero 32

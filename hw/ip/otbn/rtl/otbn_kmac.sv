@@ -448,9 +448,9 @@ module otbn_kmac
   logic [2:0] last_valid_bytes;  // valid bytes in last message word (1..8)
   always_comb begin
     last_valid_bytes = 3'd8;  // default: full word
-    for (int b = 0; b < 8; b++)
+    for (int b = 0; b < 32; b++)
       if (!kmac_byte_strobe_q[b]) begin
-        last_valid_bytes = 3'(b);
+        last_valid_bytes = 3'(b % 8);
         break;
       end
   end
@@ -467,9 +467,12 @@ module otbn_kmac
 
   // Feed padding words to Keccak during StPad state.
   // Wait until absorption is idle before starting padding.
+  // Skip intermediate zero pad words: only first (0x06/0x1F) and last (0x80) are non-zero.
+  logic keccak_pad_skip;
+  assign keccak_pad_skip = (st_q == StPad) && (pad_cnt == 1) && (pad_words_needed > 2);
   logic keccak_pad_valid;
   assign keccak_pad_valid = (st_q == StPad) && (pad_cnt < pad_words_needed) &&
-                            !absorb_active;
+                            !absorb_active && !keccak_pad_skip;
 
   // Multiplex: feed msg or padding to Keccak
   logic                  keccak_feed_valid_mux;
@@ -785,6 +788,7 @@ module otbn_kmac
   // Pad counter
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni)                                    pad_cnt <= '0;
+    else if (keccak_pad_skip)                        pad_cnt <= pad_words_needed - 1;
     else if (keccak_pad_valid)                       pad_cnt <= pad_cnt + 1'b1;
     else if (st_q != StPad)                          pad_cnt <= '0;
   end

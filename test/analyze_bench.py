@@ -5,11 +5,11 @@
 ML-KEM-768 + P-256 ECDH  基准测试自动分析（Log 驱动）
 ====================================================
 用法:
-    python3 analyze_bench.py                                # 分析最新 log
-    python3 analyze_bench.py --log logs/bench_xxx.log       # 指定日志
-    python3 analyze_bench.py --db kyber_bench.db            # 指定数据库
-    python3 analyze_bench.py --compare db_old.db db_new.db  # 版本对比
-    python3 analyze_bench.py --no-latex                     # 不输出 LaTeX
+    python3 test/analyze_bench.py                                # 分析最新 log
+    python3 test/analyze_bench.py --log logs/bench_xxx.log       # 指定日志
+    python3 test/analyze_bench.py --db kyber_bench.db            # 指定数据库
+    python3 test/analyze_bench.py --compare db_old.db db_new.db  # 版本对比
+    python3 test/analyze_bench.py --no-latex                     # 不输出 LaTeX
 """
 
 import os

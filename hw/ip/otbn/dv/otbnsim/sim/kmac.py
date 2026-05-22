@@ -350,21 +350,28 @@ class Kmac():
     def _calc_pad_cycles(self, mode: KmacMode) -> int:
         """Calculate pad cycles for the current rate block.
 
-        Replaces the hardcoded 'rem=17 for >512 bytes' with a dynamic
-        calculation based on actual absorption state.
+        RTL optimization: only first (0x06/0x1F) and last (0x80) pad words
+        are non-zero; intermediate zero words are skipped via pad_cnt jump.
         """
         pos = self._keccak_absorbed_cnt.value
         msg_len = len(self._absorbed_msg_bytes)
 
         if msg_len == 0 and mode == KmacMode.SHA3:
-            return self._keccak_rate_words
-        if msg_len == 0:
+            pad_words = self._keccak_rate_words
+        elif msg_len == 0:
             return 0
-
-        if pos == 0:
-            return self._keccak_rate_words
+        elif pos == 0:
+            pad_words = self._keccak_rate_words
         else:
-            return self._keccak_rate_words - pos
+            pad_words = self._keccak_rate_words - pos
+            # Partial last word: first pad word overlaps same lane
+            if (msg_len % 8) != 0:
+                pad_words += 1
+
+        # Skip intermediate zero words: first feed + jump + last feed = 3 cycles
+        if pad_words > 2:
+            return 3
+        return pad_words
 
     def _start(self) -> KmacState:
         # Get cfg mode and kStrength.

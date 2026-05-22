@@ -14,7 +14,6 @@
 .section .text.start
 .globl main
 main:
-
     jal     x1, test_sha3_256_empty
     jal     x1, test_sha3_512_empty
     jal     x1, test_sha3_256_msg
@@ -29,7 +28,24 @@ main:
     jal     x1, test_sha3_256_2048b
     jal     x1, test_shake128_4096b
     jal     x1, test_shake256_4096b
+    jal     x1, test_sha3_256_127b
 /*
+    jal     x1, test_sha3_256_empty
+    jal     x1, test_sha3_512_empty
+    jal     x1, test_sha3_256_msg
+    jal     x1, test_sha3_512_msg
+    jal     x1, test_shake128_msg
+    jal     x1, test_shake256_msg
+    jal     x1, test_sha3_256_32b
+    jal     x1, test_sha3_256_33b
+    jal     x1, test_sha3_256_35b
+    jal     x1, test_sha3_256_64b
+    jal     x1, test_shake128_64b_run
+    jal     x1, test_sha3_256_2048b
+    jal     x1, test_shake128_4096b
+    jal     x1, test_shake256_4096b
+    
+
      */
 
 
@@ -318,6 +334,18 @@ test_sha3_256_64b:
     jal     x1, kmac_done
     ret
 
+test_sha3_256_127b:
+    addi    x10, x0, 0x05            /* SHA3-256 */
+    jal     x1, kmac_start
+    la      x10, msg_127b
+    addi    x11, x0, 127             /* 3 WDR + 31B tail, pos=16, pad=2 */
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_127b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
 test_shake128_64b_run:
     addi    x31, x1, 0               /* save ra */
     addi    x10, x0, 0x21            /* SHAKE128: mode=2, strength=0 */
@@ -406,6 +434,28 @@ msg_35b:
 msg_64b:
     .zero 64
 
+/* 2048-bit (256-byte) message = "what do " repeated 32 times */
+.balign 32
+msg_2048b:
+    .rept 32
+    .word 0x74616877    /* "what" little-endian */
+    .word 0x206f6420    /* " do " little-endian */
+    .endr
+    
+/* 4096-byte message = "what do " repeated 512 times */
+.balign 32
+msg_4096b:
+    .rept 512
+    .word 0x74616877
+    .word 0x206f6420
+    .endr
+
+.balign 32
+msg_127b:
+    .zero 96
+    .zero 31
+.balign 32
+
 /* 基础测试输出缓冲区 */
 .balign 32
 sha3_256_empty_out:   .zero 32
@@ -444,27 +494,14 @@ shake128_64b_out_1:   .zero 32
 .balign 32
 shake128_64b_out_2:   .zero 32
 
-/* 2048-bit (256-byte) message = "what do " repeated 32 times */
-.balign 32
-msg_2048b:
-    .rept 32
-    .word 0x74616877    /* "what" little-endian */
-    .word 0x206f6420    /* " do " little-endian */
-    .endr
-
 .balign 32
 sha3_256_2048b_out:   .zero 32
-
-/* 4096-byte message = "what do " repeated 512 times */
-.balign 32
-msg_4096b:
-    .rept 512
-    .word 0x74616877
-    .word 0x206f6420
-    .endr
 
 .balign 32
 shake256_4096b_out:   .zero 32
 
 .balign 32
 shake128_4096b_out:   .zero 32
+
+.balign 32
+sha3_256_127b_out:    .zero 32
