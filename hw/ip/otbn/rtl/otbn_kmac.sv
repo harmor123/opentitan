@@ -79,10 +79,10 @@ module otbn_kmac
   ////////////////////////////////////////////////////////////////////////////
   // Local parameters
   ////////////////////////////////////////////////////////////////////////////
-  // Keccak timing constants (OpenTitan official values)
+  // Keccak timing: 1 cycle/round unmasked, 4 with DOM masking
   localparam int KeccakRounds   = 24;
-  localparam int CyclesPerRound  = 4;
-  localparam int ProcessCycles   = KeccakRounds * CyclesPerRound;  // 96
+  localparam int CyclesPerRound  = EnMasking ? 4 : 1;
+  localparam int ProcessCycles   = KeccakRounds * CyclesPerRound;  // 24 or 96
 
   localparam int DInWidth  = 64;
   localparam int DInEntry  = Width / DInWidth;  // 1600/64 = 25

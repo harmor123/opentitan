@@ -212,14 +212,14 @@ kmac_run:
     addi    x5, x0, 49              /* CMD_RUN = 0x31 */
     csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    /* 先等 FSM 离开 StSqueeze (进入 StProcessing = ABSORB 状态) */
+    /* 等 FSM 进入 StProcessing (ABSORB) — 确认 RUN 已被处理 */
     addi    x6, x0, 2               /* kmac_status[1]: SHA3_ABSORB */
 .wait_run_absorb:
     csrrs   x5, 0xfc2, x0
     and     x5, x5, x6
     beq     x5, x0, .wait_run_absorb
 
-    /* 再等 Keccak 完成，FSM 回到 StSqueeze */
+    /* 等 Keccak 完成，FSM 回到 StSqueeze */
     addi    x6, x0, 4               /* kmac_status[2]: SHA3_SQUEEZE */
 .wait_run_squeeze:
     csrrs   x5, 0xfc2, x0

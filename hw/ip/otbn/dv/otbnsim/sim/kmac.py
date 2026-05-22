@@ -10,12 +10,10 @@ import secrets
 from .csr import CSRFile
 from .wsr import WSRFile
 
-# Timing constants
+# Timing constants (masked defaults; instance attributes override when en_sca_masking=False)
 KECCAK_ROUNDS = 24
-KECCAK_ROUND_CYCLES = 4
+KECCAK_ROUND_CYCLES = 4  # per RTL CyclesPerRound when EnMasking=1
 KECCAK_PROCESS_CYCLES = KECCAK_ROUNDS * KECCAK_ROUND_CYCLES  # 96
-# keccak-f permutation latency for rate-full during absorption.
-# Matches RTL absorb_hold_q duration (KeccakStActive 24 + complete_o 1).
 KECCAK_ABSORB_CYCLES = 25
 
 # Data sizes
@@ -176,6 +174,9 @@ class Kmac():
 
     def __init__(self, csrs: CSRFile, wsrs: WSRFile, en_sca_masking: bool = True) -> None:
         self._en_sca_masking = en_sca_masking
+        self._keccak_round_cycles = 4 if en_sca_masking else 1
+        self._keccak_process_cycles = KECCAK_ROUNDS * self._keccak_round_cycles  # 96 or 24
+        self._keccak_absorb_cycles = self._keccak_process_cycles + 1  # 97 or 25
         self.on_start(csrs, wsrs)
         self._reset_state()
 
@@ -314,7 +315,7 @@ class Kmac():
                     # rem = ongoing keccak + pad cycles for current rate block.
                     # _calc_pad_cycles replaces the hardcoded rem=17 hack.
                     rem = self._keccak_round_ctr.value + self._calc_pad_cycles(mode)
-                    self._keccak_round_ctr.set_next(KECCAK_PROCESS_CYCLES + rem + 1)
+                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + rem + 1)
                     self._state_next = KmacState.PROCESSING
                     self._skip_absorb_decrement = True
 
@@ -330,7 +331,7 @@ class Kmac():
 
                 if command == KmacCmd.RUN and mode != KmacMode.SHA3:
                     self._state_next = KmacState.SQUEEZING
-                    self._keccak_round_ctr.set_next(KECCAK_PROCESS_CYCLES)
+                    self._keccak_round_ctr.set_next(self._keccak_process_cycles)
                     self._keccak_squeezed_cnt.set_next(0)
                 elif command == KmacCmd.DONE:
                     self._state_next = KmacState.IDLE
@@ -419,7 +420,7 @@ class Kmac():
         # The counter blocks decrement in step() (_skip_absorb_decrement)
         # so the value set here is preserved for one cycle.
         if self._keccak_absorbed_cnt.increment() >= self._keccak_rate_words:
-            self._keccak_round_ctr.set_next(KECCAK_ABSORB_CYCLES)
+            self._keccak_round_ctr.set_next(self._keccak_absorb_cycles)
             self._keccak_round_ctr.end_cycle()  # commit immediately
             self._keccak_absorbed_cnt.set_next(0)
             self._skip_absorb_decrement = True
@@ -595,7 +596,7 @@ class Kmac():
         self._kmac_msg_send_words_left = Counter(max_val=KMAC_WSR_WORDS)
         # Keccak round counter to keep track how long until the Keccak round is over.
         # A Keccak round takes KECCAK_ROUND_CYCLES cycles.
-        self._keccak_round_ctr = Counter(max_val=KECCAK_PROCESS_CYCLES + KECCAK_ABSORB_CYCLES + 64)
+        self._keccak_round_ctr = Counter(max_val=self._keccak_process_cycles + self._keccak_absorb_cycles + 64)
         # Count of absorbed words, used to determine when Keccak should start processing.
         self._keccak_absorbed_cnt = Counter()
         # Count of squeezed words, used to determine how much data is left to squeeze.
