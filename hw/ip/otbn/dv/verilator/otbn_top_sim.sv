@@ -73,7 +73,8 @@ module otbn_top_sim (
     .ImemSizeByte             ( ImemSizeByte ),
     .DmemSizeByte             ( DmemSizeByte ),
     .SecMuteUrnd              ( 1'b0         ),
-    .SecSkipUrndReseedAtStart ( 1'b0         )
+    .SecSkipUrndReseedAtStart ( 1'b0         ),
+    .SecFixKmacMasking        ( 1'b1         )  // DV: fixed zero mask, aligned with SecFixMaiOpSeq
   ) u_otbn_core (
     .clk_i                       ( IO_CLK                     ),
     .rst_ni                      ( IO_RST_N                   ),

@@ -427,20 +427,20 @@ package otbn_pkg;
     CsrMod6           = 12'h7D6,
     CsrMod7           = 12'h7D7,
     CsrRndPrefetch    = 12'h7D8,
-    // CsrKmacIfStatus   = 12'h7d9,
-    // CsrKmacIntr       = 12'h7da,
-    // CsrKmacCfg        = 12'h7db,
-    // CsrKmacMsgSend    = 12'h7dc,
-    // CsrKmacCmd        = 12'h7dd,
-    // CsrKmacByteStrobe = 12'h7de,
-    CsrMaiCtrl        = 12'h7e0,
+    CsrKmacIfStatus   = 12'h7D9,
+    CsrKmacIntr       = 12'h7DA,
+    CsrKmacCfg        = 12'h7DB,
+    CsrKmacMsgSend    = 12'h7DC,
+    CsrKmacCmd        = 12'h7DD,
+    CsrKmacByteStrobe = 12'h7DE,
+    CsrMaiCtrl        = 12'h7E0,
 
     // 0xFC0-0xFFF Custom read-only
     CsrRnd         = 12'hFC0,
     CsrUrnd        = 12'hFC1,
-    // CsrKmacStatus  = 12'hfc2,
-    // CsrKmacError   = 12'hfc3,
-    CsrMaiStatus   = 12'hfca
+    CsrKmacStatus  = 12'hFC2,
+    CsrKmacError   = 12'hFC3,
+    CsrMaiStatus   = 12'hFCA
   } csr_e;
 
   // Wide Special Purpose Registers (WSRs)
@@ -455,8 +455,8 @@ package otbn_pkg;
     WsrKeyS0H     = 'd5,
     WsrKeyS1L     = 'd6,
     WsrKeyS1H     = 'd7,
-    // WsrKmacDataS0 = 'd8,
-    // WsrKmacDataS1 = 'd9,
+    WsrKmacDataS0 = 'd8,
+    WsrKmacDataS1 = 'd9,
     WsrMaiResS0   = 'd10,
     WsrMaiResS1   = 'd11,
     WsrMaiIn0S0   = 'd12,
@@ -469,31 +469,41 @@ package otbn_pkg;
   // CSRs and WSRs have some overlap into what they map into. ISPRs are the actual registers in the
   // design which CSRs and WSRs are mapped on to.
 `ifdef BNMULV_ACCH
-  parameter int NIspr = 18;
+  parameter int NIspr = 28;
 `else
-  parameter int NIspr = 17;
+  parameter int NIspr = 27;
 `endif
   parameter int IsprNumWidth = $clog2(NIspr);
   typedef enum logic [IsprNumWidth-1:0] {
-    IsprMod       = 'd0,
-    IsprRnd       = 'd1,
-    IsprAcc       = 'd2,
-    IsprFlags     = 'd3,
-    IsprUrnd      = 'd4,
-    IsprKeyS0L    = 'd5,
-    IsprKeyS0H    = 'd6,
-    IsprKeyS1L    = 'd7,
-    IsprKeyS1H    = 'd8,
-    IsprMaiResS0  = 'd9,
-    IsprMaiResS1  = 'd10,
-    IsprMaiIn0S0  = 'd11,
-    IsprMaiIn0S1  = 'd12,
-    IsprMaiIn1S0  = 'd13,
-    IsprMaiIn1S1  = 'd14,
-    IsprMaiCtrl   = 'd15,
-    IsprMaiStatus = 'd16
+    IsprMod         = 'd0,
+    IsprRnd         = 'd1,
+    IsprAcc         = 'd2,
+    IsprFlags       = 'd3,
+    IsprUrnd        = 'd4,
+    IsprKeyS0L      = 'd5,
+    IsprKeyS0H      = 'd6,
+    IsprKeyS1L      = 'd7,
+    IsprKeyS1H      = 'd8,
+    IsprMaiResS0    = 'd9,
+    IsprMaiResS1    = 'd10,
+    IsprMaiIn0S0    = 'd11,
+    IsprMaiIn0S1    = 'd12,
+    IsprMaiIn1S0    = 'd13,
+    IsprMaiIn1S1    = 'd14,
+    IsprMaiCtrl     = 'd15,
+    IsprMaiStatus   = 'd16,
+    IsprKmacDataS0  = 'd17,
+    IsprKmacDataS1  = 'd18,
+    IsprKmacCfg     = 'd19,
+    IsprKmacCmd     = 'd20,
+    IsprKmacIfStatus = 'd21,
+    IsprKmacStatus  = 'd22,
+    IsprKmacMsgSend     = 'd23,
+    IsprKmacByteStrobe  = 'd24,
+    IsprKmacIntr        = 'd25,
+    IsprKmacError       = 'd26
 `ifdef BNMULV_ACCH
-   ,IsprAccH      = 'd17
+   ,IsprAccH           = 'd27
 `endif
   } ispr_e;
 

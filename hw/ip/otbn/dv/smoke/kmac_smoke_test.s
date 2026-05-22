@@ -1,0 +1,470 @@
+/* KMAC/SHA3 hardware smoke test — 11 test cases
+ *
+ * Uses csr.yml / wsr.yml interface:
+ *   0x7D9 = kmac_if_status (read: bit0=msg_rdy, bit3=digest_valid)
+ *   0x7DB = kmac_cfg (write: bit0=EN, bits[3:1]=strength, bits[5:4]=mode)
+ *   0x7DD = kmac_cmd (write: START=0x1D, PROCESS=0x2E, RUN=0x31, DONE=0x16)
+ *   0xFC2 = kmac_status (read: bit0=idle, bit1=absorb, bit2=squeeze)
+ *   WSR 8 = kmac_data_s0, WSR 9 = kmac_data_s1
+ *
+ * MODE: 0=SHA3, 2=SHAKE
+ * STRENGTH: 0=L128, 1=L224, 2=L256, 3=L384, 4=L512
+ */
+
+.section .text.start
+.globl main
+main:
+
+    jal     x1, test_sha3_256_empty
+    jal     x1, test_sha3_512_empty
+    jal     x1, test_sha3_256_msg
+    jal     x1, test_sha3_512_msg
+    jal     x1, test_shake128_msg
+    jal     x1, test_shake256_msg
+    jal     x1, test_sha3_256_32b
+    jal     x1, test_sha3_256_33b
+    jal     x1, test_sha3_256_35b
+    jal     x1, test_sha3_256_64b
+    jal     x1, test_shake128_64b_run
+    jal     x1, test_sha3_256_2048b
+    jal     x1, test_shake128_4096b
+    jal     x1, test_shake256_4096b
+/*
+     */
+
+
+    bn.xor  w0, w0, w0
+    bn.xor  w1, w1, w1
+    bn.xor  w2, w2, w2
+    bn.xor  w3, w3, w3
+    bn.xor  w4, w4, w4
+    bn.xor  w5, w5, w5
+    bn.xor  w6, w6, w6
+    bn.xor  w7, w7, w7
+    bn.xor  w8, w8, w8
+    bn.xor  w9, w9, w9
+    xor     x2, x2, x2
+    xor     x3, x3, x3
+    xor     x4, x4, x4
+    xor     x5, x5, x5
+    xor     x6, x6, x6
+    xor     x7, x7, x7
+    xor     x8, x8, x8
+    xor     x9, x9, x9
+    xor     x10, x10, x10
+    xor     x11, x11, x11
+    ecall
+
+/* ========== Driver (matches csr.yml) ========== */
+
+/* kmac_start(x10 = cfg value): write cfg, then START cmd */
+kmac_start:
+    csrrw   x0, 0x7DB, x10
+    addi    x5, x0, 0x1D
+    csrrw   x0, 0x7DD, x5
+    ret
+
+/* kmac_feed(x10=msg_ptr, x11=byte_len) */
+kmac_feed:
+    bn.xor  w1, w1, w1
+    bn.xor  w31, w31, w31
+    srli    x5, x11, 5
+    beq     x5, x0, kmac_feed_tail
+    slli    x5, x5, 5
+    add     x5, x10, x5
+kmac_feed_full_loop:
+    beq     x10, x5, kmac_feed_tail
+kmac_feed_wait_rdy:
+    csrrs   x6, 0x7D9, x0
+    andi    x6, x6, 0x1
+    beq     x6, x0, kmac_feed_wait_rdy
+    bn.lid  x0, 0(x10)
+    addi    x10, x10, 32
+    bn.wsrw 8, w0
+    bn.wsrw 9, w1
+    addi    x6, x0, -1
+    csrrw   x0, 0x7DE, x6
+    addi    x6, x0, 1
+    csrrw   x0, 0x7DC, x6
+    jal     x0, kmac_feed_full_loop
+kmac_feed_tail:
+    andi    x5, x11, 31
+    beq     x5, x0, kmac_feed_done
+kmac_feed_wait_tail:
+    csrrs   x6, 0x7D9, x0
+    andi    x6, x6, 0x1
+    beq     x6, x0, kmac_feed_wait_tail
+    bn.lid  x0, 0(x10)
+    bn.addi w1, w1, 1
+    addi    x7, x5, 0
+kmac_feed_mask_loop:
+    beq     x7, x0, kmac_feed_mask_done
+    addi    x7, x7, -1
+    bn.rshi w1, w1, w31 >> 248
+    jal     x0, kmac_feed_mask_loop
+kmac_feed_mask_done:
+    bn.subi w1, w1, 1
+    bn.and  w0, w0, w1
+    bn.wsrw 8, w0
+    bn.wsrw 9, w31
+    addi    x6, x0, 1
+    sll     x6, x6, x5
+    addi    x6, x6, -1
+    csrrw   x0, 0x7DE, x6
+    addi    x6, x0, 1
+    csrrw   x0, 0x7DC, x6
+kmac_feed_done:
+    ret
+
+/* kmac_process: send PROCESS=0x2E, wait squeeze */
+kmac_process:
+    addi    x5, x0, 0x2E
+    csrrw   x0, 0x7DD, x5
+kmac_proc_wait:
+    csrrs   x5, 0xFC2, x0
+    andi    x5, x5, 0x4
+    beq     x5, x0, kmac_proc_wait
+    ret
+
+/* kmac_squeeze_32B(x10=out_ptr) — reads 4 x 64-bit words, assembles 256-bit digest */
+kmac_squeeze_32B:
+    bn.xor  w31, w31, w31        /* w31 = 0 for bn.rshi shifts */
+kmac_sqz_poll:
+    csrrs   x5, 0x7D9, x0
+    andi    x5, x5, 0x8
+    beq     x5, x0, kmac_sqz_poll
+
+    /* Word 0: bits[63:0] */
+    bn.wsrr w8, 8
+    bn.wsrr w9, 9
+    bn.xor  w8, w8, w9
+
+    /* Word 1: bits[127:64] */
+    bn.wsrr w10, 8
+    bn.wsrr w9, 9
+    bn.xor  w10, w10, w9
+    bn.rshi w10, w10, w31 >> 192  /* w10 <<= 64 */
+    bn.or   w8, w8, w10
+
+    /* Word 2: bits[191:128] */
+    bn.wsrr w10, 8
+    bn.wsrr w9, 9
+    bn.xor  w10, w10, w9
+    bn.rshi w10, w10, w31 >> 128  /* w10 <<= 128 */
+    bn.or   w8, w8, w10
+
+    /* Word 3: bits[255:192] */
+    bn.wsrr w10, 8
+    bn.wsrr w9, 9
+    bn.xor  w10, w10, w9
+    bn.rshi w10, w10, w31 >> 64   /* w10 <<= 192 */
+    bn.or   w8, w8, w10
+
+    addi    x5, x0, 8
+    bn.sid  x5, 0(x10)
+    ret
+
+/* kmac_run: send RUN=0x31, wait squeeze */
+kmac_run:
+    addi    x5, x0, 0x31
+    csrrw   x0, 0x7DD, x5
+kmac_run_wait:
+    csrrs   x5, 0xFC2, x0
+    andi    x5, x5, 0x4
+    beq     x5, x0, kmac_run_wait
+    ret
+
+/* kmac_done: send DONE=0x16, wait idle */
+kmac_done:
+    addi    x5, x0, 0x16
+    csrrw   x0, 0x7DD, x5
+kmac_done_wait:
+    csrrs   x5, 0xFC2, x0
+    andi    x5, x5, 0x1
+    beq     x5, x0, kmac_done_wait
+    ret
+
+/* ========== 11 Test Cases ========== */
+
+/* cfg: MODE=2(SHA3) STRENGTH=2(L256) EN=1 => 0x25 */
+test_sha3_256_empty:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0 SHA3, STRENGTH=2 L256, EN=1 */
+    jal     x1, kmac_start
+    jal     x1, kmac_process
+    la      x10, sha3_256_empty_out
+    jal     x1, kmac_squeeze_32B     /* read 1st 64-bit digest word */
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+/* cfg: MODE=0(SHA3) STRENGTH=4(L512) EN=1 => bit[5:4]=00,bit[3:1]=100,bit[0]=1 = 0x09 */
+test_sha3_512_empty:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x09            /* SHA3-512: MODE=0 SHA3, STRENGTH=4 L512, EN=1 */
+    jal     x1, kmac_start
+    jal     x1, kmac_process
+    la      x10, sha3_512_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_run
+    addi    x10, x10, 32
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+test_sha3_256_msg:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0 SHA3, STRENGTH=2 L256, EN=1 */
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_msg_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+test_sha3_512_msg:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x09            /* SHA3-512: MODE=0 SHA3, STRENGTH=4 L512, EN=1 */
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_512_msg_out
+    jal     x1, kmac_squeeze_32B     /* first 256 bits */
+    jal     x1, kmac_run
+    addi    x10, x10, 32
+    jal     x1, kmac_squeeze_32B     /* next 256 bits */
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+/* cfg: MODE=SHAKE(2) STRENGTH=L128(0) EN=1 => 0x21 */
+test_shake128_msg:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x21            /* SHAKE128: mode=2, strength=0 */
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, shake128_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+/* cfg: MODE=SHAKE(2) STRENGTH=L256(2) EN=1 => 0x25 */
+test_shake256_msg:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x25            /* SHAKE256: mode=2(SHAKE), strength=2(L256) */
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, shake256_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+test_sha3_256_32b:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0 SHA3, STRENGTH=2 L256, EN=1 */
+    jal     x1, kmac_start
+    la      x10, msg_32b
+    addi    x11, x0, 32
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_32b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+test_sha3_256_33b:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x05            /* SHA3-256 */
+    jal     x1, kmac_start
+    la      x10, msg_33b
+    addi    x11, x0, 33
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_33b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+test_sha3_256_35b:
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0 SHA3, STRENGTH=2 L256, EN=1 (ISS needs EN=1) */
+    jal     x1, kmac_start
+    la      x10, msg_35b
+    addi    x11, x0, 35
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_35b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_sha3_256_64b:
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0 SHA3, STRENGTH=2 L256, EN=1 (ISS needs EN=1) */
+    jal     x1, kmac_start
+    la      x10, msg_64b
+    addi    x11, x0, 64
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_64b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_shake128_64b_run:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x21            /* SHAKE128: mode=2, strength=0 */
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, shake128_64b_out_1
+    jal     x1, kmac_squeeze_32B
+    la      x10, shake128_64b_out_2
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+/* cfg: MODE=0(SHA3) STRENGTH=2(L256) EN=1 => 0x05
+   2048-bit (256-byte) message: "what do " repeated 32 times */
+test_sha3_256_2048b:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0 SHA3, STRENGTH=2 L256, EN=1 */
+    jal     x1, kmac_start
+    la      x10, msg_2048b
+    addi    x11, x0, 256             /* 256 bytes = 2048 bits */
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_2048b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+
+/* cfg: MODE=SHAKE(2) STRENGTH=L256(2) EN=1 => 0x25
+   4096-byte message: "what do " repeated 512 times */
+test_shake256_4096b:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x25            /* SHAKE256: mode=2(SHAKE), strength=2(L256) */
+    jal     x1, kmac_start
+    la      x10, msg_4096b
+    addi    x11, x0, 1024
+    slli    x11, x11, 2              /* x11 = 4096 */
+    jal     x1, kmac_feed            /*  4096 bytes */
+    jal     x1, kmac_process
+    la      x10, shake256_4096b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0               /* return via saved ra */
+
+  test_shake128_4096b:
+      addi    x31, x1, 0
+      addi    x10, x0, 0x21
+      jal     x1, kmac_start
+      la      x10, msg_4096b
+      addi    x11, x0, 1024
+      slli    x11, x11, 2
+      jal     x1, kmac_feed
+      jal     x1, kmac_process
+      la      x10, shake128_4096b_out
+      jal     x1, kmac_squeeze_32B
+      jal     x1, kmac_done
+      jalr    x0, x31, 0
+
+/* ========== Data ========== */
+.data
+
+.balign 32
+my_message:
+    .word 0x74616877    /* "what" little-endian */
+    .word 0x206f6420    /* " do " little-endian */
+    
+/* 边缘测试专用输入数据 */
+.balign 32
+msg_32b:
+    .zero 32
+
+.balign 32
+msg_33b:
+    .zero 32
+    .word 0x00000001
+
+.balign 32
+msg_35b:
+    .zero 32
+    .word 0x00030201
+
+.balign 32
+msg_64b:
+    .zero 64
+
+/* 基础测试输出缓冲区 */
+.balign 32
+sha3_256_empty_out:   .zero 32
+
+.balign 32
+sha3_512_empty_out:   .zero 64
+
+.balign 32
+sha3_256_msg_out:     .zero 32
+
+.balign 32
+sha3_512_msg_out:     .zero 64
+
+.balign 32
+shake128_out:         .zero 32
+
+.balign 32
+shake256_out:         .zero 32
+
+/* 边缘测试专用输出缓冲区 */
+.balign 32
+sha3_256_32b_out:     .zero 32
+
+.balign 32
+sha3_256_33b_out:     .zero 32
+
+.balign 32
+sha3_256_35b_out:     .zero 32
+
+.balign 32
+sha3_256_64b_out:     .zero 32
+
+.balign 32
+shake128_64b_out_1:   .zero 32
+
+.balign 32
+shake128_64b_out_2:   .zero 32
+
+/* 2048-bit (256-byte) message = "what do " repeated 32 times */
+.balign 32
+msg_2048b:
+    .rept 32
+    .word 0x74616877    /* "what" little-endian */
+    .word 0x206f6420    /* " do " little-endian */
+    .endr
+
+.balign 32
+sha3_256_2048b_out:   .zero 32
+
+/* 4096-byte message = "what do " repeated 512 times */
+.balign 32
+msg_4096b:
+    .rept 512
+    .word 0x74616877
+    .word 0x206f6420
+    .endr
+
+.balign 32
+shake256_4096b_out:   .zero 32
+
+.balign 32
+shake128_4096b_out:   .zero 32

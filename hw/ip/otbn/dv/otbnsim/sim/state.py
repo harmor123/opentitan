@@ -85,7 +85,7 @@ class OTBNState:
         self.ext_regs = OTBNExtRegs()
         self.wsrs = WSRFile(self.ext_regs)
         self.csrs = CSRFile(self.wsrs)
-        self.kmac = Kmac(self.csrs, self.wsrs)
+        self.kmac = Kmac(self.csrs, self.wsrs, en_sca_masking=False)
 
         self.pc = 0
         self._pc_next_override: Optional[int] = None

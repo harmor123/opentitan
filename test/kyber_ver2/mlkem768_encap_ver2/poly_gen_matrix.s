@@ -157,7 +157,6 @@ _skip_first:
   li   x6, 10
   bn.sid x6, 0(x13)
 
-  jal  x1, kmac_run
   addi x10, fp, -32
   jal  x1, kmac_squeeze_32B
 
@@ -213,7 +212,6 @@ _skip_store2:
   li   x6, 10
   bn.sid x6, 0(x13)
 
-  jal  x1, kmac_run
   addi x10, fp, -32
   jal  x1, kmac_squeeze_32B
 

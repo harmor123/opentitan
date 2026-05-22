@@ -114,6 +114,16 @@ module otbn_tracer (
       IsprMaiIn1S1: return "MAI_IN1_S1";
       IsprMaiCtrl: return "MAI_CTRL";
       IsprMaiStatus: return "MAI_STATUS";
+      IsprKmacDataS0: return "KMAC_DATA_S0";
+      IsprKmacDataS1: return "KMAC_DATA_S1";
+      IsprKmacCfg:      return "KMAC_CFG";
+      IsprKmacCmd:         return "KMAC_CMD";
+      IsprKmacMsgSend:     return "KMAC_MSG_SEND";
+      IsprKmacByteStrobe:  return "KMAC_BYTE_STROBE";
+      IsprKmacIfStatus:    return "KMAC_IF_STATUS";
+      IsprKmacStatus:      return "KMAC_STATUS";
+      IsprKmacIntr:        return "KMAC_INTR";
+      IsprKmacError:       return "KMAC_ERROR";
       default: return $sformatf("UNKNOWN_ISPR: (%d)", ispr);
     endcase
   endfunction
@@ -133,13 +143,23 @@ module otbn_tracer (
       IsprMaiIn0S0,
       IsprMaiIn0S1,
       IsprMaiIn1S0,
-      IsprMaiIn1S1: return WLEN;
+      IsprMaiIn1S1,
+      IsprKmacDataS0,
+      IsprKmacDataS1: return WLEN;
 `ifdef BNMULV_ACCH
       IsprAccH: return WLEN;
 `endif
       IsprFlags,
       IsprMaiCtrl,
-      IsprMaiStatus: return 32;
+      IsprMaiStatus,
+      IsprKmacCfg,
+      IsprKmacCmd,
+      IsprKmacMsgSend,
+      IsprKmacByteStrobe,
+      IsprKmacIfStatus,
+      IsprKmacStatus,
+      IsprKmacIntr,
+      IsprKmacError: return 32;
       default: return -1;
     endcase
   endfunction

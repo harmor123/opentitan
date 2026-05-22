@@ -157,6 +157,25 @@ module otbn_alu_bignum
   input  logic [ExtWLEN-1:0]          ispr_mai_in1_s1_rdata_i,
   input  logic [ExtWLEN-1:0]          ispr_mai_res_s0_rdata_i,
   input  logic [ExtWLEN-1:0]          ispr_mai_res_s1_rdata_i,
+  // KMAC ISPR ports
+  output logic                        ispr_kmac_ctrl_wr_o,
+  output logic                        ispr_kmac_cfg_wr_o,
+  output logic                        ispr_kmac_cmd_wr_o,
+  output logic                        ispr_kmac_msg_send_wr_o,
+  output logic                        ispr_kmac_byte_strobe_wr_o,
+  output logic                        ispr_kmac_intr_wr_o,
+  output logic [31:0]                 ispr_kmac_ctrl_wdata_o,
+  input  logic [31:0]                 ispr_kmac_ctrl_rdata_i,
+  input  logic [31:0]                 ispr_kmac_if_status_rdata_i,
+  input  logic [31:0]                 ispr_kmac_status_rdata_i,
+  input  logic [31:0]                 ispr_kmac_intr_rdata_i,
+  input  logic [31:0]                 ispr_kmac_error_rdata_i,
+  output logic                        ispr_kmac_data_s0_wr_o,
+  output logic [ExtWLEN-1:0]          ispr_kmac_data_s0_wdata_o,
+  output logic                        ispr_kmac_data_s1_wr_o,
+  output logic [ExtWLEN-1:0]          ispr_kmac_data_s1_wdata_o,
+  input  logic [ExtWLEN-1:0]          ispr_kmac_data_s0_rdata_i,
+  input  logic [ExtWLEN-1:0]          ispr_kmac_data_s1_rdata_i,
 
   output logic                        reg_intg_violation_err_o,
 
@@ -575,6 +594,36 @@ module otbn_alu_bignum
     .out_o(ispr_mai_ctrl_wdata_o)
   );
 
+  // KMAC ISPR write enables
+  assign ispr_kmac_data_s0_wr_o = ispr_bignum_predec_i.ispr_wr_en[IsprKmacDataS0];
+  prim_blanker #(.Width(ExtWLEN)) u_ispr_kmac_data_s0_wdata_blanker (
+    .in_i (ispr_bignum_wdata_intg_i),
+    .en_i (ispr_kmac_data_s0_wr_o),
+    .out_o(ispr_kmac_data_s0_wdata_o)
+  );
+  assign ispr_kmac_data_s1_wr_o = ispr_bignum_predec_i.ispr_wr_en[IsprKmacDataS1];
+  prim_blanker #(.Width(ExtWLEN)) u_ispr_kmac_data_s1_wdata_blanker (
+    .in_i (ispr_bignum_wdata_intg_i),
+    .en_i (ispr_kmac_data_s1_wr_o),
+    .out_o(ispr_kmac_data_s1_wdata_o)
+  );
+  assign ispr_kmac_ctrl_wr_o = ispr_bignum_predec_i.ispr_wr_en[IsprKmacCfg] |
+                               ispr_bignum_predec_i.ispr_wr_en[IsprKmacCmd];
+  // Per-register write enables for tracer
+  assign ispr_kmac_cfg_wr_o         = ispr_bignum_predec_i.ispr_wr_en[IsprKmacCfg];
+  assign ispr_kmac_cmd_wr_o         = ispr_bignum_predec_i.ispr_wr_en[IsprKmacCmd];
+  assign ispr_kmac_msg_send_wr_o    = ispr_bignum_predec_i.ispr_wr_en[IsprKmacMsgSend];
+  assign ispr_kmac_byte_strobe_wr_o = ispr_bignum_predec_i.ispr_wr_en[IsprKmacByteStrobe];
+  assign ispr_kmac_intr_wr_o        = ispr_bignum_predec_i.ispr_wr_en[IsprKmacIntr];
+  prim_blanker #(.Width(32'd32)) u_ispr_kmac_ctrl_wdata_blanker (
+    .in_i (ispr_base_wdata_i),
+    .en_i (ispr_kmac_ctrl_wr_o |
+           ispr_kmac_msg_send_wr_o |
+           ispr_kmac_byte_strobe_wr_o |
+           ispr_kmac_intr_wr_o),
+    .out_o(ispr_kmac_ctrl_wdata_o)
+  );
+
   ///////////////
   // ISPR Read //
   ///////////////
@@ -585,7 +634,7 @@ module otbn_alu_bignum
   // 2. Select between the ISPRs that have integrity bits and the result of the first stage.
 
   // Number of ISPRs that have no integrity protection
-  localparam int NNoIntgIspr = 9;
+  localparam int NNoIntgIspr = 14;
   // IDs for ISPRs with integrity
   localparam int IsprRndNoIntg = 0;
   localparam int IsprUrndNoIntg = 1;
@@ -596,11 +645,16 @@ module otbn_alu_bignum
   localparam int IsprKeyS0HNoIntg = 6;
   localparam int IsprKeyS1LNoIntg = 7;
   localparam int IsprKeyS1HNoIntg = 8;
+  localparam int IsprKmacCtrlNoIntg = 9;
+  localparam int IsprKmacIfStatusNoIntg = 10;
+  localparam int IsprKmacStatusNoIntg = 11;
+  localparam int IsprKmacIntrNoIntg = 12;
+  localparam int IsprKmacErrorNoIntg = 13;
 
   logic [NNoIntgIspr-1:0] ispr_rdata_no_intg_mux_sel;
 
   // Number of ISPRs that have integrity protection
-  localparam int NIntgIspr = 8;
+  localparam int NIntgIspr = 10;
   // IDs for ISPRs with integrity
   localparam int IsprModIntg = 0;
   localparam int IsprAccIntg = 1;
@@ -610,8 +664,10 @@ module otbn_alu_bignum
   localparam int IsprMaiIn0S1Intg = 5;
   localparam int IsprMaiIn1S0Intg = 6;
   localparam int IsprMaiIn1S1Intg = 7;
+  localparam int IsprKmacDataS0Intg = 8;
+  localparam int IsprKmacDataS1Intg = 9;
   // ID representing all ISPRs with no integrity
-  localparam int IsprNoIntg = 8;
+  localparam int IsprNoIntg = 10;
 
   logic [NIntgIspr:0] ispr_rdata_intg_mux_sel;
   logic [ExtWLEN-1:0] ispr_rdata_intg_mux_in    [NIntgIspr+1];
@@ -634,6 +690,16 @@ module otbn_alu_bignum
   assign ispr_rdata_no_intg_mux_in[IsprKeyS1LNoIntg] = sideload_key_shares_i[1][255:0];
   assign ispr_rdata_no_intg_mux_in[IsprKeyS1HNoIntg] =
       {{(WLEN - (SideloadKeyWidth - 256)){1'b0}}, sideload_key_shares_i[1][SideloadKeyWidth-1:256]};
+  assign ispr_rdata_no_intg_mux_in[IsprKmacCtrlNoIntg]     =
+      {{(WLEN - 32){1'b0}}, ispr_kmac_ctrl_rdata_i};
+  assign ispr_rdata_no_intg_mux_in[IsprKmacIfStatusNoIntg] =
+      {{(WLEN - 32){1'b0}}, ispr_kmac_if_status_rdata_i};
+  assign ispr_rdata_no_intg_mux_in[IsprKmacStatusNoIntg]   =
+      {{(WLEN - 32){1'b0}}, ispr_kmac_status_rdata_i};
+  assign ispr_rdata_no_intg_mux_in[IsprKmacIntrNoIntg]    =
+      {{(WLEN - 32){1'b0}}, ispr_kmac_intr_rdata_i};
+  assign ispr_rdata_no_intg_mux_in[IsprKmacErrorNoIntg]   =
+      {{(WLEN - 32){1'b0}}, ispr_kmac_error_rdata_i};
 
   assign ispr_rdata_no_intg_mux_sel[IsprRndNoIntg]       =
       ispr_bignum_predec_i.ispr_rd_en[IsprRnd];
@@ -653,6 +719,17 @@ module otbn_alu_bignum
       ispr_bignum_predec_i.ispr_rd_en[IsprKeyS1L];
   assign ispr_rdata_no_intg_mux_sel[IsprKeyS1HNoIntg]    =
       ispr_bignum_predec_i.ispr_rd_en[IsprKeyS1H];
+  assign ispr_rdata_no_intg_mux_sel[IsprKmacCtrlNoIntg]     =
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacCfg] |
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacCmd];
+  assign ispr_rdata_no_intg_mux_sel[IsprKmacIfStatusNoIntg] =
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacIfStatus];
+  assign ispr_rdata_no_intg_mux_sel[IsprKmacStatusNoIntg]   =
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacStatus];
+  assign ispr_rdata_no_intg_mux_sel[IsprKmacIntrNoIntg]    =
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacIntr];
+  assign ispr_rdata_no_intg_mux_sel[IsprKmacErrorNoIntg]   =
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacError];
 
   logic [WLEN-1:0]    ispr_rdata_no_intg;
   logic [ExtWLEN-1:0] ispr_rdata_intg_calc;
@@ -685,6 +762,8 @@ module otbn_alu_bignum
   assign ispr_rdata_intg_mux_in[IsprMaiIn0S1Intg] = ispr_mai_in0_s1_rdata_i;
   assign ispr_rdata_intg_mux_in[IsprMaiIn1S0Intg] = ispr_mai_in1_s0_rdata_i;
   assign ispr_rdata_intg_mux_in[IsprMaiIn1S1Intg] = ispr_mai_in1_s1_rdata_i;
+  assign ispr_rdata_intg_mux_in[IsprKmacDataS0Intg] = ispr_kmac_data_s0_rdata_i;
+  assign ispr_rdata_intg_mux_in[IsprKmacDataS1Intg] = ispr_kmac_data_s1_rdata_i;
   assign ispr_rdata_intg_mux_in[IsprNoIntg]       = ispr_rdata_intg_calc;
 
   assign ispr_rdata_intg_mux_sel[IsprModIntg]      = ispr_bignum_predec_i.ispr_rd_en[IsprMod];
@@ -695,10 +774,18 @@ module otbn_alu_bignum
   assign ispr_rdata_intg_mux_sel[IsprMaiIn0S1Intg] = ispr_bignum_predec_i.ispr_rd_en[IsprMaiIn0S1];
   assign ispr_rdata_intg_mux_sel[IsprMaiIn1S0Intg] = ispr_bignum_predec_i.ispr_rd_en[IsprMaiIn1S0];
   assign ispr_rdata_intg_mux_sel[IsprMaiIn1S1Intg] = ispr_bignum_predec_i.ispr_rd_en[IsprMaiIn1S1];
+  assign ispr_rdata_intg_mux_sel[IsprKmacDataS0Intg] = ispr_bignum_predec_i.ispr_rd_en[IsprKmacDataS0];
+  assign ispr_rdata_intg_mux_sel[IsprKmacDataS1Intg] = ispr_bignum_predec_i.ispr_rd_en[IsprKmacDataS1];
 
   assign ispr_rdata_intg_mux_sel[IsprNoIntg] =
     |{ispr_bignum_predec_i.ispr_rd_en[IsprMaiCtrl],
       ispr_bignum_predec_i.ispr_rd_en[IsprMaiStatus],
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacCfg],
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacCmd],
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacIfStatus],
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacStatus],
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacIntr],
+      ispr_bignum_predec_i.ispr_rd_en[IsprKmacError],
       ispr_bignum_predec_i.ispr_rd_en[IsprKeyS1H:IsprKeyS0L],
       ispr_bignum_predec_i.ispr_rd_en[IsprUrnd],
       ispr_bignum_predec_i.ispr_rd_en[IsprFlags],

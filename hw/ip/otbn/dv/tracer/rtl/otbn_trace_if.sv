@@ -83,6 +83,10 @@ interface otbn_trace_if
 
   input logic [otbn_pkg::UrndLen-1:0] urnd_data,
 
+  // KMAC DATA read data from otbn_kmac (connected via (.*) bind)
+  input logic [otbn_pkg::ExtWLEN-1:0] kmac_trace_data_s0,
+  input logic [otbn_pkg::ExtWLEN-1:0] kmac_trace_data_s1,
+
   input logic [1:0][otbn_pkg::SideloadKeyWidth-1:0] sideload_key_shares_i,
 
   input logic secure_wipe_req,
@@ -372,6 +376,50 @@ interface otbn_trace_if
 
   assign ispr_write[IsprMaiCtrl]   = gen_mai.u_otbn_mai.ispr_mai_ctrl_wr_i;
   assign ispr_write[IsprMaiStatus] = 1'b0;
+
+  // KMAC ISPR write/read detection — separate ISPRs per CSR for trace naming
+  assign ispr_write[IsprKmacDataS0] = 1'b0;
+  assign ispr_write[IsprKmacDataS1] = 1'b0;
+  assign ispr_write[IsprKmacCfg]         = u_otbn_alu_bignum.ispr_kmac_cfg_wr_o;
+  assign ispr_write[IsprKmacCmd]         = u_otbn_alu_bignum.ispr_kmac_cmd_wr_o;
+  assign ispr_write[IsprKmacMsgSend]     = u_otbn_alu_bignum.ispr_kmac_msg_send_wr_o;
+  assign ispr_write[IsprKmacByteStrobe]  = u_otbn_alu_bignum.ispr_kmac_byte_strobe_wr_o;
+  assign ispr_write[IsprKmacIfStatus]    = 1'b0;
+  assign ispr_write[IsprKmacStatus]      = 1'b0;
+  assign ispr_write[IsprKmacIntr]        = u_otbn_alu_bignum.ispr_kmac_intr_wr_o;
+  assign ispr_write[IsprKmacError]       = 1'b0;  // read-only
+
+  assign ispr_write_data[IsprKmacCfg]        = {{(WLEN-32){1'b0}},
+                                                 u_otbn_alu_bignum.ispr_kmac_ctrl_wdata_o};
+  assign ispr_write_data[IsprKmacCmd]        = {{(WLEN-32){1'b0}},
+                                                 u_otbn_alu_bignum.ispr_kmac_ctrl_wdata_o};
+  assign ispr_write_data[IsprKmacMsgSend]    = {{(WLEN-32){1'b0}},
+                                                 u_otbn_alu_bignum.ispr_kmac_ctrl_wdata_o};
+  assign ispr_write_data[IsprKmacByteStrobe] = {{(WLEN-32){1'b0}},
+                                                 u_otbn_alu_bignum.ispr_kmac_ctrl_wdata_o};
+  assign ispr_write_data[IsprKmacStatus]     = '0;
+  assign ispr_write_data[IsprKmacIntr]       = {{(WLEN-32){1'b0}},
+                                                 u_otbn_alu_bignum.ispr_kmac_ctrl_wdata_o};
+  assign ispr_write_data[IsprKmacError]      = '0;  // read-only
+
+  assign ispr_read[IsprKmacDataS0]  = any_ispr_read & (ispr_addr == IsprKmacDataS0);
+  assign ispr_read[IsprKmacDataS1]  = any_ispr_read & (ispr_addr == IsprKmacDataS1);
+  assign ispr_read[IsprKmacCfg]         = any_ispr_read & (ispr_addr == IsprKmacCfg);
+  assign ispr_read[IsprKmacCmd]         = any_ispr_read & (ispr_addr == IsprKmacCmd);
+  assign ispr_read[IsprKmacMsgSend]     = any_ispr_read & (ispr_addr == IsprKmacMsgSend);
+  assign ispr_read[IsprKmacByteStrobe]  = any_ispr_read & (ispr_addr == IsprKmacByteStrobe);
+  assign ispr_read[IsprKmacIfStatus]    = any_ispr_read & (ispr_addr == IsprKmacIfStatus);
+  assign ispr_read[IsprKmacStatus]      = any_ispr_read & (ispr_addr == IsprKmacStatus);
+  assign ispr_read[IsprKmacIntr]        = any_ispr_read & (ispr_addr == IsprKmacIntr);
+  assign ispr_read[IsprKmacError]       = any_ispr_read & (ispr_addr == IsprKmacError);
+
+  // KMAC DATA ISPR read data — extract 32-bit words from ExtWLEN integrity format
+  for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : gen_kmac_ispr_read_words
+    assign ispr_read_data[IsprKmacDataS0][i_word*32+:32] =
+        kmac_trace_data_s0[i_word*39+:32];
+    assign ispr_read_data[IsprKmacDataS1][i_word*32+:32] =
+        kmac_trace_data_s1[i_word*39+:32];
+  end
 
   for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : gen_mai_ispr_write_words
     assign ispr_write_data[IsprMaiResS0][i_word*32+:32] =

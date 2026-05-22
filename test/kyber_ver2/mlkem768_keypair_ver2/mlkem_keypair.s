@@ -28,8 +28,7 @@ indcpa_keypair:
   addi  x10, fp, -128
   jal   x1, kmac_squeeze_32B
 
-  /* 继续挤出后 32 字节到 fp-96 (触发 RUN) */
-  jal   x1, kmac_run
+  /* 继续挤出后 32 字节到 fp-96 */
   addi  x10, fp, -96
   jal   x1, kmac_squeeze_32B
 
@@ -178,6 +177,8 @@ crypto_kem_keypair:
     bn.lid x4, 0(x10++)
     bn.sid x4, 0(x11++)
 
+  add   x12, x0, x11           # x12 = sk + 2336 (x11 after LOOPI)
+  
   /*** hash_h ***/
   /* 初始化 SHA3-256 (Mode 0) */
   addi  x10, x0, 0              
@@ -191,10 +192,8 @@ crypto_kem_keypair:
   /* 结束 Absorb，进入 Squeeze */
   jal   x1, kmac_process
 
-  /* 挤出 32 字节直接写入 sk 的指定偏移位置 (sk + 2336) */
-  lw    x10, -24(fp)            /* 加载 sk 基地址 */
-  li    x6, 2336                /* 偏移量 1152 + 1184 = 2336 */
-  add   x10, x10, x6            /* x10 = sk + 2336 */
+  /* 挤出 32 字节到 sk + 2336 (x12 已保存此值) */
+  add   x10, x0, x12            /* x10 = sk + 2336 */
   jal   x1, kmac_squeeze_32B
 
   /* 释放 KMAC 硬件 */
@@ -206,12 +205,9 @@ crypto_kem_keypair:
   addi    x10, x10, 32 
   li      x5, 8
   bn.lid  x5, 0(x10)
-#   bn.sid  x5, 0(x11++)      # 一行或者下面存x12 等价
 
-  /* 重新加载 sk 基址并计算 z 的偏移 (1152 + 1184 + 32 = 2368) */
-  lw      x12, -24(fp)       # 从栈帧加载 sk 基地址
-  li      x6, 2368           # 用临时寄存器加载大立即数
-  add     x12, x12, x6       # x12 = sk + 2368
+  /* x12 = sk + 2368 (sk+2336 + 32) */
+  addi  x12, x12, 32         # x12 = sk + 2368
   bn.sid  x5, 0(x12++)       # 存储 z
 
   /* Free space on stack */

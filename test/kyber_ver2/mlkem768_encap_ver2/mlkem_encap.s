@@ -237,9 +237,6 @@ crypto_kem_enc:
   lw    x10, -20(fp)     /* x10 = ss 指针，前 32 字节写入 K */
   jal   x1, kmac_squeeze_32B
 
-  jal   x1, kmac_run     /* 触发下一轮排列，准备挤出后 32 字节 */
-
-  lw    x10, -20(fp)
   addi  x10, x10, 32     /* x10 = ss 指针 + 32，后 32 字节写入 r */
   jal   x1, kmac_squeeze_32B
 

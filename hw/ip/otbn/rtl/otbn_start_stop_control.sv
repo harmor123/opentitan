@@ -68,6 +68,8 @@ module otbn_start_stop_control
   output logic sec_wipe_mai_in1_s1_urnd_o,
   output logic sec_wipe_mai_res_s0_urnd_o,
   output logic sec_wipe_mai_res_s1_urnd_o,
+  output logic sec_wipe_kmac_data_s0_urnd_o,
+  output logic sec_wipe_kmac_data_s1_urnd_o,
 
   output logic ispr_init_o,
   output logic state_reset_o,
@@ -178,6 +180,8 @@ module otbn_start_stop_control
     sec_wipe_mai_in1_s1_urnd_o = 1'b0;
     sec_wipe_mai_res_s0_urnd_o = 1'b0;
     sec_wipe_mai_res_s1_urnd_o = 1'b0;
+    sec_wipe_kmac_data_s0_urnd_o = 1'b0;
+    sec_wipe_kmac_data_s1_urnd_o = 1'b0;
     addr_cnt_inc               = 1'b0;
     secure_wipe_ack_o          = 1'b0;
     secure_wipe_running_d      = 1'b0;
@@ -336,6 +340,8 @@ module otbn_start_stop_control
         sec_wipe_mai_in0_s1_urnd_o = (addr_cnt_q == 6'b000011);
         sec_wipe_mai_in1_s0_urnd_o = (addr_cnt_q == 6'b000100);
         sec_wipe_mai_in1_s1_urnd_o = (addr_cnt_q == 6'b000101);
+        sec_wipe_kmac_data_s0_urnd_o = (addr_cnt_q == 6'b000110);
+        sec_wipe_kmac_data_s1_urnd_o = (addr_cnt_q == 6'b000111);
         // We let this phase run for 32 cycles to allow future accelerator registers
         // to be cleared in this stage without the need to adapt the DV model of OTBN.
         if (addr_cnt_q == 6'b011111) begin

@@ -59,7 +59,7 @@ BASE_DIR="$SCRIPT_DIR/kyber_ver2"
 # ---------- HASH ----------
 HASH_DIR="$BASE_DIR/hash"
 HASH_TMP="$HASH_DIR/tmp-kybertest"
-ELF_HASH="$HASH_TMP/sha3_direct.elf"
+ELF_HASH="$HASH_TMP/sha3_test.elf"
 
 # ---------- ML-KEM-768 ----------
 KEYPAIR_DIR="$BASE_DIR/mlkem768_keypair_ver2"
@@ -156,35 +156,41 @@ echo "--------------------------------------------"
 export PYTHONPATH="$OT_ROOT:$PYTHONPATH"
 
 # ==========================================
-# 执行测试（共 4 项）
+# 执行测试（共 5 项）
 # ==========================================
 echo ""
-echo ">>> [1/4] ML-KEM-768 Keypair"
+echo ">>> [1/5] Hash"
+python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
+    "hash_test#$ELF_HASH" \
+    hash_test
+
+echo ""
+echo ">>> [2/5] ML-KEM-768 Keypair"
 python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
     "mlkem768_keypair#$ELF_KEYPAIR" \
     mlkem768_keypair
 
 echo ""
-echo ">>> [2/4] ML-KEM-768 Encap"
+echo ">>> [3/5] ML-KEM-768 Encap"
 python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
     "mlkem768_encap#$ELF_ENCAP" \
     mlkem768_encap
 
 echo ""
-echo ">>> [3/4] ML-KEM-768 Decap"
+echo ">>> [4/5] ML-KEM-768 Decap"
 python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
     "mlkem768_decap#$ELF_DECAP" \
     mlkem768_decap
 
 echo ""
-echo ">>> [4/4] P-256 ECDH Shared Key"
+echo ">>> [5/5] P-256 ECDH Shared Key"
 python3 "$PYTHON_SCRIPT" "$SIMULATOR" \
     "p256_ecdh#$ELF_P256" \
     p256_ecdh
 
 echo ""
 echo "============================================"
-echo " All 4 tests passed!"
+echo " All 5 tests passed!"
 echo " DB saved to: $SCRIPT_DIR/kyber_bench.db"
 echo " Log saved to: $LOG_FILE"
 echo "============================================"

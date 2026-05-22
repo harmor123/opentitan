@@ -1,27 +1,36 @@
 /* ================================================================
- * kmac_hw_driver.s
+ * kmac_sha3_template.s — OpenTitan KMAC 硬件极简驱动
  *
- * 兼容标准 OpenTitan KMAC 硬件的极简驱动库
+ * 寄存器分工:
+ *   0xFC2 (kmac_status)    — FSM 状态: bit0=IDLE, bit1=ABSORB, bit2=SQUEEZE
+ *   0x7D9 (kmac_if_status) — 数据握手: bit0=MSG_WRITE_RDY, bit3=DIGEST_VALID
+ *   0x7DB (kmac_cfg)       — MODE + STRENGTH 配置
+ *   0x7DC (msg_send)       — 触发消息吸收
+ *   0x7DD (kmac_cmd)       — START/PROCESS/RUN/DONE 命令
+ *   0x7DE (byte_strobe)    — 尾部字节有效位掩码
+ *
+ * 调用约定:
+ *   破坏: x5, x6; 各函数具体破坏见注释
+ *   w31 由调用者保证为 0 (或由各函数自行清零)
  * ================================================================ */
 
 .section .text
 
 /* ================================================================
- * kmac_init: 初始化 KMAC 硬件并进入 Absorb 状态
+ * kmac_init: 初始化 KMAC 硬件，进入 Absorb 状态
+ *
+ * 输入: x10 = mode (0=SHA3-256, 1=SHA3-512, 2=SHAKE128, 3=SHAKE256)
+ * 破坏: x5, x6
  * ================================================================ */
 .globl kmac_init
 kmac_init:
     addi    x6, x0, 1
 .wait_idle:
-    csrrs   x5, 0xfc2, x0
+    csrrs   x5, 0xfc2, x0          /* kmac_status[0]: SHA3_IDLE */
     and     x5, x5, x6
     beq     x5, x0, .wait_idle
 
-    addi    x5, x0, 6
-    csrrw   x0, 0x7d9, x5
-    addi    x5, x0, 1
-    csrrw   x0, 0x7da, x5
-
+    /* 模式分发 */
     beq     x10, x0, .cfg_sha3_256
     addi    x5, x0, 1
     beq     x10, x5, .cfg_sha3_512
@@ -29,26 +38,26 @@ kmac_init:
     beq     x10, x5, .cfg_shake128
     addi    x5, x0, 3
     beq     x10, x5, .cfg_shake256
-    ecall
+    ecall                           /* 非法 mode */
 
 .cfg_sha3_256:
-    addi    x5, x0, 4
+    addi    x5, x0, 4               /* MODE=SHA3, STRENGTH=L256 */
     jal     x0, .apply_cfg
 .cfg_sha3_512:
-    addi    x5, x0, 8
+    addi    x5, x0, 8               /* MODE=SHA3, STRENGTH=L512 */
     jal     x0, .apply_cfg
 .cfg_shake128:
-    addi    x5, x0, 32
+    addi    x5, x0, 32              /* MODE=SHAKE, STRENGTH=L128 */
     jal     x0, .apply_cfg
 .cfg_shake256:
-    addi    x5, x0, 36
+    addi    x5, x0, 36              /* MODE=SHAKE, STRENGTH=L256 */
 
 .apply_cfg:
-    csrrw   x0, 0x7db, x5
-    addi    x5, x0, 29
-    csrrw   x0, 0x7dd, x5
+    csrrw   x0, 0x7db, x5           /* kmac_cfg */
+    addi    x5, x0, 29              /* CMD_START = 0x1D */
+    csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    addi    x6, x0, 2
+    addi    x6, x0, 2               /* kmac_status[1]: SHA3_ABSORB */
 .wait_absorb:
     csrrs   x5, 0xfc2, x0
     and     x5, x5, x6
@@ -56,84 +65,87 @@ kmac_init:
     ret
 
 /* ================================================================
- * keccak_send_message: 向 KMAC 核心发送可变长度消息
+ * keccak_send_message: 发送可变长度消息到 KMAC
+ *
+ * 输入: x10 = msg_ptr, x11 = byte_len
+ * 破坏: x5, x6, x7, w0, w1, w31
  * ================================================================ */
 .globl keccak_send_message
 keccak_send_message:
-  bn.xor  w31, w31, w31
-  bn.xor  w1, w1, w1
-  srli    x5, x11, 5
-  beq     x5, x0, _no_full_wdr
-  slli    x5, x5, 5
-  add     x5, x10, x5
+    bn.xor  w31, w31, w31           /* w31 = 0 (移位零参考 / share1 零值) */
+
+    /* 计算完整 32-byte WDR 数量 */
+    srli    x5, x11, 5              /* x5 = byte_len / 32 */
+    beq     x5, x0, _no_full_wdr
+    slli    x5, x5, 5               /* x5 = 完整 WDR 字节偏移 */
+    add     x5, x10, x5             /* x5 = 完整 WDR 结束地址 */
+
+    /* 全量 WDR 不需要 strobe 约束，预设一次即可 */
+    addi    x6, x0, -1              /* x6 = 0xFFFFFFFF */
+    csrrw   x0, 0x7de, x6           /* byte_strobe = 全部有效 */
 
 _full_chunk_loop:
-  beq     x10, x5, _no_full_wdr
-  addi    x6, x0, 1
+    beq     x10, x5, _no_full_wdr
 _wait_rdy_full:
-  csrrs   x6, 0x7d9, x0
-  andi    x6, x6, 1
-  beq     x6, x0, _wait_rdy_full
+    csrrs   x6, 0x7d9, x0           /* kmac_if_status[0]: MSG_WRITE_RDY */
+    andi    x6, x6, 1
+    beq     x6, x0, _wait_rdy_full
 
-  bn.lid  x0, 0(x10++)
-  bn.wsrw 8, w0
-  bn.wsrw 9, w1
+    bn.lid  x0, 0(x10++)            /* 加载 256-bit 明文到 w0 */
+    bn.wsrw 8, w0                   /* kmac_data_s0 */
+    bn.wsrw 9, w31                  /* kmac_data_s1 = 0 */
 
-  addi    x6, x0, -1
-  csrrw   x0, 0x7de, x6
-  addi    x6, x0, 1
-  csrrw   x0, 0x7dc, x6
-
-  jal     x0, _full_chunk_loop
+    csrrw   x0, 0x7dc, x6           /* msg_send = 1 (x6=1 from poll) */
+    jal     x0, _full_chunk_loop
 
 _no_full_wdr:
-  andi    x5, x11, 31
-  beq     x5, x0, _keccak_send_message_end
+    andi    x5, x11, 31             /* x5 = 尾部字节数 (0~31) */
+    beq     x5, x0, _keccak_send_message_end
 
-  addi    x6, x0, 1
 _wait_rdy_tail:
-  csrrs   x6, 0x7d9, x0
-  andi    x6, x6, 1
-  beq     x6, x0, _wait_rdy_tail
+    csrrs   x6, 0x7d9, x0           /* kmac_if_status[0]: MSG_WRITE_RDY */
+    andi    x6, x6, 1
+    beq     x6, x0, _wait_rdy_tail
 
-  bn.lid  x0, 0(x10)
+    bn.lid  x0, 0(x10)              /* 加载尾部数据 (高位含垃圾) */
 
-  /* 修复 OverflowError：动态生成掩码，清零 w0 高位垃圾数据 */
-  bn.xor  w1, w1, w1
-  bn.addi w1, w1, 1          /* w1 = 1 */
-  addi    x7, x5, 0          /* x7 = x5 */
+    /* 动态生成字节掩码: mask = (1 << (8*x5)) - 1 */
+    bn.addi w1, w31, 1              /* w1 = 1 */
+    addi    x7, x5, 0               /* x7 = 循环计数 */
 _mask_loop:
-  beq     x7, x0, _mask_done
-  addi    x7, x7, -1
-  bn.rshi w1, w1, w31 >> 248 /* w1 <<= 8 */
-  jal     x0, _mask_loop
+    beq     x7, x0, _mask_done
+    addi    x7, x7, -1
+    bn.rshi w1, w1, w31 >> 248      /* w1 <<= 8 */
+    jal     x0, _mask_loop
 _mask_done:
-  bn.subi w1, w1, 1          /* w1 = mask */
-  bn.and  w0, w0, w1         /* w0 &= mask */
+    bn.subi w1, w1, 1               /* w1 = (1 << (8*x5)) - 1 */
+    bn.and  w0, w0, w1              /* w0 &= mask, 清零高位垃圾 */
 
-  bn.wsrw 8, w0
-  bn.xor  w1, w1, w1         /* 恢复 w1 = 0 */
-  bn.wsrw 9, w1
+    bn.wsrw 8, w0                   /* kmac_data_s0 (masked) */
+    bn.wsrw 9, w31                  /* kmac_data_s1 = 0 */
 
-  addi    x6, x0, 1
-  sll     x6, x6, x5
-  addi    x6, x6, -1
-  csrrw   x0, 0x7de, x6
-  addi    x6, x0, 1
-  csrrw   x0, 0x7dc, x6
+    /* byte_strobe = (1 << x5) - 1, 只标记尾部有效字节 */
+    addi    x6, x0, 1
+    sll     x6, x6, x5
+    addi    x6, x6, -1
+    csrrw   x0, 0x7de, x6
+    addi    x6, x0, 1
+    csrrw   x0, 0x7dc, x6           /* msg_send = 1 */
 
 _keccak_send_message_end:
-  ret
+    ret
 
 /* ================================================================
- * kmac_process: 结束 Absorb，进入 Squeeze 阶段
+ * kmac_process: 结束 Absorb，触发 padding + Keccak-f，进入 Squeeze
+ *
+ * 破坏: x5, x6
  * ================================================================ */
 .globl kmac_process
 kmac_process:
-    addi    x5, x0, 46
-    csrrw   x0, 0x7dd, x5
+    addi    x5, x0, 46              /* CMD_PROCESS = 0x2E */
+    csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    addi    x6, x0, 8
+    addi    x6, x0, 8               /* kmac_if_status[3]: DIGEST_VALID */
 .wait_digest:
     csrrs   x5, 0x7d9, x0
     and     x5, x5, x6
@@ -141,75 +153,91 @@ kmac_process:
     ret
 
 /* ================================================================
- * kmac_squeeze_32B: 挤出 32 字节摘要 
+ * kmac_squeeze_32B: 挤出 32 字节摘要到 DMEM
  *
- * 输入: x10 = out_ptr
- * 破坏: x5, x6, w8, w9, w10 (精简，不再破坏 w11, w12)
+ * 硬件 auto-advance: 读 s0+s1 后自动推进到下一 64-bit word，
+ * 下一 word 的 DIGEST_VALID 在同一周期置起，无需重查。
+ *
+ * 输入: x10 = out_ptr (32-byte aligned)
+ * 破坏: x5, x6, w8, w9, w10, w31
  * ================================================================ */
 .globl kmac_squeeze_32B
 kmac_squeeze_32B:
-    /* 只需等待一次 Squeeze Valid，因为 Rate 足够大，后续 Word 直接读即可 */
-    addi    x6, x0, 8
+    bn.xor  w31, w31, w31           /* w31 = 0 (bn.rshi 零参考) */
+
+    addi    x6, x0, 8               /* kmac_if_status[3]: DIGEST_VALID */
 .wait_digest_0:
     csrrs   x5, 0x7d9, x0
     and     x5, x5, x6
     beq     x5, x0, .wait_digest_0
 
-    /* 读取 Word 0 */
-    bn.wsrr w8, 8
-    bn.wsrr w9, 9
-    bn.xor  w8, w8, w9           /* Word 0 在 w8[63:0] 中，高位全 0 */
+    /* Word 0 → w8[63:0] */
+    bn.wsrr w8, 8                   /* kmac_data_s0 */
+    bn.wsrr w9, 9                   /* kmac_data_s1 */
+    bn.xor  w8, w8, w9
 
-    /* 读取 Word 1 */
+    /* Word 1 → w8[127:64] */
     bn.wsrr w9, 8
     bn.wsrr w10, 9
-    bn.xor  w9, w9, w10          /* Word 1 在 w9[63:0] 中 */
-    bn.rshi w9, w9, w31 >> 192   /* w9 = Word1 << 64 */
+    bn.xor  w9, w9, w10
+    bn.rshi w9, w9, w31 >> 192      /* w9 <<= 64 */
     bn.or   w8, w8, w9
 
-    /* 读取 Word 2 */
+    /* Word 2 → w8[191:128] */
     bn.wsrr w9, 8
     bn.wsrr w10, 9
-    bn.xor  w9, w9, w10          /* Word 2 在 w9[63:0] 中 */
-    bn.rshi w9, w9, w31 >> 128   /* w9 = Word2 << 128 */
+    bn.xor  w9, w9, w10
+    bn.rshi w9, w9, w31 >> 128      /* w9 <<= 128 */
     bn.or   w8, w8, w9
 
-    /* 读取 Word 3 */
+    /* Word 3 → w8[255:192] */
     bn.wsrr w9, 8
     bn.wsrr w10, 9
-    bn.xor  w9, w9, w10          /* Word 3 在 w9[63:0] 中 */
-    bn.rshi w9, w9, w31 >> 64    /* w9 = Word3 << 192 */
+    bn.xor  w9, w9, w10
+    bn.rshi w9, w9, w31 >> 64       /* w9 <<= 192 */
     bn.or   w8, w8, w9
 
-    /* 将组装好的 256 位存入 DMEM */
     addi    x5, x0, 8
-    bn.sid  x5, 0(x10)
+    bn.sid  x5, 0(x10)              /* 存储 256-bit 到 DMEM */
     ret
 
 /* ================================================================
- * kmac_run: 触发下一轮 Keccak-f 排列
+ * kmac_run: 触发新一轮 Keccak-f 排列 (仅 SHAKE)
+ *
+ * 仅当 squeezed_count >= rate 时才需要调用。
+ * 破坏: x5, x6
  * ================================================================ */
 .globl kmac_run
 kmac_run:
-    addi    x5, x0, 49
-    csrrw   x0, 0x7dd, x5
+    addi    x5, x0, 49              /* CMD_RUN = 0x31 */
+    csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    addi    x6, x0, 8
-.wait_run_rdy:
-    csrrs   x5, 0x7d9, x0
+    /* 先等 FSM 离开 StSqueeze (进入 StProcessing = ABSORB 状态) */
+    addi    x6, x0, 2               /* kmac_status[1]: SHA3_ABSORB */
+.wait_run_absorb:
+    csrrs   x5, 0xfc2, x0
     and     x5, x5, x6
-    beq     x5, x0, .wait_run_rdy
+    beq     x5, x0, .wait_run_absorb
+
+    /* 再等 Keccak 完成，FSM 回到 StSqueeze */
+    addi    x6, x0, 4               /* kmac_status[2]: SHA3_SQUEEZE */
+.wait_run_squeeze:
+    csrrs   x5, 0xfc2, x0
+    and     x5, x5, x6
+    beq     x5, x0, .wait_run_squeeze
     ret
 
 /* ================================================================
- * kmac_done: 释放 KMAC 硬件回到 Idle
+ * kmac_done: 释放 KMAC 硬件，回到 Idle
+ *
+ * 破坏: x5, x6
  * ================================================================ */
 .globl kmac_done
 kmac_done:
-    addi    x5, x0, 22
-    csrrw   x0, 0x7dd, x5
+    addi    x5, x0, 22              /* CMD_DONE = 0x16 */
+    csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    addi    x6, x0, 1
+    addi    x6, x0, 1               /* kmac_status[0]: SHA3_IDLE */
 .wait_idle_rel:
     csrrs   x5, 0xfc2, x0
     and     x5, x5, x6

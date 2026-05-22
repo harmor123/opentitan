@@ -13,12 +13,16 @@ from .wsr import WSRFile
 # Timing constants
 KECCAK_ROUNDS = 24
 KECCAK_ROUND_CYCLES = 4
-KECCAK_PROCESS_CYCLES = KECCAK_ROUNDS * KECCAK_ROUND_CYCLES
+KECCAK_PROCESS_CYCLES = KECCAK_ROUNDS * KECCAK_ROUND_CYCLES  # 96
+# keccak-f permutation latency for rate-full during absorption.
+# Matches RTL absorb_hold_q duration (KeccakStActive 24 + complete_o 1).
+KECCAK_ABSORB_CYCLES = 25
 
 # Data sizes
 KMAC_WORD_BITS = 64
 KMAC_WORD_BYTES = 8
 KMAC_WSR_BITS = 256
+KMAC_WSR_BYTES = KMAC_WSR_BITS // 8
 KMAC_WSR_WORDS = KMAC_WSR_BITS // KMAC_WORD_BITS
 
 # Error codes
@@ -166,8 +170,12 @@ class Kmac():
     _flush_cycle: bool
     _err_sw_cmd_seq: bool
     _err_sw_mode_strength: bool
+    _en_sca_masking: bool = True  # URND masking for squeeze (False = zero mask for DV)
+    _absorbed_msg_bytes: bytearray = bytearray()  # buffer of absorbed msg bytes for SHAKE RUN
+    _skip_absorb_decrement: bool = False  # skip decrement after PROCESS set_next
 
-    def __init__(self, csrs: CSRFile, wsrs: WSRFile) -> None:
+    def __init__(self, csrs: CSRFile, wsrs: WSRFile, en_sca_masking: bool = True) -> None:
+        self._en_sca_masking = en_sca_masking
         self.on_start(csrs, wsrs)
         self._reset_state()
 
@@ -181,43 +189,38 @@ class Kmac():
         # Check if KMAC_DATA_S0/1 were accessed in the last cycle.
         self._step_kmac_data()
 
+        # Squeeze BEFORE FSM step: RUN detection in _step_fsm clears
+        # DIGEST_VALID, and _squeeze runs first so it doesn't re-set it.
+        if self._csrs.KMAC_STATUS.is_squeezing():
+            self._squeeze()
+
         # Advance the KMAC FSM.
         self._step_fsm()
 
         # Update KMAC error status based on FSM-detected conditions
-        # (e.g., err_sw_cmd_seq, err_sw_mode_strength).
         self._update_kmac_error()
 
-        # Decrement Keccak counter if Keccak is running.
-        if self._keccak_round_ctr.value:
+        # Decrement Keccak counter if Keccak is running,
+        # unless a set_next just happened (skip one decrement).
+        if self._keccak_round_ctr.value and not self._skip_absorb_decrement:
             self._keccak_round_ctr.decrement()
+        self._skip_absorb_decrement = False
 
-        # Handle KMAC_MSG_SEND command.
-        kmac_msg_send = self._csrs.KMAC_MSG_SEND.read_unsigned()
-        if kmac_msg_send:
-            if self._state == KmacState.MSG_FEED and self._csrs.KMAC_IF_STATUS.get_msg_write_rdy():
-                # Valid MSG_SEND: start absorbing the next KMAC_WSR_WORDS words.
-                self._kmac_msg_send_words_left.set_next(KMAC_WSR_WORDS)
-            else:
-                # MSG_SEND issued in an invalid state or while busy.
-                # Trigger sticky send error and ignore the command.
-                self._csrs.KMAC_IF_STATUS.set_msg_send_error()
-
-        # Absorb any available message words if the Keccak core is not busy.
-        if self._kmac_msg_send_words_left.value and not self._keccak_round_ctr.value:
-            word_index = KMAC_WSR_WORDS - self._kmac_msg_send_words_left.value
-            self._absorb(word_index)
+        # Decrement absorption delay counter (simulates RTL's 4-cycle WSR feed).
+        if self._kmac_msg_send_words_left.value:
             self._kmac_msg_send_words_left.decrement()
 
-        # MSG write interface is ready only when the FSM is in MSG_FEED
-        # and KMAC is not currently absorbing another message.
-        self._csrs.KMAC_IF_STATUS.update_msg_write_rdy(self._state == KmacState.MSG_FEED
-                                                       and not self._kmac_msg_send_words_left.value
-                                                       and not kmac_msg_send)
+        # MSG write ready: always 1 in MSG_FEED.
+        kmac_msg_send = self._csrs.KMAC_MSG_SEND.read_unsigned()
+        if kmac_msg_send and self._csrs.KMAC_MSG_SEND._pending_write:
+            kmac_msg_send = 0
+        self._csrs.KMAC_IF_STATUS.update_msg_write_rdy(
+            self._state == KmacState.MSG_FEED and not kmac_msg_send
+            and not self._kmac_msg_send_words_left.value
+            and not self._keccak_round_ctr.value)
 
-        # If KMAC is in the squeeze state, check if KMAC_DATA can be populated.
-        if self._csrs.KMAC_STATUS.is_squeezing():
-            self._squeeze()
+        with open("/tmp/iss_rdy.txt", "a") as f:
+            f.write(f"st={str(self._state):20s} next={str(self._state_next):20s} sqz={self._keccak_squeezed_cnt.value:4d} ctr={self._keccak_round_ctr.value:4d} rdy_abs={int(self._csrs.KMAC_STATUS.is_squeezing())}\n")
 
         return
 
@@ -229,16 +232,48 @@ class Kmac():
         self._keccak_squeezed_cnt.end_cycle()
         self._kmac_msg_send_words_left.end_cycle()
 
+        # Detect new msg_send after CSR commit (same-cycle as RTL).
+        kmac_msg_send = self._csrs.KMAC_MSG_SEND.read_unsigned()
+        if kmac_msg_send:
+            if self._state == KmacState.MSG_FEED:
+                byte_strobe = self._csrs.KMAC_BYTE_STROBE.read_unsigned()
+                words = KMAC_WSR_WORDS
+                if byte_strobe != 0 and byte_strobe != 0xFFFFFFFF:
+                    words = 0
+                    for w in range(KMAC_WSR_WORDS):
+                        if (byte_strobe >> (w * 8)) & 0xFF:
+                            words += 1
+                    if words == 0:
+                        words = KMAC_WSR_WORDS
+                # Absorb immediately (Python SHA3 handles multi-rate correctly).
+                # Commit absorb_cnt after each word so rate-full detection
+                # accumulates correctly (Counter.increment uses _curr_val
+                # which only updates at end_cycle).
+                ctr_before = self._keccak_round_ctr.value
+                for i in range(words):
+                    self._absorb(i)
+                    self._keccak_absorbed_cnt.end_cycle()
+                # If rate filled, extend keccak counter for RTL serial absorption.
+                ctr_after = self._keccak_round_ctr.value
+                if ctr_after > ctr_before and words > 1:
+                    self._keccak_round_ctr.set_next(ctr_after + words - 1)
+                    self._keccak_round_ctr.end_cycle()
+                # Signal absorption delay: RTL feeds 1 word/cycle.
+                self._kmac_msg_send_words_left.set_next(words)
+                self._kmac_msg_send_words_left.end_cycle()
+            else:
+                self._csrs.KMAC_IF_STATUS.set_msg_send_error()
+
     def _step_kmac_data(self) -> None:
-        # Set the message write error if an illegal write to KMAC_DATA_S0/1 happened.
+        # WSR write error detection only (msg_send triggers absorption per YAML)
         if (self._wsrs.KMAC_DATA.shares_dirty() and
                 not self._csrs.KMAC_IF_STATUS.get_msg_write_rdy()):
             self._csrs.KMAC_IF_STATUS.set_msg_write_error()
 
-        # Reset the dirty bits.
+        # Reset dirty bits each cycle
         self._wsrs.KMAC_DATA.clean_shares()
 
-        # Invalidate the digest data if both shares were read.
+        # Invalidate digest data if both shares were read
         if self._wsrs.KMAC_DATA.all_shares_read():
             self._csrs.KMAC_IF_STATUS.clr_digest_valid()
             self._wsrs.KMAC_DATA.mark_all_unread()
@@ -276,9 +311,12 @@ class Kmac():
                 self._check_cmd(command, {KmacCmd.NONE, KmacCmd.PROCESS})
                 self._csrs.KMAC_STATUS.set_absorb()
                 if command == KmacCmd.PROCESS:
-                    # TODO set the number of process cycles properly
-                    self._keccak_round_ctr.set_next(KECCAK_PROCESS_CYCLES)
+                    # rem = ongoing keccak + pad cycles for current rate block.
+                    # _calc_pad_cycles replaces the hardcoded rem=17 hack.
+                    rem = self._keccak_round_ctr.value + self._calc_pad_cycles(mode)
+                    self._keccak_round_ctr.set_next(KECCAK_PROCESS_CYCLES + rem + 1)
                     self._state_next = KmacState.PROCESSING
+                    self._skip_absorb_decrement = True
 
             case KmacState.PROCESSING:
                 self._check_cmd(command, {KmacCmd.NONE})
@@ -292,8 +330,8 @@ class Kmac():
 
                 if command == KmacCmd.RUN and mode != KmacMode.SHA3:
                     self._state_next = KmacState.SQUEEZING
-                    # TODO set the number of process cycles properly
                     self._keccak_round_ctr.set_next(KECCAK_PROCESS_CYCLES)
+                    self._keccak_squeezed_cnt.set_next(0)
                 elif command == KmacCmd.DONE:
                     self._state_next = KmacState.IDLE
                     self._flush_cycle_next = True
@@ -301,11 +339,31 @@ class Kmac():
 
             case KmacState.SQUEEZING:
                 self._check_cmd(command, {KmacCmd.NONE})
+                self._csrs.KMAC_STATUS.set_absorb()
 
-                if self._keccak_round_ctr.value:
+                if not self._keccak_round_ctr.value:
                     self._state_next = KmacState.ABSORBED
                     self._keccak_squeezed_cnt.set_next(0)
         return
+
+    def _calc_pad_cycles(self, mode: KmacMode) -> int:
+        """Calculate pad cycles for the current rate block.
+
+        Replaces the hardcoded 'rem=17 for >512 bytes' with a dynamic
+        calculation based on actual absorption state.
+        """
+        pos = self._keccak_absorbed_cnt.value
+        msg_len = len(self._absorbed_msg_bytes)
+
+        if msg_len == 0 and mode == KmacMode.SHA3:
+            return self._keccak_rate_words
+        if msg_len == 0:
+            return 0
+
+        if pos == 0:
+            return self._keccak_rate_words
+        else:
+            return self._keccak_rate_words - pos
 
     def _start(self) -> KmacState:
         # Get cfg mode and kStrength.
@@ -325,6 +383,11 @@ class Kmac():
         self._keccak_state = constructor.new()
         self._keccak_rate_words = (1600 - 2 * cap_bits) // KMAC_WORD_BITS
         self._keccak_cap_bits = cap_bits
+        self._absorbed_msg_bytes = bytearray()
+        # Reset all counters for new operation
+        self._keccak_round_ctr.reset()
+        self._keccak_absorbed_cnt.reset()
+        self._keccak_squeezed_cnt.reset()
 
         return KmacState.MSG_FEED
 
@@ -350,56 +413,80 @@ class Kmac():
         # Convert to bytes (little-endian) and absorb.
         data_bytes = data_word.to_bytes(num_bytes, byteorder="little")
         self._keccak_state.update(data_bytes)
+        self._absorbed_msg_bytes.extend(data_bytes)
 
-        # Track absorbed words and trigger Keccak round when rate is full.
+        # Track absorbed words.  When rate is full, start keccak counter.
+        # The counter blocks decrement in step() (_skip_absorb_decrement)
+        # so the value set here is preserved for one cycle.
         if self._keccak_absorbed_cnt.increment() >= self._keccak_rate_words:
-            self._keccak_round_ctr.set_next(KECCAK_ROUND_CYCLES)
+            self._keccak_round_ctr.set_next(KECCAK_ABSORB_CYCLES)
+            self._keccak_round_ctr.end_cycle()  # commit immediately
             self._keccak_absorbed_cnt.set_next(0)
+            self._skip_absorb_decrement = True
 
     def _squeeze(self) -> None:
-        """Squeeze one 64-bit word of output into KMAC_DATA."""
+        """Squeeze one 64-bit word of digest into KMAC_DATA[63:0] per YAML wsr.yml.
 
-        # Stop if KMAC_DATA is already valid.
+        YAML spec: digest data provided in chunks of 64 bits at a time.
+        bits[63:0]   = current 64-bit digest word
+        bits[255:64] = 0 (software reads zero from upper bits)
+        Hardware auto-advances when both shares have been read.
+        """
+
+        # Only squeeze in ABSORBED (not during keccak processing in SQUEEZING).
+        if self._state != KmacState.ABSORBED:
+            return
+
+        # Stop if Keccak is still processing (e.g. after RUN, keccak runs in
+        # ABSORBED state but the state machine keeps the keccak_round_ctr > 0).
+        if self._keccak_round_ctr.value:
+            return
+
+        # Stop if KMAC_DATA is already valid (word not yet read by SW).
         if self._csrs.KMAC_IF_STATUS.get_digest_valid():
             return
 
         mode = KmacMode(self._csrs.KMAC_CFG.get_mode())
         if mode == KmacMode.SHA3:
-            # Stop if we've already squeezed the maximum number of bits.
+            # Stop if we've already squeezed the full digest.
             if self._keccak_squeezed_cnt.value >= self._keccak_cap_bits:
                 return
 
-            # Initialize digest on first squeeze.
+            # Initialize digest buffer on first squeeze.
             if not self._keccak_squeezed_cnt.value:
                 digest = self._keccak_state.digest()
-                # Pad to a multiple of 8 bytes for 64-bit words.
-                rem = len(digest) % KMAC_WORD_BYTES
-                if rem:
-                    digest += b'\x00' * (KMAC_WORD_BYTES - rem)
                 self._sha3_digest = digest
 
-            # Pop the next 64-bit word from the digest.
+            # Pop next 64-bit word from digest buffer.
             chunk = self._sha3_digest[:KMAC_WORD_BYTES]
             self._sha3_digest = self._sha3_digest[KMAC_WORD_BYTES:]
 
         else:
-            # Stop if a run command is needed for more digest data.
+            # (CSHAKE/)SHAKE: unlimited output.
+            # Stop if the software needs to issue RUN for more data.
             if self._keccak_squeezed_cnt.value >= self._keccak_rate_words * KMAC_WORD_BITS:
                 return
 
-            # Generic squeeze path: read directly from _state.
             chunk = self._keccak_state.read(KMAC_WORD_BYTES)
 
-        # Write the word into the masked data registers.
+        # Write one 64-bit word into KMAC_DATA[63:0] only (bits[255:64] = 0).
         value = int.from_bytes(chunk, byteorder="little")
         self._write_digest(value)
 
-        # Advance squeezed bit counter.
+        # Advance squeezed bit counter by one 64-bit word.
         self._keccak_squeezed_cnt.increment(step=KMAC_WORD_BITS)
 
     def _done(self) -> None:
-        """Handle DONE command by resetting internal state."""
-        self._reset_state()
+        """Handle DONE command — transition to IDLE without resetting registers.
+
+        RTL behaviour: FSM StSqueeze→StIdle immediately on DONE.
+        kmac_status transitions from squeeze(0x04) to idle(0x01) on the
+        next clock edge. The RTL does NOT clear cfg/mode/keccak state.
+        """
+        self._state = KmacState.IDLE
+        self._keccak_squeezed_cnt.set_next(0)
+        self._csrs.KMAC_STATUS.set_idle()
+        self._csrs.KMAC_IF_STATUS.clr_digest_valid()
 
     def _get_num_bytes_from_byte_strobe(self, index: int) -> int:
         """Extracts the strobe bits corresponding to a specific word index
@@ -408,12 +495,15 @@ class Kmac():
         The BYTE_STROBE CSR must contain a value with contiguous ones starting
         from the LSB (e.g., 00111 is valid, 00101 is invalid).
         If the strobe is non-contiguous, the HW treats it as 0 (no bytes valid).
+        Returns 8 (full 64-bit word) when no strobe is configured (default=0).
         """
-        # Read the strobe configuration
         byte_strobe = self._csrs.KMAC_BYTE_STROBE.read_unsigned()
 
+        # Default: no strobe set → full 8 bytes per word
+        if byte_strobe == 0:
+            return 8
+
         # Check validity: Must be contiguous ones starting at LSB (2^k - 1).
-        # Trick: x & (x + 1) is always 0 for values like 0, 1, 3, 7, 15...
         if (byte_strobe & (byte_strobe + 1)) != 0:
             return 0
 
@@ -438,18 +528,26 @@ class Kmac():
             self._csrs.KMAC_ERROR.write_error(code)
 
     def _write_digest(self, data: int) -> None:
-        """Write one 64-bit digest word into the KMAC_DATA shares.
+        """Write one 64-bit digest word into KMAC_DATA shares (bits[63:0] only).
+
+        YAML wsr.yml: digest data in bits[63:0]; bits[255:64] = 0 for reads.
+        Uses ISS URND for 2-share masking (same seed as RTL → masks match).
         """
         if not (0 <= data < (1 << KMAC_WORD_BITS)):
             raise RuntimeError(f"Data value {hex(data)} doesn't fit in "
                                f"{KMAC_WORD_BITS} unsigned bits.")
 
-        # Generate random mask and split into two shares.
-        rand64 = secrets.randbits(KMAC_WORD_BITS)
-        share0 = data ^ rand64
-        share1 = rand64
+        if self._en_sca_masking:
+            # Use ISS URND PRNG current-cycle value (matches RTL continuous wire)
+            urnd_val = self._wsrs.URND.read_current_cycle()
+            rand64 = urnd_val & ((1 << KMAC_WORD_BITS) - 1)
+            share0 = data ^ rand64
+            share1 = rand64
+        else:
+            share0 = data
+            share1 = 0
 
-        # Set the two shares to the new values.
+        # Set the two shares (only low 64 bits carry digest data).
         self._wsrs.KMAC_DATA.set_unsigned(share_idx=0, value=share0)
         self._wsrs.KMAC_DATA.set_unsigned(share_idx=1, value=share1)
 
@@ -497,7 +595,7 @@ class Kmac():
         self._kmac_msg_send_words_left = Counter(max_val=KMAC_WSR_WORDS)
         # Keccak round counter to keep track how long until the Keccak round is over.
         # A Keccak round takes KECCAK_ROUND_CYCLES cycles.
-        self._keccak_round_ctr = Counter(max_val=KECCAK_PROCESS_CYCLES)
+        self._keccak_round_ctr = Counter(max_val=KECCAK_PROCESS_CYCLES + KECCAK_ABSORB_CYCLES + 64)
         # Count of absorbed words, used to determine when Keccak should start processing.
         self._keccak_absorbed_cnt = Counter()
         # Count of squeezed words, used to determine how much data is left to squeeze.
@@ -518,3 +616,5 @@ class Kmac():
         self._err_sw_mode_strength = False
         # Track whether each data share has been read since the last write.
         self._data_share_read = [False, False]
+        # Buffer of absorbed message bytes (used to recreate SHAKE sponge on RUN).
+        self._absorbed_msg_bytes = bytearray()

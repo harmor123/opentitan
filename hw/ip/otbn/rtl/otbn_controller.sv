@@ -1328,6 +1328,38 @@ module otbn_controller
         ispr_addr_base      = IsprMaiStatus;
         ispr_word_addr_base = '0;
       end
+      CsrKmacCfg: begin
+        ispr_addr_base      = IsprKmacCfg;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacCmd: begin
+        ispr_addr_base      = IsprKmacCmd;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacMsgSend: begin
+        ispr_addr_base      = IsprKmacMsgSend;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacIfStatus: begin
+        ispr_addr_base      = IsprKmacIfStatus;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacIntr: begin
+        ispr_addr_base      = IsprKmacIntr;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacByteStrobe: begin
+        ispr_addr_base      = IsprKmacByteStrobe;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacStatus: begin
+        ispr_addr_base      = IsprKmacStatus;
+        ispr_word_addr_base = '0;
+      end
+      CsrKmacError: begin
+        ispr_addr_base      = IsprKmacError;
+        ispr_word_addr_base = '0;
+      end
       default: csr_illegal_addr = 1'b1;
     endcase
   end
@@ -1473,6 +1505,8 @@ module otbn_controller
         ispr_addr_bignum = IsprKeyS1H;
         key_invalid = ~sideload_key_shares_valid_i[1];
       end
+      WsrKmacDataS0: ispr_addr_bignum = IsprKmacDataS0;
+      WsrKmacDataS1: ispr_addr_bignum = IsprKmacDataS1;
       WsrMaiResS0: ispr_addr_bignum = IsprMaiResS0;
       WsrMaiResS1: ispr_addr_bignum = IsprMaiResS1;
       WsrMaiIn0S0: ispr_addr_bignum = IsprMaiIn0S0;

@@ -1,15 +1,11 @@
-/* Copyright "Towards ML-KEM & ML-DSA on OpenTitan" Authors */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
-
 /*
- * Name:        poly_gen_matrix 
+ * Name:        poly_gen_matrix
  *
  * Description: Run rejection sampling on uniform random bytes to generate
- *              uniform random integers w12 q
+ *              uniform random integers mod q
  *
  * Arguments:   - int16_t *r: pointer to output buffer
- *              - unsigned int len: requested number of 16-bit integers (uniform w12 q)
+ *              - unsigned int len: requested number of 16-bit integers (uniform mod q)
  *              - const uint8_t *buf: pointer to input buffer (assumed to be uniformly random bytes)
  *              - unsigned int buflen: length of input buffer in bytes
  *
@@ -19,12 +15,11 @@
  * @param[in]  x12: i||j (2 bytes)
  * @param[out] x11: dmem pointer to polynomial
  *
- * clobbered registers: x10-x15, x5-x30, w8, w16
+ * clobbered registers: x5-x7, x10-x16, x18-x21, w0-w1, w8-w14, w31
  */
 
 .globl poly_gen_matrix
 poly_gen_matrix:
-
   /* 32 byte align the sp */
   andi x15, sp, 31
   beq  x15, x0, _aligned
@@ -35,100 +30,108 @@ _aligned:
   sw   fp, 0(sp)
 
   addi fp, sp, 0
-  
-  /* Adjust sp to accomodate more local variables */
-  addi sp, sp, -512
 
-  /* Save values */
-  addi x3, x10, 0
+  /* Adjust sp to accomodate local variables:
+   *   fp - 32: squeeze output buffer (kmac_squeeze_32B writes 32 bytes: fp-32..fp-1)
+   *   fp - 36: x11 save (output pointer)
+   *   fp - 40: x10 save (seed pointer)
+   *   fp - 44: x5 save (end address, during squeeze)
+   *   fp - 64: nonce (2 bytes)
+   *   fp - 96: w10 save area (coeff_mask, 32 bytes)
+   * CRITICAL: all GPR saves MUST be below fp-32 to avoid squeeze overwrite.
+   */
+  addi sp, sp, -96
+
+  /* Save x11 (output pointer) — will be clobbered by keccak_send_message */
+  sw   x11, -36(fp)
 
   /* Store nonce to memory */
-  sw x12, -64(fp)
+  sw   x12, -64(fp)
 
-  .irp reg,x10,x11,x12,x13,x15,x28,x29
-    addi sp, sp, -4      /* Decrement stack pointer by 4 bytes */
-    sw \reg, 0(sp)      /* Store register value at the top of the stack */
-  .endr
+  /* ─── Initialize SHAKE128 via kmac_sha3_template.s ─── */
+  /* Save x10 (seed pointer) — clobbered by kmac_init */
+  sw   x10, -40(fp)
 
-  /* Initialize a SHAKE128 operation. */
-  la   x10, context
-  jal  x1, shake128_init
+  addi  x10, x0, 2       /* Mode 2 = SHAKE128 */
+  jal   x1, kmac_init
 
-  la   x10, context
-  add  x11, x0, x3 
-  li   x12, 32
-  jal  x1, sha3_update
+  /* Send seed (32 bytes) */
+  lw    x10, -40(fp)     /* Restore seed pointer */
+  addi  x11, x0, 32
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  add  x11, fp, -64 
-  li   x12, 2
-  jal  x1, sha3_update
+  /* Send nonce (2 bytes) */
+  addi  x10, fp, -64     /* Nonce address */
+  addi  x11, x0, 2
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  jal  x1, shake_xof
+  jal   x1, kmac_process
 
-  .irp reg,x29,x28,x15,x13,x12,x11,x10
-    lw \reg, 0(sp)      /* Load value from the top of the stack into register */
-    addi sp, sp, 4     /* Increment stack pointer by 4 bytes */
-  .endr
-    
-  /* x5 = 508, x11 + 508 is the last valid address */
+  /* Restore x11 (output pointer) */
+  lw    x11, -36(fp)
+
+  /* t0 = 508, a1 + 508 is the last valid address */
   addi x5, x11, 512
 
   /* Compare for flag bits */
-  li x16, 3 
+  li x16, 3
 
   /* For masking coeff with 0xFFF */
   bn.xor w31, w31, w31
-
   bn.addi w10, w31, 1
   bn.rshi w10, w10, w31 >> 244
   bn.subi w10, w10, 1
 
-  li      x28, 12
+  li      x18, 12
   la      x6, modulus_bn
-  bn.lid  x28, 0(x6)
-  bn.rshi w12, w31, w12 >> 240 /* Only keep w12 in lowest word */
+  bn.lid  x18, 0(x6)
+  bn.rshi w12, w31, w12 >> 240 /* Only keep mod in lowest word */
 
-
-  li x30, 13
-  li x28, 16 /* 1 WDR stores 16 coeffs */
-
-  li x31, 0
+  li x20, 13
+  li x18, 16 /* 1 WDR stores 16 coeffs */
+  li x21, 0
+  li x7, 0   /* first-iteration flag: 0 = skip kmac_run */
 
   /* Loop until 256 coefficients have been written to the output */
 _rej_sample_loop:
-  .irp reg,x5,x7,x28,x29,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4      /* Decrement stack pointer by 4 bytes */
-    sw \reg, 0(sp)      /* Store register value at the top of the stack */
-  .endr
-  
-  /* Preserve WDRs */
-  addi x6, fp, -256
-  li   x5, 10
-  LOOPI 6, 2
-    bn.sid x5, 0(x6++)
-    addi   x5, x5, 1
+  /* ─── Save live registers before squeeze ───
+   * kmac_run clobbers: x5, x6
+   * kmac_squeeze_32B clobbers: x5, x6, w8, w9, w10 (reads x10)
+   * MUST preserve: x5 (end address), w10 (coeff_mask)
+   * x11 is SAFE (not touched by kmac_run or kmac_squeeze_32B)
+   */
+  sw   x5, -44(fp)       /* Save end address */
+
+  /* Save w10 (coeff_mask) to fp-96.
+   * Use x6 (WDR index, set each time — safe since kmac_squeeze_32B clobbers it anyway)
+   * Use x13 (base addr, free throughout) */
+  addi x13, fp, -96
+  li   x6, 10
+  bn.sid x6, 0(x13)
+
+  /* State machine: skip kmac_run on first iteration */
+  bne  x7, x0, _run_first
+  addi x7, x0, 1
+  jal  x0, _skip_first
+_run_first:
+  jal  x1, kmac_run
+_skip_first:
 
   /* First squeeze */
-  la     x10, context
-  add    x11, fp, -32 
-  addi   x12, x0, 32
-  jal    x1, shake_out
+  addi  x10, fp, -32
+  jal   x1, kmac_squeeze_32B
 
-  addi x6, fp, -256
-  li   x5, 10
-  LOOPI 6, 2
-    bn.lid x5, 0(x6++)
-    addi   x5, x5, 1
+  /* Restore w10 (coeff_mask) */
+  addi x13, fp, -96
+  li   x6, 10
+  bn.lid x6, 0(x13)
 
-  li     x6, 8
-  bn.lid x6, -32(x8) /* KECCAK_DIGEST */
+  /* Load digest into w8 (shake_reg) */
+  li    x6, 8
+  bn.lid x6, -32(x8)
 
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x29,x28,x7,x5
-    lw \reg, 0(sp)      /* Load value from the top of the stack into register */
-    addi sp, sp, 4     /* Increment stack pointer by 4 bytes */
-  .endr
+  /* Restore x5 (end address) */
+  lw    x5, -44(fp)
 
   /* With one SHAKE squeeze, we get 32 bytes of data. From this, we can try to
     build 20 coefficients with 3 bytes each two (3 bytes --> 2 coeffs) and are left with 2 bytes
@@ -147,53 +150,38 @@ _rej_sample_loop:
 
   /* 2 bytes of first squeeze + 1 byte of second squeeze */
   bn.rshi    w11, w8, w31 >> 16     /* Move remaining 2 bytes to the top of w11 */
-  
-  .irp reg,x5,x7,x28,x29,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4      /* Decrement stack pointer by 4 bytes */
-    sw \reg, 0(sp)      /* Store register value at the top of the stack */
-  .endr
-  
-  /* Preserve WDRs */
-  addi x6, fp, -256
-  li   x5, 10
-  LOOPI 6, 2
-    bn.sid x5, 0(x6++)
-    addi   x5, x5, 1
 
-  /* First squeeze */
-  la     x10, context
-  add    x11, fp, -32 
-  addi   x12, x0, 32
-  jal    x1, shake_out
+  /* ─── Second squeeze ─── */
+  sw   x5, -44(fp)
+  addi x13, fp, -96
+  li   x6, 10
+  bn.sid x6, 0(x13)
 
-  addi x6, fp, -256
-  li   x5, 10
-  LOOPI 6, 2
-    bn.lid x5, 0(x6++)
-    addi   x5, x5, 1
+  addi x10, fp, -32
+  jal  x1, kmac_squeeze_32B
 
-  li     x6, 8
-  bn.lid x6, -32(x8) /* KECCAK_DIGEST */
+  addi x13, fp, -96
+  li   x6, 10
+  bn.lid x6, 0(x13)
 
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x29,x28,x7,x5
-    lw \reg, 0(sp)      /* Load value from the top of the stack into register */
-    addi sp, sp, 4     /* Increment stack pointer by 4 bytes */
-  .endr
+  li    x6, 8
+  bn.lid x6, -32(x8)
+  lw    x5, -44(fp)
 
   bn.rshi    w11, w8, w11 >> 240   /* Get one more byte from new shake data*/
   bn.rshi    w8, w31, w8 >> 8 /* Shift out used byte in w8 */
 
   /* mask candidate */
-  bn.and     w16, w10, w11
-  bn.cmp     w16, w12
+  bn.and     w14, w10, w11
+  bn.cmp     w14, w12
   csrrs      x14, 0x7C0, x0       /* Read flags */
   andi       x14, x14, 3 /* Mask flags */
-  bne        x14, x16, _skip_store2a /* Reject if M, C are NOT set to 1, meaning NOT (q > w11) = (q <= w11) */
-  bn.rshi    w13, w16, w13 >> 16
-  addi       x31, x31, 1
-  bne        x31, x28, _skip_store2a
-  bn.sid     x30, 0(x11++) /* Store to memory */
-  li         x31, 0
+  bne        x14, x16, _skip_store2a /* Reject if M, C are NOT set to 1, meaningNOT (q > cand) = (q <= cand) */
+  bn.rshi    w13, w14, w13 >> 16
+  addi       x21, x21, 1
+  bne        x21, x18, _skip_store2a
+  bn.sid     x20, 0(x11++) /* Store to memory */
+  li         x21, 0
   /* if we have written the last coefficient, exit */
   beq        x11, x5, _end_rej_sample_loop
 _skip_store2a:
@@ -204,10 +192,10 @@ _skip_store2a:
   andi       x14, x14, 3 /* Mask flags */
   bne        x14, x16, _skip_store2
   bn.rshi    w13, w11, w13 >> 16
-  addi       x31, x31, 1
-  bne        x31, x28, _skip_store2
-  bn.sid     x30, 0(x11++) /* Store to memory */
-  li         x31, 0
+  addi       x21, x21, 1
+  bne        x21, x18, _skip_store2
+  bn.sid     x20, 0(x11++) /* Store to memory */
+  li         x21, 0
 
   /* if we have written the last coefficient, exit */
   beq        x11, x5, _end_rej_sample_loop
@@ -217,53 +205,38 @@ _skip_store2:
 
   /* 1 byte of second squeeze + 2 bytes of third squeeze */
   bn.rshi    w11, w8, w31 >> 8       /* move remaining 1 byte to the top of w11 */
-  
-  .irp reg,x5,x7,x28,x29,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4      /* Decrement stack pointer by 4 bytes */
-    sw \reg, 0(sp)      /* Store register value at the top of the stack */
-  .endr
-  
-  /* Preserve WDRs */
-  addi x6, fp, -256
-  li   x5, 10
-  LOOPI 6, 2
-    bn.sid x5, 0(x6++)
-    addi   x5, x5, 1
 
-  /* First squeeze */
-  la     x10, context
-  add    x11, fp, -32 
-  addi   x12, x0, 32
-  jal    x1, shake_out
+  /* ─── Third squeeze ─── */
+  sw   x5, -44(fp)
+  addi x13, fp, -96
+  li   x6, 10
+  bn.sid x6, 0(x13)
 
-  addi x6, fp, -256
-  li   x5, 10
-  LOOPI 6, 2
-    bn.lid x5, 0(x6++)
-    addi   x5, x5, 1
+  addi x10, fp, -32
+  jal  x1, kmac_squeeze_32B
 
-  li     x6, 8
-  bn.lid x6, -32(x8) /* KECCAK_DIGEST */
+  addi x13, fp, -96
+  li   x6, 10
+  bn.lid x6, 0(x13)
 
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x29,x28,x7,x5
-    lw \reg, 0(sp)      /* Load value from the top of the stack into register */
-    addi sp, sp, 4     /* Increment stack pointer by 4 bytes */
-  .endr
+  li    x6, 8
+  bn.lid x6, -32(x8)
+  lw    x5, -44(fp)
 
   bn.rshi    w11, w8, w11 >> 248    /* Get one 2 more bytes from new shake data */
   bn.rshi    w8, w31, w8 >> 16 /* Shift out used 2 bytes */
 
   /* mask candidate */
-  bn.and     w16, w10, w11
-  bn.cmp     w16, w12
+  bn.and     w14, w10, w11
+  bn.cmp     w14, w12
   csrrs      x14, 0x7C0, x0       /* Read flags */
   andi       x14, x14, 3 /* Mask flags */
-  bne        x14, x16, _skip_store4a /* Reject if M, C are NOT set to 1, meaning NOT (q > w11) = (q <= w11) */
-  bn.rshi    w13, w16, w13 >> 16
-  addi       x31, x31, 1
-  bne        x31, x28, _skip_store4a
-  bn.sid     x30, 0(x11++) /* Store to memory */
-  li         x31, 0
+  bne        x14, x16, _skip_store4a /* Reject if M, C are NOT set to 1, meaning NOT (q > cand) = (q <= cand) */
+  bn.rshi    w13, w14, w13 >> 16
+  addi       x21, x21, 1
+  bne        x21, x18, _skip_store4a
+  bn.sid     x20, 0(x11++) /* Store to memory */
+  li         x21, 0
   /* if we have written the last coefficient, exit */
   beq        x11, x5, _end_rej_sample_loop
 _skip_store4a:
@@ -273,12 +246,12 @@ _skip_store4a:
   csrrs      x14, 0x7C0, x0      /* Read flags */
   andi       x14, x14, 3 /* Mask flags */
   bne        x14, x16, _skip_store4
-    
+
   bn.rshi    w13, w11, w13 >> 16
-  addi       x31, x31, 1
-  bne        x31, x28, _skip_store4
-  bn.sid     x30, 0(x11++) /* Store to memory */
-  li         x31, 0
+  addi       x21, x21, 1
+  bne        x21, x18, _skip_store4
+  bn.sid     x20, 0(x11++) /* Store to memory */
+  li         x21, 0
   /* if we have written the last coefficient, exit */
   beq        x11, x5, _end_rej_sample_loop
 _skip_store4:
@@ -288,44 +261,37 @@ _skip_store4:
   /* No remainder! Start all over again. */
   beq        x0, x0, _rej_sample_loop
 _end_rej_sample_loop:
-  /* ★ 释放 KMAC 硬件回到 IDLE */
-  jal  x1, kmac_release
-  
+
+  /* Release KMAC hardware */
+  jal  x1, kmac_done
+
   addi       sp, fp, 0 /* sp <- fp */
-  lw         fp, 0(sp)   /* Pop ebp */
+  lw         fp, 0(sp)   /* Pop fp */
   addi       sp, sp, 32
   add        sp, sp, x15 /* Correct alignment offset (unalign) */
 
   ret
 
 _poly_uniform_inner_loop:
-
-  addi sp, sp, -4
-  sw   x29, 0(sp)
-
-  li x29, 1
+  li x19, 1
   LOOPI 20, 12
     beq        x11, x5, _skip_store1
 
     /* Get the candidate coefficient, multiplied by 2 (see below) */
-    bn.and     w11, w10, w8 
+    bn.and     w11, w10, w8
     bn.cmp     w11, w12
     csrrs      x14, 0x7C0, x0 /* Read flags */
 
     /* Z L M C */
     andi x14, x14, 3
-    bne        x14, x16, _skip_store1 /* Reject if M, C are NOT set to 1, meaning NOT (q > w11) = (q <= w11) */
+    bne        x14, x16, _skip_store1 
     bn.rshi    w13, w11, w13 >> 16
-    addi       x31, x31, 1
-    bne        x31, x28, _skip_store1 /* Accumulator not full yet */
+    addi       x21, x21, 1
+    bne        x21, x18, _skip_store1 /* Accumulator not full yet */
 
-    bn.sid     x30, 0(x11++)                      /* Store to memory */
-    li         x31, 0
+    bn.sid     x20, 0(x11++)                      /* Store to memory */
+    li         x21, 0
 _skip_store1:
     /* Shift out the 12 bits we have read for the next potential coefficient */
     bn.rshi    w8, w31, w8 >> 12
-  lw   x29, 0(sp)
-  addi sp, sp, 4
   ret
-
-

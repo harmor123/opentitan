@@ -38,8 +38,12 @@ class KmacCommandCSR(DumbISPR):
 
     # TODO: Remove this function once the kmac interface traces are needed for DV.
     # Without this override, changes will be handled by the super-class.
+    # Suppress auto-clear trace (commit() sets _next_value=0 after command) while
+    # allowing the original command write through.
     def changes(self) -> List[ISPRChange]:
-        return []
+        if self._next_value is not None and self._next_value == 0:
+            return []
+        return super().changes()
 
 
 class KmacMirrorCSR(DumbISPR):
@@ -112,11 +116,6 @@ class KmacCfgCSR(DumbISPR):
 
     def get_mode(self) -> int:
         return (self.read_unsigned() >> 4) & 0x3
-
-    # TODO: Remove this function once the kmac interface traces are needed for DV.
-    # Without this override, changes will be handled by the super-class.
-    def changes(self) -> List[ISPRChange]:
-        return []
 
 
 class KmacSetClrCSR(ISPR):
@@ -203,10 +202,12 @@ class KmacIfStatusCSR(KmacSetClrCSR):
 
     def clr_digest_valid(self) -> None:
         # Clears the DIGEST_VALID bit immediately.
-        # Note: This creates a 0-cycle delay relative to the function call to
-        # compensate for the Kmac() model detecting reads 1 cycle late.
+        # Must also clear _set_mask so a pending set_digest_valid()
+        # (from _squeeze before _step_fsm's RUN handling) doesn't
+        # re-assert the bit in end_cycle().
         clr_mask = (1 << self.DIGEST_VALID_POS)
         self._value &= ~clr_mask
+        self._set_mask &= ~clr_mask
 
     def get_msg_write_rdy(self) -> bool:
         return self.get_bit(self.MSG_WRITE_RDY_POS)
@@ -230,11 +231,16 @@ class KmacIfStatusCSR(KmacSetClrCSR):
         self.set_bit(self.DIGEST_VALID_POS)
 
     def update_msg_write_rdy(self, value: bool = True) -> None:
-        # Update the msg_write_rdy bit to "value"
+        # Update the msg_write_rdy bit to "value".
+        # Directly modify _value so read_unsigned() sees the change immediately
+        # (RTL msg_rdy_s is a combinational wire, not a registered signal).
+        mask = (1 << self.MSG_WRITE_RDY_POS)
         if value:
-            self.set_bit(self.MSG_WRITE_RDY_POS)
+            self._value |= mask
+            self._set_mask |= mask
         else:
-            self.clr_bit(self.MSG_WRITE_RDY_POS)
+            self._value &= ~mask
+            self._set_mask &= ~mask
 
 
 class KmacIntrCSR(KmacSetClrCSR):

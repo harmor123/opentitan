@@ -46,8 +46,7 @@ test_sha3_512_empty:
     jal     x1, kmac_process
     la      x10, sha3_512_empty_out
     jal     x1, kmac_squeeze_32B
-    /* 512位需要挤出两次 32 字节 */
-    jal     x1, kmac_run          /* 驱动硬件产出下一块摘要 */
+    /* SHA3-512 digest=64B=8 lanes, rate=9 lanes, 无需 RUN */
     addi    x10, x10, 32
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
@@ -74,7 +73,7 @@ test_sha3_512_msg:
     jal     x1, kmac_process
     la      x10, sha3_512_msg_out
     jal     x1, kmac_squeeze_32B
-    jal     x1, kmac_run
+    /* SHA3-512 digest=64B=8 lanes, rate=9 lanes, 无需 RUN */
     addi    x10, x10, 32
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
@@ -160,11 +159,10 @@ test_shake128_64b_run:
     addi    x11, x0, 8
     jal     x1, keccak_send_message
     jal     x1, kmac_process
-    /* 第一次挤出 32 字节 */
+    /* 第一次挤出 32 字节 (lanes 0~3) */
     la      x10, shake128_64b_out_1
     jal     x1, kmac_squeeze_32B
-    /* 第二次挤出 32 字节 (触发 CMD_RUN) */
-    jal     x1, kmac_run
+    /* 第二次挤出 32 字节 (lanes 4~7, rate=21 远未用完) */
     la      x10, shake128_64b_out_2
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done

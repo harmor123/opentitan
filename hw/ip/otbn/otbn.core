@@ -40,6 +40,7 @@ filesets:
       - rtl/otbn_mac_bignum_fsm.sv
       - rtl/otbn_mac_bignum.sv
       - rtl/otbn_mai.sv
+      - rtl/otbn_kmac.sv
       - rtl/otbn_mask_accelerator.sv
       - rtl/otbn_mod_result_selector.sv
       # ver2 bn_vec_core modules (enabled by BNMULV_VER2)

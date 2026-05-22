@@ -135,10 +135,6 @@ crypto_kem_dec:
   add   x10, fp, x10     /* x10 = 输出指针 (buf+64)，写入前 32 字节 (K') */
   jal   x1, kmac_squeeze_32B
 
-  jal   x1, kmac_run     /* 推进状态，准备挤出后 32 字节 */
-
-  li    x10, -4256
-  add   x10, fp, x10
   addi  x10, x10, 32     /* x10 = 输出指针 (buf+96)，写入后 32 字节 (r') */
   jal   x1, kmac_squeeze_32B
 

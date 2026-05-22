@@ -146,8 +146,7 @@ poly_getnoise_eta_1:
 
   addi x9, x0, 32
 
-  LOOPI 3, 4
-    jal  x1, kmac_run
+  LOOPI 3, 3
     add  x10, x9, x20
     jal  x1, kmac_squeeze_32B
     addi x9, x9, 32
@@ -221,8 +220,7 @@ poly_getnoise_eta_2:
 
   addi x9, x0, 32
 
-  LOOPI 3, 4
-    jal  x1, kmac_run
+  LOOPI 3, 3
     add  x10, x9, x20
     jal  x1, kmac_squeeze_32B
     addi x9, x9, 32
