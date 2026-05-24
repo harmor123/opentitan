@@ -1,0 +1,7 @@
+# HMAC-SHA3-256 test vector
+# key = b'key'
+# msg = b'message'
+# expected HMAC (BE) = 0f43852a24d5597a8200312a95993991581679d63264f1b1ad4b5ccac7fe8ba4
+# expected HMAC (LE, DMEM order) = a48bfec7ca5c4badb1f16432d6791658913999952a3100827a59d5242a85430f
+
+test_out: a48bfec7ca5c4badb1f16432d6791658913999952a3100827a59d5242a85430f

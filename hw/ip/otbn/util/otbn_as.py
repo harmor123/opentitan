@@ -1209,8 +1209,16 @@ def main(argv: List[str]) -> int:
     # files is now a nonempty list of input files. Rather unusually, '--'
     # (rather than '-') denotes standard input.
 
+    # Extract bnmulv_version_id from args (--bnmulv_version_id=X) or env (BNMULV_VER).
+    bnmulv_version_id = os.environ.get('BNMULV_VER', '0')
+    for arg in other_args:
+        match = re.match(r"^--bnmulv_version_id=(.*)$", arg)
+        if match:
+            bnmulv_version_id = match.group(1)
+            other_args.remove(arg)
+            break
+
     try:
-        bnmulv_version_id = os.environ.get('BNMULV_VER', '0')
         insns_file = load_insns_yaml(bnmulv_version_id)
     except RuntimeError as err:
         sys.stderr.write('{}\n'.format(err))

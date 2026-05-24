@@ -33,7 +33,7 @@ def parse_reg_dump(dump: str) -> Dict[str, int]:
             continue
         m = _REG_RE.match(line)
         if not m:
-            raise ValueError(f'Failed to parse reg dump line ({line:!r}).')
+            raise ValueError(f'Failed to parse reg dump line ({line!r}).')
         reg = m.group(1)
         value = int(m.group(2), 0)
 
