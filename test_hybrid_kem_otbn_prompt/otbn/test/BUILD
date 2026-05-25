@@ -3,6 +3,7 @@ load("//rules:otbn.bzl", "otbn_sim_test")
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
+    "hmac_test.s",
     "mlkem_base_keypair_test.s",
     "mlkem_base_encap_test.s",
     "mlkem_base_decap_test.s",
@@ -103,7 +104,20 @@ otbn_sim_test(
     srcs = ["hkdf_test.s"],
     dexp = "hkdf_test.dexp",
     deps = [
-        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256_lib",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hmac_sha3",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:kmac_sha3_template",
+    ],
+)
+
+# ================================================================
+# HMAC-SHA3-256
+# ================================================================
+
+otbn_sim_test(
+    name = "hmac_test",
+    srcs = ["hmac_test.s"],
+    deps = [
         "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hmac_sha3",
         "//test_hybrid_kem_otbn_prompt/otbn/hkdf:kmac_sha3_template",
     ],

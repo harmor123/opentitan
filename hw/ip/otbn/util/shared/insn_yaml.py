@@ -7,7 +7,7 @@
 import itertools
 import os
 import re
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast  # noqa: F401
 
 from serialize.parse_helpers import (check_keys, check_str, check_bool,
                                      check_list, index_list, get_optional_str,
@@ -417,21 +417,20 @@ def make_isr_dict(path: str) -> IsrMap:
                            .format(path, err)) from None
 
 
-_DEFAULT_INSNS_FILE: Optional[InsnsFile] = None
+_DEFAULT_INSNS_FILE: Dict[str, InsnsFile] = {}
 
 
 def load_insns_yaml(bnmulv_version_id: str = '0') -> InsnsFile:
     '''Load the insns.yml file from its default location.
 
-    Caches its result. Raises a RuntimeError on syntax or schema error.
+    Caches its result per version. Raises a RuntimeError on syntax or schema error.
 
     If bnmulv_version_id is '1', '2', or '3', loads insns-ver{id}.yml instead.
     This allows switching between BNMULV hardware versions at runtime.
 
     '''
-    global _DEFAULT_INSNS_FILE
-    if _DEFAULT_INSNS_FILE is not None:
-        return _DEFAULT_INSNS_FILE
+    if bnmulv_version_id in _DEFAULT_INSNS_FILE:
+        return _DEFAULT_INSNS_FILE[bnmulv_version_id]
 
     dirname = os.path.dirname(__file__)
     data_path = os.path.normpath(os.path.join(dirname, '..', '..', 'data'))
@@ -440,11 +439,12 @@ def load_insns_yaml(bnmulv_version_id: str = '0') -> InsnsFile:
     wsrs = make_isr_dict(os.path.join(data_path, 'wsr.yml'))
 
     if bnmulv_version_id == '0':
-        _DEFAULT_INSNS_FILE = load_file(os.path.join(data_path, 'insns.yml'),
-                                        IsrMaps(csrs, wsrs))
+        insns_file = load_file(os.path.join(data_path, 'insns.yml'),
+                               IsrMaps(csrs, wsrs))
     else:
-        _DEFAULT_INSNS_FILE = load_file(os.path.join(data_path,
-                                        f'insns-ver{bnmulv_version_id}.yml'),
-                                        IsrMaps(csrs, wsrs))
+        insns_file = load_file(os.path.join(data_path,
+                                f'insns-ver{bnmulv_version_id}.yml'),
+                                IsrMaps(csrs, wsrs))
 
-    return _DEFAULT_INSNS_FILE
+    _DEFAULT_INSNS_FILE[bnmulv_version_id] = insns_file
+    return insns_file

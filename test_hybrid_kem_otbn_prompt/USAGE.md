@@ -30,9 +30,9 @@ test_hybrid_kem_otbn_prompt/
 │   └── hybrid_kem.c
 └── otbn/
     ├── hkdf/                         # HKDF-SHA3-256 (新增)
-    │   ├── BUILD                     # otbn_library ×2 + otbn_binary
-    │   ├── hkdf_sha3_256.s           #   714行, 适配 OTBN 精简指令集
-    │   ├── sha3_test.s
+    │   ├── BUILD                     # otbn_library ×3 + otbn_binary
+    │   ├── hkdf_sha3_256.s           #   251行 (纯函数库, Extract+Expand 分离)
+    │   ├── hmac_sha3.s               #   179行 (合并 ipad/opad 循环优化)
     │   └── kmac_sha3_template.s
     ├── mlkem768/                     # ML-KEM-768 (三阶段合并)
     │   ├── BUILD                     # otbn_library ×12 + otbn_binary ×3
@@ -42,7 +42,7 @@ test_hybrid_kem_otbn_prompt/
     │   ├── BUILD                     # otbn_library ×3 + otbn_binary
     │   └── p256_base.s / p256_shared_key.s / p256_isoncurve_proj.s
     └── test/
-        ├── BUILD                     # otbn_sim_test ×5
+        ├── BUILD                     # otbn_sim_test ×6
         ├── mlkem768_*_test.dexp      # ML-KEM 预期值
         ├── p256_ecdh_shared_key_test.dexp
         └── sha3_test.dexp
@@ -70,28 +70,62 @@ cp hw/ip/otbn/util/shared/reg_dump.py ~/pqc/opentitan/hw/ip/otbn/util/shared/
 
 ```bash
 cd ~/pqc/opentitan
-bazel build //test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_keypair_bin
-bazel build //test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_encap_bin
-bazel build //test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_decap_bin
-bazel build //test_hybrid_kem_otbn_prompt/otbn/p256_ecdh:p256_ecdh_bin
-bazel build //test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256_bin
+bazel build //test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_keypair
+bazel build //test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_encap
+bazel build //test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_decap
+bazel build //test_hybrid_kem_otbn_prompt/otbn/p256_ecdh:p256_ecdh
+bazel build //test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256
 ```
 
-### 2.4 OTBN 仿真测试 — 全部通过
+### 2.4 OTBN 仿真测试 — 全部 6 个通过
 
 ```bash
-bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_keypair_test   # PASS
-bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_encap_test     # PASS
-bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_decap_test     # PASS
-bazel test //test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_test          # PASS
-bazel test //test_hybrid_kem_otbn_prompt/otbn/test:kmac_sha3_test          # PASS
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_keypair_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_encap_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_decap_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:kmac_sha3_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:hkdf_test
 ```
 
-### 2.5 Ibex 集成测试（待启用）
+### 2.5 OTBN RTL+ISS 联调 (硬件正确性验证)
+
+构建 OTBN 独立 Verilator 模型 (一次性):
 
 ```bash
-# bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_test   # 功能测试
-# bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_prod   # 生产模式
+fusesoc --cores-root=. run --target=sim --setup --build \
+  --flag=bnmulv_ver2 \
+  --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
+  --make_options="-j$(nproc)"
+```
+
+BUILD 规则运行联调 (RTL 与 ISS 逐指令比对):
+
+```bash
+# 全部 5 个 app
+bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:all_co_sim --test_output=all
+
+# 单个 app
+bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:hkdf_co_sim    --test_output=all
+bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:p256_ecdh_co_sim --test_output=all
+bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:mlkem_keypair_co_sim
+bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:mlkem_encap_co_sim
+bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:mlkem_decap_co_sim
+```
+
+KMAC DEBUG 输出已受 `ifdef KMAC_DEBUG` 控制，默认关闭。
+
+### 2.6 Ibex 集成测试
+
+Ibex C 代码编译通过, Verilator 仿真待 ccache sandbox 权限修复后运行:
+
+```bash
+# 添加 sandbox writable path 解决 ccache 只读文件系统错误
+bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_test \
+  --sandbox_writable_path=/run/user/1000/ccache-tmp
+
+# 或设环境变量禁用 ccache
+CCACHE_DISABLE=1 bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_test
 ```
 
 ---

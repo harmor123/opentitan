@@ -1,4 +1,4 @@
-load("//rules:otbn.bzl", "otbn_library")
+load("//rules:otbn.bzl", "otbn_binary", "otbn_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -72,4 +72,37 @@ otbn_library(
     name = "kmac_sha3",
     srcs = ["kmac_sha3_template.s"],
     copts = ["--bnmulv_version_id=2"],
+)
+
+# Ibex-embeddable binaries (provide CcInfo for opentitan_test deps)
+otbn_binary(
+    name = "mlkem768_keypair",
+    srcs = [
+        "mlkem_keypair.s", "basemul.s", "cbd.s", "ntt.s",
+        "pack_keys.s", "poly.s", "poly_gen_matrix.s", "kmac_sha3_template.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_keypair_test.s",
+    ],
+    args = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "mlkem768_encap",
+    srcs = [
+        "mlkem_encap.s", "pack_ciphertext.s", "basemul.s", "cbd.s",
+        "intt.s", "ntt.s", "pack_keys.s", "poly.s",
+        "poly_gen_matrix.s", "kmac_sha3_template.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_encap_test.s",
+    ],
+    args = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "mlkem768_decap",
+    srcs = [
+        "mlkem_decap.s", "mlkem_encap.s", "pack_ciphertext.s",
+        "basemul.s", "cbd.s", "intt.s", "ntt.s", "pack_keys.s",
+        "poly.s", "poly_gen_matrix.s", "kmac_sha3_template.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_decap_test.s",
+    ],
+    args = ["--bnmulv_version_id=2"],
 )

@@ -22,10 +22,17 @@
 
 #include "hybrid_kem.h"
 
+#include "hw/top/dt/otbn.h"
 #include "sw/device/lib/base/status.h"
+#include "sw/device/lib/dif/dif_otbn.h"
+#include "sw/device/lib/runtime/log.h"
 #include "sw/device/lib/testing/otbn_testutils.h"
+#include "sw/device/lib/testing/test_framework/check.h"
+#include "sw/device/lib/testing/test_framework/ottf_main.h"
 
 #include <string.h>
+
+OTTF_DEFINE_TEST_CONFIG();
 
 /* ---- 生产模式: 熵源头文件 ---- */
 #ifndef HYBRID_KEM_TEST_MODE
@@ -88,28 +95,14 @@ static const otbn_addr_t kP256Y  = OTBN_ADDR_T_INIT(p256_ecdh, y);
 /* ---- hkdf_sha3_256 ---- */
 OTBN_DECLARE_APP_SYMBOLS(hkdf_sha3_256);
 OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_salt);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_ss_e);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_ss_m);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_ctx_len);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_sid_len);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_role_len);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_okm_len);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_ctx);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_sid);
-OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_role);
+OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, ikm_prebuilt);
+OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, input_lengths);
 OTBN_DECLARE_SYMBOL_ADDR(hkdf_sha3_256, output_okm);
 
 static const otbn_app_t kAppHkdf = OTBN_APP_T_INIT(hkdf_sha3_256);
-static const otbn_addr_t kHkdfSalt    = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_salt);
-static const otbn_addr_t kHkdfSsE     = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_ss_e);
-static const otbn_addr_t kHkdfSsM     = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_ss_m);
-static const otbn_addr_t kHkdfCtxLen  = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_ctx_len);
-static const otbn_addr_t kHkdfSidLen  = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_sid_len);
-static const otbn_addr_t kHkdfRoleLen = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_role_len);
-static const otbn_addr_t kHkdfOkmLen  = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_okm_len);
-static const otbn_addr_t kHkdfCtx     = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_ctx);
-static const otbn_addr_t kHkdfSid     = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_sid);
-static const otbn_addr_t kHkdfRole    = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_role);
+static const otbn_addr_t kHkdfSalt     = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_salt);
+static const otbn_addr_t kHkdfIkmPre  = OTBN_ADDR_T_INIT(hkdf_sha3_256, ikm_prebuilt);
+static const otbn_addr_t kHkdfLengths = OTBN_ADDR_T_INIT(hkdf_sha3_256, input_lengths);
 static const otbn_addr_t kHkdfOutput  = OTBN_ADDR_T_INIT(hkdf_sha3_256, output_okm);
 
 /* ================================================================
@@ -222,6 +215,9 @@ static void p256_split_scalar(const uint8_t *d, uint8_t *d0, uint8_t *d1) {
 }
 #endif  /* HYBRID_KEM_TEST_MODE */
 
+/* ---- forward declaration ---- */
+static void memwipe(void *p, size_t n);
+
 /* ================================================================
  * OTBN app checksums — 构建流水线自动生成
  *
@@ -231,7 +227,7 @@ static void p256_split_scalar(const uint8_t *d, uint8_t *d0, uint8_t *d1) {
  * ================================================================ */
 
 #define OTBN_DECLARE_CHECKSUM(app_name) \
-  extern const uint8_t _otbn_remote_app_##app_name##_checksum[]
+  extern const uint8_t _otbn_remote_app_##app_name##__checksum[]
 
 OTBN_DECLARE_CHECKSUM(mlkem768_keypair);
 OTBN_DECLARE_CHECKSUM(mlkem768_encap);
@@ -240,15 +236,15 @@ OTBN_DECLARE_CHECKSUM(p256_ecdh);
 OTBN_DECLARE_CHECKSUM(hkdf_sha3_256);
 
 static const uint32_t kChecksumMlKemKeypair =
-    (uint32_t)(uintptr_t)_otbn_remote_app_mlkem768_keypair_checksum;
+    (uint32_t)(uintptr_t)_otbn_remote_app_mlkem768_keypair__checksum;
 static const uint32_t kChecksumMlKemEncap =
-    (uint32_t)(uintptr_t)_otbn_remote_app_mlkem768_encap_checksum;
+    (uint32_t)(uintptr_t)_otbn_remote_app_mlkem768_encap__checksum;
 static const uint32_t kChecksumMlKemDecap =
-    (uint32_t)(uintptr_t)_otbn_remote_app_mlkem768_decap_checksum;
+    (uint32_t)(uintptr_t)_otbn_remote_app_mlkem768_decap__checksum;
 static const uint32_t kChecksumP256Ecdh =
-    (uint32_t)(uintptr_t)_otbn_remote_app_p256_ecdh_checksum;
+    (uint32_t)(uintptr_t)_otbn_remote_app_p256_ecdh__checksum;
 static const uint32_t kChecksumHkdf =
-    (uint32_t)(uintptr_t)_otbn_remote_app_hkdf_sha3_256_checksum;
+    (uint32_t)(uintptr_t)_otbn_remote_app_hkdf_sha3_256__checksum;
 
 /* ---- 指令计数阈值 (从 otbn_sim 实测, 0 = 跳过) ---- */
 static const uint32_t kExpectedInsnMlKemKeypair = HYBRID_KEM_INSNS_MLKEM_KEYPAIR;
@@ -489,27 +485,36 @@ static status_t phase_hkdf(dif_otbn_t *otbn,
 {
   TRY(load_with_checksum(otbn, kAppHkdf, kChecksumHkdf));
 
+  /* Build IKM: be16(32) || ss_e || be16(32) || ss_m || ctx || sid || role */
+  /* OTBN DMEM requires 32-bit word-aligned writes.  Zero-fill and round
+   * the IKM length up to the next 4-byte boundary so ECC bits are valid. */
+  uint8_t ikm[256] = {0};
+  size_t off = 0;
+  ikm[off++] = 0x00; ikm[off++] = 0x20;  /* be16(32) */
+  memcpy(&ikm[off], ss_e, 32); off += 32;
+  ikm[off++] = 0x00; ikm[off++] = 0x20;  /* be16(32) */
+  memcpy(&ikm[off], ss_m, 32); off += 32;
+  memcpy(&ikm[off], ctx, ctx_len); off += ctx_len;
+  memcpy(&ikm[off], sid, sid_len); off += sid_len;
+  memcpy(&ikm[off], role, role_len); off += role_len;
+  size_t ikm_len = off;
+  size_t ikm_write_len = (ikm_len + 3) & ~(size_t)3;  /* round up to 4B */
+
+  /* Write salt + IKM + length fields + OKM len */
   TRY(write_and_verify(otbn, 32, salt, kHkdfSalt));
-  TRY(write_and_verify(otbn, 32, ss_e, kHkdfSsE));
-  TRY(write_and_verify(otbn, 32, ss_m, kHkdfSsM));
+  TRY(write_and_verify(otbn, ikm_write_len, ikm, kHkdfIkmPre));
 
   uint32_t u32;
   u32 = (uint32_t)ctx_len;
-  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfCtxLen));
+  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfLengths));
   u32 = (uint32_t)sid_len;
-  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfSidLen));
+  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfLengths + 4));
   u32 = (uint32_t)role_len;
-  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfRoleLen));
+  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfLengths + 8));
   u32 = (uint32_t)okm_len;
-  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfOkmLen));
+  TRY(otbn_testutils_write_data(otbn, 4, &u32, kHkdfLengths + 12));
 
-  if (ctx_len > 0) {
-    TRY(otbn_testutils_write_data(otbn, ctx_len, ctx, kHkdfCtx));
-  }
-  if (sid_len > 0) {
-    TRY(otbn_testutils_write_data(otbn, sid_len, sid, kHkdfSid));
-  }
-  TRY(write_and_verify(otbn, role_len, role, kHkdfRole));
+  memwipe(ikm, sizeof(ikm));
 
   TRY(execute_and_check_insns(otbn, kExpectedInsnHkdf));
 
@@ -613,7 +618,6 @@ status_t hybrid_encaps(dif_otbn_t *otbn,
 #ifdef HYBRID_KEM_TEST_MODE
   const uint8_t *d0 = kTestP256D0;
   const uint8_t *d1 = kTestP256D1;
-  uint8_t d0_prod[64], d1_prod[64], d_prod[32];
 #else
   uint8_t d0_prod[64], d1_prod[64], d_prod[32];
   const uint8_t *d0 = d0_prod;
@@ -707,7 +711,7 @@ status_t hybrid_decaps(dif_otbn_t *otbn,
   s1 = load_with_checksum(otbn, kAppP256Ecdh, kChecksumP256Ecdh);
 
 #ifdef HYBRID_KEM_TEST_MODE
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     s1 = write_and_verify(otbn, 32, sk_e_bob, kP256D0);
   }
   /* d1 = 0 (测试模式) */
@@ -716,34 +720,34 @@ status_t hybrid_decaps(dif_otbn_t *otbn,
   uint8_t d0[64], d1[64];
   memset(d0, 0, sizeof(d0));
   memset(d1, 0, sizeof(d1));
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     p256_split_scalar(sk_e_bob, d0, d1);
     s1 = write_and_verify(otbn, 64, d0, kP256D0);
   }
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     s1 = write_and_verify(otbn, 64, d1, kP256D1);
   }
   memwipe(d0, sizeof(d0));
   memwipe(d1, sizeof(d1));
 #endif
 
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     s1 = write_and_verify(otbn, 32, ek_alice, kP256X);
   }
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     s1 = write_and_verify(otbn, 32, ek_alice + 32, kP256Y);
   }
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     s1 = otbn_testutils_execute(otbn);
   }
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     s1 = wait_for_done_resilient(otbn, kDifOtbnErrBitsNoError);
   }
 
-  if (STATUS_OK(s1)) {
+  if (status_ok(s1)) {
     uint32_t x0[8], x1[8];
-    otbn_testutils_read_data(otbn, 32, kP256X, x0);
-    otbn_testutils_read_data(otbn, 32, kP256Y, x1);
+    (void)otbn_testutils_read_data(otbn, 32, kP256X, x0);
+    (void)otbn_testutils_read_data(otbn, 32, kP256Y, x1);
     for (int i = 0; i < 8; i++) {
       ((uint32_t *)ss_e)[i] = x0[i] ^ x1[i];
     }
@@ -757,9 +761,9 @@ status_t hybrid_decaps(dif_otbn_t *otbn,
 
   /* === Step 2: ML-KEM-768 Decap === */
   status_t s2 = phase_mlkem_decap(otbn, sk_m_bob, ct_m, ss_m);
-  if (!STATUS_OK(s2)) {
+  if (!status_ok(s2)) {
     memset(ss_m, 0xBB, sizeof(ss_m));
-    if (STATUS_OK(result)) result = s2;
+    if (status_ok(result)) result = s2;
   }
   TRY(otbn_full_sec_wipe(otbn));
 
@@ -769,9 +773,9 @@ status_t hybrid_decaps(dif_otbn_t *otbn,
                            (const uint8_t *)HYBRID_KEM_ROLE_RESPONDER,
                            HYBRID_KEM_ROLE_RESPONDER_LEN,
                            okm, okm_len);
-  if (!STATUS_OK(s3)) {
+  if (!status_ok(s3)) {
     memset(okm, 0, okm_len);
-    if (STATUS_OK(result)) result = s3;
+    if (status_ok(result)) result = s3;
   }
   TRY(otbn_full_sec_wipe(otbn));
 
@@ -780,4 +784,48 @@ status_t hybrid_decaps(dif_otbn_t *otbn,
   memwipe(salt_buf, sizeof(salt_buf));
 
   return result;
+}
+
+/* ================================================================
+ * OTTF test entry point
+ * ================================================================ */
+
+bool test_main(void) {
+  dif_otbn_t otbn;
+  CHECK_DIF_OK(dif_otbn_init_from_dt(kDtOtbn, &otbn));
+
+  CHECK_STATUS_OK(hybrid_kem_init());
+
+  uint8_t pk_hyb[HYBRID_KEM_PK_HYB_BYTES];
+  uint8_t sk_hyb[HYBRID_KEM_SK_HYB_BYTES];
+  uint8_t ct_hyb[HYBRID_KEM_CT_HYB_BYTES];
+  uint8_t okm_a[32], okm_b[32];
+  const uint8_t salt[HYBRID_KEM_SALT_BYTES] = {0};
+
+  LOG_INFO("Hybrid KEM round-trip test starting...");
+
+  /* Bob: key generation */
+  CHECK_STATUS_OK(hybrid_keygen(&otbn, pk_hyb, sk_hyb));
+  LOG_INFO("Keygen: PASS");
+
+  /* Alice: encapsulation */
+  CHECK_STATUS_OK(hybrid_encaps(&otbn, pk_hyb, salt,
+      (const uint8_t *)"test", 4,
+      (const uint8_t *)"001", 3,
+      ct_hyb, okm_a, sizeof(okm_a)));
+  LOG_INFO("Encaps: PASS");
+
+  /* Bob: decapsulation */
+  CHECK_STATUS_OK(hybrid_decaps(&otbn, sk_hyb, ct_hyb, salt,
+      (const uint8_t *)"test", 4,
+      (const uint8_t *)"001", 3,
+      okm_b, sizeof(okm_b)));
+  LOG_INFO("Decaps: PASS");
+
+  /* OKM must match */
+  CHECK(memcmp(okm_a, okm_b, sizeof(okm_a)) == 0,
+        "Alice/Bob OKM mismatch!");
+  LOG_INFO("Round-trip OKM verified.");
+
+  return true;
 }

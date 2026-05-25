@@ -47,6 +47,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "sw/device/lib/base/status.h"
 #include "sw/device/lib/dif/dif_otbn.h"
 
 #ifdef __cplusplus

@@ -41,27 +41,21 @@ kmac_init:
     ecall                           /* 非法 mode */
 
 .cfg_sha3_256:
-    addi    x5, x0, 4               /* MODE=SHA3, STRENGTH=L256 */
+    addi    x5, x0, 5               /* SHA3-256: EN=1, MODE=0, STRENGTH=2 */
     jal     x0, .apply_cfg
 .cfg_sha3_512:
-    addi    x5, x0, 8               /* MODE=SHA3, STRENGTH=L512 */
+    addi    x5, x0, 9               /* SHA3-512: EN=1, MODE=0, STRENGTH=4 */
     jal     x0, .apply_cfg
 .cfg_shake128:
-    addi    x5, x0, 32              /* MODE=SHAKE, STRENGTH=L128 */
+    addi    x5, x0, 33              /* SHAKE128: EN=1, MODE=2, STRENGTH=0 */
     jal     x0, .apply_cfg
 .cfg_shake256:
-    addi    x5, x0, 36              /* MODE=SHAKE, STRENGTH=L256 */
+    addi    x5, x0, 37              /* SHAKE256: EN=1, MODE=2, STRENGTH=2 */
 
 .apply_cfg:
     csrrw   x0, 0x7db, x5           /* kmac_cfg */
     addi    x5, x0, 29              /* CMD_START = 0x1D */
     csrrw   x0, 0x7dd, x5           /* kmac_cmd */
-
-    addi    x6, x0, 2               /* kmac_status[1]: SHA3_ABSORB */
-.wait_absorb:
-    csrrs   x5, 0xfc2, x0
-    and     x5, x5, x6
-    beq     x5, x0, .wait_absorb
     ret
 
 /* ================================================================
@@ -145,11 +139,11 @@ kmac_process:
     addi    x5, x0, 46              /* CMD_PROCESS = 0x2E */
     csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    addi    x6, x0, 8               /* kmac_if_status[3]: DIGEST_VALID */
-.wait_digest:
-    csrrs   x5, 0x7d9, x0
+    addi    x6, x0, 4               /* kmac_status[2]: SHA3_SQUEEZE */
+.wait_squeeze:
+    csrrs   x5, 0xfc2, x0
     and     x5, x5, x6
-    beq     x5, x0, .wait_digest
+    beq     x5, x0, .wait_squeeze
     ret
 
 /* ================================================================
@@ -212,14 +206,14 @@ kmac_run:
     addi    x5, x0, 49              /* CMD_RUN = 0x31 */
     csrrw   x0, 0x7dd, x5           /* kmac_cmd */
 
-    /* 先等 FSM 离开 StSqueeze (进入 StProcessing = ABSORB 状态) */
+    /* 等 FSM 进入 StProcessing (ABSORB) — 确认 RUN 已被处理 */
     addi    x6, x0, 2               /* kmac_status[1]: SHA3_ABSORB */
 .wait_run_absorb:
     csrrs   x5, 0xfc2, x0
     and     x5, x5, x6
     beq     x5, x0, .wait_run_absorb
 
-    /* 再等 Keccak 完成，FSM 回到 StSqueeze */
+    /* 等 Keccak 完成，FSM 回到 StSqueeze */
     addi    x6, x0, 4               /* kmac_status[2]: SHA3_SQUEEZE */
 .wait_run_squeeze:
     csrrs   x5, 0xfc2, x0

@@ -404,6 +404,7 @@ otbn_binary = rv_rule(
         "srcs": attr.label_list(allow_files = True),
         "deps": attr.label_list(providers = [DefaultInfo]),
         "args": attr.string_list(),
+        "copts": attr.string_list(),
         "_riscv32_ar": attr.label(
             default = Label("@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-ar"),
             allow_single_file = True,

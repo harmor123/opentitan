@@ -195,8 +195,11 @@ module otbn_kmac
   logic msg_rdy_s, digest_valid_s;
   // msg_write_rdy per csr.yml: WSR is ready when in MSG_FEED, no active
   // absorption, Keccak not processing, and no run pending (one-hot constraint).
+  // keccak_complete: allow back-to-back feed without a 1-cycle stall
+  // after an auto-triggered keccak permutation (rate-full absorb).
   assign msg_rdy_s       = (st_q == StMsgFeed) && !absorb_active &&
-                           !absorb_hold_q && !keccak_run_pending_q;
+                           (!absorb_hold_q || keccak_complete) &&
+                           !keccak_run_pending_q;
   // DIGEST_VALID: word available and not yet fully read.
   // Gated with (st_d == StSqueeze) to prevent false-1 during state transitions
   // (e.g. RUN where st_q is still StSqueeze but we're leaving for StProcessing).
@@ -355,11 +358,12 @@ module otbn_kmac
   end
 
   // Start-absorption trigger: msg_send when Keccak is ready to accept data.
-  // MSG_WRITE_RDY is gated by !absorb_active && !absorb_hold_q &&
-  // !keccak_run_pending_q, so software naturally waits.  No FIFO needed.
+  // keccak_complete bypasses absorb_hold_q to avoid a 1-cycle stall after
+  // an auto-triggered keccak permutation (rate-full absorb in StMsgFeed).
   logic start_absorb;
   assign start_absorb = ispr_kmac_msg_send_wr_i && !absorb_active &&
-                        !absorb_hold_q && !keccak_run_pending_q;
+                        (!absorb_hold_q || keccak_complete) &&
+                        !keccak_run_pending_q;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -747,42 +751,44 @@ module otbn_kmac
     else         st_q <= st_d;
   end
 
-  // Count msg_sends received for debug
-  logic [7:0] msg_send_cnt;
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) msg_send_cnt <= '0;
-    else if (st_q == StIdle) msg_send_cnt <= '0;
-    else if (ispr_kmac_msg_send_wr_i) msg_send_cnt <= msg_send_cnt + 1'b1;
-  end
+  // // Count msg_sends received for debug
+  // logic [7:0] msg_send_cnt;
+  // always_ff @(posedge clk_i or negedge rst_ni) begin
+  //   if (!rst_ni) msg_send_cnt <= '0;
+  //   else if (st_q == StIdle) msg_send_cnt <= '0;
+  //   else if (ispr_kmac_msg_send_wr_i) msg_send_cnt <= msg_send_cnt + 1'b1;
+  // end
 
-  // Debug: print key KMAC events
-  always_ff @(posedge clk_i) begin
-    if (st_q != st_d)
-      $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d",
-               $time, st_q, st_d, absorb_total, absorb_rate_pos,
-               pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt);
-    if (ispr_kmac_msg_send_wr_i)
-      $display("[KMAC] t=%0t MSG_SEND received  msgs=%0d",
-               $time, msg_send_cnt);
-    if (keccak_feed_valid_mux)
-      $display("[KMAC] t=%0t FEED  addr=%0d  data=0x%016x  src=%s",
-               $time, keccak_feed_addr_mux, keccak_feed_data_mux,
-               keccak_feed_valid ? "msg" : "pad");
-    if (sqz_write_en && st_q == StSqueeze)
-      $display("[KMAC] t=%0t SQUEEZE word[%0d]=0x%016x  rdy=%0d  both=%0d  adv=%0d  dv=%0d",
-               $time, sqz_eff_idx, sqz_word_64, sqz_rdy, both_shares_read,
-               advance_word, digest_valid_s);
-    if (keccak_run)
-      $display("[KMAC] t=%0t KECCAK_RUN  st=%0d  state_lane0=0x%016x",
-               $time, st_q, keccak_state[0][63:0]);
-    if (keccak_complete)
-      $display("[KMAC] t=%0t KECCAK_DONE  st=%0d  state_lane0=0x%016x",
-               $time, st_q, keccak_state[0][63:0]);
-    // Warn when DIGEST_VALID=0 in StSqueeze (anomaly)
-    if (st_q == StSqueeze && st_d == StSqueeze && digest_valid_s == 0)
-      $display("[KMAC] t=%0t ** DV=0 in SQUEEZE: both=%0d  sqz=%0d  s0_rd=%0d  s1_rd=%0d  sqz_rdy=%0d",
-               $time, both_shares_read, sqz_word_idx, s0_read_q, s1_read_q, sqz_rdy);
-  end
+  // // KMAC event trace — gated behind a compile-time define to avoid
+  // // bloating simulation output during automated / CI / ISS-RTL checks.
+
+  // always_ff @(posedge clk_i) begin
+  //   if (st_q != st_d)
+  //     $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d",
+  //              $time, st_q, st_d, absorb_total, absorb_rate_pos,
+  //              pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt);
+  //   if (ispr_kmac_msg_send_wr_i)
+  //     $display("[KMAC] t=%0t MSG_SEND received  msgs=%0d",
+  //              $time, msg_send_cnt);
+  //   if (keccak_feed_valid_mux)
+  //     $display("[KMAC] t=%0t FEED  addr=%0d  data=0x%016x  src=%s",
+  //              $time, keccak_feed_addr_mux, keccak_feed_data_mux,
+  //              keccak_feed_valid ? "msg" : "pad");
+  //   if (sqz_write_en && st_q == StSqueeze)
+  //     $display("[KMAC] t=%0t SQUEEZE word[%0d]=0x%016x  rdy=%0d  both=%0d  adv=%0d  dv=%0d",
+  //              $time, sqz_eff_idx, sqz_word_64, sqz_rdy, both_shares_read,
+  //              advance_word, digest_valid_s);
+  //   if (keccak_run)
+  //     $display("[KMAC] t=%0t KECCAK_RUN  st=%0d  state_lane0=0x%016x",
+  //              $time, st_q, keccak_state[0][63:0]);
+  //   if (keccak_complete)
+  //     $display("[KMAC] t=%0t KECCAK_DONE  st=%0d  state_lane0=0x%016x",
+  //              $time, st_q, keccak_state[0][63:0]);
+  //   if (st_q == StSqueeze && st_d == StSqueeze && digest_valid_s == 0)
+  //     $display("[KMAC] t=%0t ** DV=0 in SQUEEZE: both=%0d  sqz=%0d  s0_rd=%0d  s1_rd=%0d  sqz_rdy=%0d",
+  //              $time, both_shares_read, sqz_word_idx, s0_read_q, s1_read_q, sqz_rdy);
+  // end
+
 
 
   // Pad counter

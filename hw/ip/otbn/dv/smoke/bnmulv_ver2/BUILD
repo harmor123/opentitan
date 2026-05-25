@@ -33,9 +33,46 @@ otbn_binary(
 )
 
 otbn_binary(
+    name = "bn_shv_smoke_test",
+    srcs = ["bn_shv_smoke_test.s"],
+    copts = ["--bnmulv_version_id=2"],
+)
+
+
+otbn_binary(
     name = "bnmulvl16H_smoke_test",
     srcs = [
         "bnmulvl16H_smoke_test.s",
     ],
+    copts = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "bn_addvm_16H_smoke_test",
+    srcs = ["bn_addvm_16H_smoke_test.s"],
+    copts = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "bn_mulqacc_long_test",
+    srcs = ["bn_mulqacc_long_test.s"],
+    copts = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "bn_mulv_acc_chain",
+    srcs = ["bn_mulv_acc_chain.s"],
+    copts = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "bn_mulv_lane_test",
+    srcs = ["bn_mulv_lane_test.s"],
+    copts = ["--bnmulv_version_id=2"],
+)
+
+otbn_binary(
+    name = "bn_trn_smoke_test",
+    srcs = ["bn_trn_smoke_test.s"],
     copts = ["--bnmulv_version_id=2"],
 )

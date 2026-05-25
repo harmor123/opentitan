@@ -70,6 +70,8 @@
 | `mlkem768_decap_test` | PASS | ML-KEM-768 解封装 |
 | `p256_ecdh_test` | PASS | P-256 ECDH (官方 ver1, 无 MAI) |
 | `kmac_sha3_test` | PASS | KMAC/SHA3 原语 |
+| `hkdf_test` | PASS | HKDF-SHA3-256 (Extract+Expand, IKM预拼) |
+| `hmac_sha3_test` (shell) | PASS | HMAC-SHA3-256 独立测试 |
 
 ### 9. 已知风险与缓解
 | 风险 | 等级 | 缓解措施 |
