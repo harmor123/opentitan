@@ -459,6 +459,9 @@ module otbn_predecode
               // Predecode invalid choices as default ELEN.
               unique case (alu_bignum_elen_raw)
                 2'b00:   alu_bignum_alu_elen = AluElen32;
+`ifdef TOWARDS_BASE
+                2'b01:   alu_bignum_alu_elen = AluElen16;
+`endif
                 default: alu_bignum_alu_elen = AluElen256;
               endcase
 
@@ -501,6 +504,9 @@ module otbn_predecode
               rf_we_bignum           = 1'b1;
               alu_bignum_trn_en      = 1'b1;
               alu_bignum_trn_is_trn1 = ~imem_rdata_i[30];
+`ifdef TOWARDS_BASE
+              alu_bignum_trn_type    = alu_trn_type_t'(imem_rdata_i[27:25]);
+`endif
 
               // An invalid choice will raise an illegal insn error in the decoder.
               // Predecode invalid choices as default ELEN.
@@ -508,6 +514,9 @@ module otbn_predecode
                 2'b00:   alu_bignum_trn_elen = TrnElen32;
                 2'b01:   alu_bignum_trn_elen = TrnElen64;
                 2'b10:   alu_bignum_trn_elen = TrnElen128;
+`ifdef TOWARDS_BASE
+                2'b11:   alu_bignum_trn_elen = TrnElen16;
+`endif
                 default: alu_bignum_trn_elen = TrnElen32;
               endcase
             end
@@ -519,6 +528,10 @@ module otbn_predecode
               alu_bignum_shift_en                       = 1'b1;
               alu_bignum_shift_right                    = imem_rdata_i[30];
               alu_bignum_shift_amt                      = shift_amt_shv_bignum;
+`ifdef TOWARDS_BASE
+              alu_bignum_vector_type = alu_vector_type_t'(imem_rdata_i[27:26]);
+              alu_bignum_vector_sel  = imem_rdata_i[25];
+`endif
 
               // The shifter result is pushed through the logic block with operand A blanked and the
               // logic operation set to OR to save one input to the result MUX.
@@ -529,6 +542,9 @@ module otbn_predecode
               // Predecode invalid choices as default ELEN.
               unique case (alu_bignum_elen_raw)
                 2'b00:   alu_bignum_alu_elen = AluElen32;
+`ifdef TOWARDS_BASE
+                2'b01:   alu_bignum_alu_elen = AluElen16;
+`endif
                 default: alu_bignum_alu_elen = AluElen256;
               endcase
             end
@@ -785,6 +801,12 @@ module otbn_predecode
     //      ...         | ...
     //      31          | 32'b0000....0001
       unique case (alu_bignum_alu_elen)
+`ifdef TOWARDS_BASE
+        AluElen16: begin
+          alu_bignum_adder_carry_sel = 1'b1;
+          alu_bignum_shift_mask      = 32'hFFFF_FFFF >> alu_bignum_shift_amt[4:0];
+        end
+`endif
         AluElen32: begin
           alu_bignum_adder_carry_sel = 1'b1;
           alu_bignum_shift_mask      = 32'hFFFF_FFFF >> alu_bignum_shift_amt[4:0];
@@ -880,6 +902,11 @@ module otbn_predecode
   assign alu_bignum_predec_o.trn_elen              = alu_bignum_trn_elen;
   assign alu_bignum_predec_o.trn_en                = alu_bignum_trn_en;
   assign alu_bignum_predec_o.trn_is_trn1           = alu_bignum_trn_is_trn1;
+`ifdef TOWARDS_BASE
+  assign alu_bignum_predec_o.vector_type           = alu_bignum_vector_type;
+  assign alu_bignum_predec_o.vector_sel            = alu_bignum_vector_sel;
+  assign alu_bignum_predec_o.trn_type              = alu_bignum_trn_type;
+`endif
   assign alu_bignum_predec_o.flag_group_sel        = flag_group_sel;
   assign alu_bignum_predec_o.flag_sel              = flag_sel;
   assign alu_bignum_predec_o.flags_keep            = flags_keep;

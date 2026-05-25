@@ -357,20 +357,31 @@ package otbn_pkg;
   } imm_b_sel_base_e;
 
   // Number of ALU element lengths (ELEN)
-  parameter int NELEN_ALU = 2;
+  parameter int NELEN_ALU = 2
+`ifdef TOWARDS_BASE
+    + 1
+`endif
+  ;
 
   // Vector element length type for bignum vec ISA implemented in BN ALU for
   // bn.addv(m), bn.subv(m) and bn.shv.
   // The ISA foresees 4 types (16 to 128 bits) but only a subset is implemented.
   // In addition, vectorized instructions use the same hardware as regular instructions and thus
   // we need also a 256b type.
-  typedef enum logic {
-    AluElen32  = 1'h0,
-    AluElen256 = 1'h1
+  typedef enum logic [1:0] {
+    AluElen32  = 2'h0,
+    AluElen256 = 2'h1
+`ifdef TOWARDS_BASE
+    ,AluElen16  = 2'h2
+`endif
   } alu_elen_e;
 
   // Number of transpose element lengths (ELEN)
-  parameter int NELEN_TRN = 3;
+  parameter int NELEN_TRN = 3
+`ifdef TOWARDS_BASE
+    + 1
+`endif
+  ;
 
   // Vector element length type for bignum instructions bn.trn1 and bn.trn2.
   // The ISA foresees 4 types (16 to 128 bits) but only a subset is implemented.
@@ -378,6 +389,9 @@ package otbn_pkg;
     TrnElen32  = 2'b00,
     TrnElen64  = 2'b01,
     TrnElen128 = 2'b10
+`ifdef TOWARDS_BASE
+    ,TrnElen16  = 2'b11
+`endif
   } trn_elen_e;
 
   // Number of BN MAC ELENs
@@ -680,6 +694,11 @@ package otbn_pkg;
     trn_elen_e               trn_elen;
     logic                    trn_en;
     logic                    trn_is_trn1;
+`ifdef TOWARDS_BASE
+    alu_vector_type_t        vector_type;
+    logic                    vector_sel;
+    alu_trn_type_t           trn_type;
+`endif
     // Flags
     logic [NFlagGroups-1:0]  flag_group_sel;
     flags_t                  flag_sel;

@@ -908,6 +908,9 @@ module otbn_alu_bignum
     .shift_direction_i (alu_bignum_predec_i.shift_dir),
     .shift_amt_i       (alu_bignum_predec_i.shift_amt),
     .vector_mask_i     ({8{alu_bignum_predec_i.shift_mask}}),
+`ifdef TOWARDS_BASE
+    .is_16bit_vector_i ((operation_i.op == AluOpBignumShv) & is_16bit_vec_mode),
+`endif
     .shifter_res_o     (shifter_res)
   );
 
@@ -987,9 +990,16 @@ module otbn_alu_bignum
   // Despite mod_no_intg_q_replicated is not blanked, a regular predecoded MUX is sufficient. The
   // reason is that SW can control the value of MOD to prevent undesirable SCA leakage due to
   // combining MOD and the operand_b of adder Y.
+`ifdef TOWARDS_BASE
+  assign shift_mod_mux_out =
+      alu_bignum_predec_i.shift_mod_sel ? adder_y_op_shifter_res_blanked
+                                        : (is_16bit_vec_mode ? mod_16bit_replicated
+                                                             : mod_no_intg_q_replicated);
+`else
   assign shift_mod_mux_out =
       alu_bignum_predec_i.shift_mod_sel ? adder_y_op_shifter_res_blanked
                                         : mod_no_intg_q_replicated;
+`endif
 
   // The carries_in bits are predecoded except the LSB. It cannot be predecoded because its value
   // depends on the actual flag value.
@@ -1006,6 +1016,92 @@ module otbn_alu_bignum
     .carries_out_o     (adder_y_carries_out)
   );
 
+`ifdef TOWARDS_BASE
+  ///////////////////////////////////
+  // 16-bit Vector Element Adders //
+  ///////////////////////////////////
+  // For 16-bit vector mode (vector_sel=1, vector_type[0]=1), the existing
+  // 8x32-bit vec_adders are bypassed in favor of 16 independent 16-bit
+  // additions. This provides correct per-element carry isolation.
+
+  logic is_16bit_vec_mode;
+  assign is_16bit_vec_mode = operation_i.vector_sel & operation_i.vector_type[0];
+
+  logic [15:0]  adder_y_16bit_elem  [16];
+  logic         adder_y_16bit_cout  [16];
+  logic [WLEN-1:0] adder_y_res_16bit;
+
+  logic [15:0]  adder_x_16bit_elem  [16];
+  logic         adder_x_16bit_cout  [16];
+  logic [WLEN-1:0] adder_x_res_16bit;
+
+  // For 16-bit vector mode (ADDV/SUBV/ADDVM/SUBVM), ALL 16 elements
+  // use the same carry-in. Carries are uniform (all-0 for ADD, all-1 for SUB)
+  // and do not ripple between 16-bit elements.
+  logic [15:0] y_carry_in_vec;
+  logic [15:0] x_carry_in_vec;
+
+  assign y_carry_in_vec = {16{adder_y_carry_0_in}};
+  assign x_carry_in_vec = {16{alu_bignum_predec_i.adder_x_carries_in[0]}};
+
+  for (genvar i = 0; i < 16; i++) begin : g_adder_16bit
+    // --- Adder Y per-16-bit element ---
+    logic [16:0] y_sum;
+    logic [15:0] y_op_b_16;
+
+    // For ADDV: all carries = 0; for SUBV: all carries = 1.
+    assign y_op_b_16 = alu_bignum_predec_i.adder_y_op_b_invert
+                       ? ~shift_mod_mux_out[i*16+:16]
+                       :  shift_mod_mux_out[i*16+:16];
+
+    assign y_sum = {1'b0, x_res_operand_a_mux_out[i*16+:16]}
+                 + {1'b0, y_op_b_16}
+                 + {16'b0, y_carry_in_vec[i]};
+
+    assign adder_y_16bit_elem[i] = y_sum[15:0];
+    assign adder_y_16bit_cout[i] = y_sum[16];
+    assign adder_y_res_16bit[i*16+:16] = adder_y_16bit_elem[i];
+
+    // --- Adder X per-16-bit element (needed for modulo ADDVM/SUBVM) ---
+    logic [16:0] x_sum;
+    logic [15:0] x_op_b_16;
+
+    assign x_op_b_16 = alu_bignum_predec_i.adder_x_op_b_invert
+                       ? ~adder_x_op_b_blanked[i*16+:16]
+                       :  adder_x_op_b_blanked[i*16+:16];
+
+    assign x_sum = {1'b0, adder_x_op_a_blanked[i*16+:16]}
+                 + {1'b0, x_op_b_16}
+                 + {16'b0, x_carry_in_vec[i]};
+
+    assign adder_x_16bit_elem[i] = x_sum[15:0];
+    assign adder_x_16bit_cout[i] = x_sum[16];
+    assign adder_x_res_16bit[i*16+:16] = adder_x_16bit_elem[i];
+  end
+
+  // MUX: select 16-bit results when in 16-bit vector mode
+  logic [WLEN-1:0]     adder_x_res_muxed;
+  logic [WLEN-1:0]     adder_y_res_muxed;
+  logic [NVecProc-1:0] adder_x_carries_out_muxed;
+  logic [NVecProc-1:0] adder_y_carries_out_muxed;
+
+  assign adder_x_res_muxed = is_16bit_vec_mode ? adder_x_res_16bit : adder_x_res;
+  assign adder_y_res_muxed = is_16bit_vec_mode ? adder_y_res_16bit : adder_y_res;
+
+  // Map 16-bit carries to 8-chunk carries for mod_result_selector
+  // In 16-bit mode, each 32-bit chunk's carry is the upper 16-bit element's carry
+  for (genvar i = 0; i < NVecProc; i++) begin : g_carry_remap
+    assign adder_x_carries_out_muxed[i] = is_16bit_vec_mode ?
+        adder_x_16bit_cout[i*2+1] : adder_x_carries_out[i];
+    assign adder_y_carries_out_muxed[i] = is_16bit_vec_mode ?
+        adder_y_16bit_cout[i*2+1] : adder_y_carries_out[i];
+  end
+
+  // 16-bit MOD replication for modulo operations
+  logic [WLEN-1:0] mod_16bit_replicated;
+  assign mod_16bit_replicated = {16{mod_no_intg_q[15:0]}};
+`endif
+
   /////////////////////////////
   // Modulo Result Selection //
   /////////////////////////////
@@ -1013,10 +1109,17 @@ module otbn_alu_bignum
   logic            arithmetic_result_used_adder_y;
 
   otbn_mod_result_selector u_mod_result_selector (
+`ifdef TOWARDS_BASE
+    .result_x_i      (adder_x_res_muxed),
+    .carries_x_i     (adder_x_carries_out_muxed),
+    .result_y_i      (adder_y_res_muxed),
+    .carries_y_i     (adder_y_carries_out_muxed),
+`else
     .result_x_i      (adder_x_res),
     .carries_x_i     (adder_x_carries_out),
     .result_y_i      (adder_y_res),
     .carries_y_i     (adder_y_carries_out),
+`endif
     .is_subtraction_i(alu_bignum_predec_i.mod_is_subtraction),
     // Adder X is exclusively used for modulo instructions
     .is_modulo_i     (alu_bignum_predec_i.adder_x_en),
@@ -1271,6 +1374,15 @@ module otbn_alu_bignum
 
   assign expected_alu_elen        = operation_i.alu_elen;
   assign expected_trn_elen        = operation_i.trn_elen;
+`ifdef TOWARDS_BASE
+  alu_vector_type_t expected_vector_type;
+  alu_trn_type_t    expected_trn_type;
+  logic             expected_vector_sel;
+
+  assign expected_vector_type     = operation_i.vector_type;
+  assign expected_vector_sel      = operation_i.vector_sel;
+  assign expected_trn_type        = operation_i.trn_type;
+`endif
   assign expected_adder_carry_sel = operation_i.adder_carry_sel;
   assign expected_shift_amt       = operation_i.shift_amt;
   assign expected_shift_mask      = operation_i.shift_mask;
@@ -1312,6 +1424,11 @@ module otbn_alu_bignum
       expected_shift_mask != alu_bignum_predec_i.shift_mask,
       expected_trn_en != alu_bignum_predec_i.trn_en,
       expected_trn_is_trn1 != alu_bignum_predec_i.trn_is_trn1,
+`ifdef TOWARDS_BASE
+      expected_vector_type != alu_bignum_predec_i.vector_type,
+      expected_vector_sel  != alu_bignum_predec_i.vector_sel,
+      expected_trn_type    != alu_bignum_predec_i.trn_type,
+`endif
       expected_unpack_shifter_en != alu_bignum_predec_i.unpack_shifter_en};
 
   ////////////////////////

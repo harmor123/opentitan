@@ -6,7 +6,7 @@
  * Vectorized Transposer
  *
  * This module transposes the elements of two input vectors in two different ways.
- * It supports 32b, 64b and 128b element lengths.
+ * It supports 16b, 32b, 64b and 128b element lengths.
  *
  * The mode trn1 interleaves even coordinates and trn2 odd coordinates.
  * For example, if there are two vectors with 4 elements the results are as follows:
@@ -51,6 +51,28 @@ module otbn_vec_transposer
 
   always_comb begin
     unique case (elen_i)
+`ifdef TOWARDS_BASE
+      TrnElen16: begin
+        // 16 elements of 16 bits each. TRN1 interleaves even-indexed
+        // 16-bit elements, TRN2 interleaves odd-indexed 16-bit elements.
+        res_trn1 = {vec_b[7].chunk[15:0], vec_a[7].chunk[15:0],
+                    vec_b[6].chunk[15:0], vec_a[6].chunk[15:0],
+                    vec_b[5].chunk[15:0], vec_a[5].chunk[15:0],
+                    vec_b[4].chunk[15:0], vec_a[4].chunk[15:0],
+                    vec_b[3].chunk[15:0], vec_a[3].chunk[15:0],
+                    vec_b[2].chunk[15:0], vec_a[2].chunk[15:0],
+                    vec_b[1].chunk[15:0], vec_a[1].chunk[15:0],
+                    vec_b[0].chunk[15:0], vec_a[0].chunk[15:0]};
+        res_trn2 = {vec_b[7].chunk[31:16], vec_a[7].chunk[31:16],
+                    vec_b[6].chunk[31:16], vec_a[6].chunk[31:16],
+                    vec_b[5].chunk[31:16], vec_a[5].chunk[31:16],
+                    vec_b[4].chunk[31:16], vec_a[4].chunk[31:16],
+                    vec_b[3].chunk[31:16], vec_a[3].chunk[31:16],
+                    vec_b[2].chunk[31:16], vec_a[2].chunk[31:16],
+                    vec_b[1].chunk[31:16], vec_a[1].chunk[31:16],
+                    vec_b[0].chunk[31:16], vec_a[0].chunk[31:16]};
+      end
+`endif
       TrnElen32: begin
         res_trn1 = {vec_b[6], vec_a[6], vec_b[4], vec_a[4],
                     vec_b[2], vec_a[2], vec_b[0], vec_a[0]};
@@ -90,5 +112,5 @@ module otbn_vec_transposer
   // Assert VLEN = 256 as otherwise this module does not work properly.
   `ASSERT_INIT(OtbnVecTransposerUnsupportedVLEN, VLEN == 256)
 
-  `ASSERT(OtbnVecTransposerInvalidElen, elen_i inside {TrnElen32, TrnElen64, TrnElen128})
+  `ASSERT(OtbnVecTransposerInvalidElen, elen_i inside {`ifdef TOWARDS_BASE TrnElen16, `endif TrnElen32, TrnElen64, TrnElen128})
 endmodule

@@ -1035,6 +1035,11 @@ module otbn_controller
   assign alu_bignum_operation_o.op              = insn_dec_bignum_i.alu_op;
   assign alu_bignum_operation_o.alu_elen        = insn_dec_bignum_i.alu_elen;
   assign alu_bignum_operation_o.trn_elen        = insn_dec_bignum_i.trn_elen;
+`ifdef TOWARDS_BASE
+  assign alu_bignum_operation_o.vector_type     = insn_dec_bignum_i.vector_type;
+  assign alu_bignum_operation_o.vector_sel      = insn_dec_bignum_i.vector_sel;
+  assign alu_bignum_operation_o.trn_type        = insn_dec_bignum_i.alu_trn_type;
+`endif
   assign alu_bignum_operation_o.adder_carry_sel = insn_dec_bignum_i.alu_adder_carry_sel;
   assign alu_bignum_operation_o.shift_right     = insn_dec_bignum_i.alu_shift_right;
   assign alu_bignum_operation_o.shift_amt       = insn_dec_bignum_i.alu_shift_amt;

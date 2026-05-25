@@ -627,6 +627,9 @@ module otbn_decoder
 
             unique case (alu_elen_raw_bignum)
               2'b00:   alu_elen_bignum = AluElen32;
+`ifdef TOWARDS_BASE
+              2'b01:   alu_elen_bignum = AluElen16;
+`endif
               default: illegal_insn    = 1'b1;
             endcase
 `ifdef TOWARDS_BASE
@@ -645,6 +648,9 @@ module otbn_decoder
               2'b00:   trn_elen_bignum = TrnElen32;
               2'b01:   trn_elen_bignum = TrnElen64;
               2'b10:   trn_elen_bignum = TrnElen128;
+`ifdef TOWARDS_BASE
+              2'b11:   trn_elen_bignum = TrnElen16;
+`endif
               default: illegal_insn    = 1'b1;
             endcase
           end
@@ -656,6 +662,9 @@ module otbn_decoder
 
             unique case (alu_elen_raw_bignum)
               2'b00:   alu_elen_bignum = AluElen32;
+`ifdef TOWARDS_BASE
+              2'b01:   alu_elen_bignum = AluElen16;
+`endif
               default: illegal_insn    = 1'b1;
             endcase
 `ifdef TOWARDS_BASE
@@ -939,6 +948,12 @@ module otbn_decoder
     //      ...         | ...
     //      31          | 32'b0000....0001
     unique case (alu_elen_bignum)
+`ifdef TOWARDS_BASE
+      AluElen16: begin
+        alu_adder_carry_sel_bignum = 1'b1;
+        alu_shift_mask_bignum      = 32'hFFFF_FFFF >> alu_shift_amt_bignum[4:0];
+      end
+`endif
       AluElen32: begin
         alu_adder_carry_sel_bignum = 1'b1;
         alu_shift_mask_bignum      = 32'hFFFF_FFFF >> alu_shift_amt_bignum[4:0];

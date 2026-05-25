@@ -101,6 +101,9 @@ module otbn_mod_result_selector
   logic [NVecProc-1:0] select_y;
   always_comb begin
     unique case (elen_i)
+`ifdef TOWARDS_BASE
+      AluElen16:  select_y = decided_for_y;
+`endif
       AluElen32:  select_y = decided_for_y;
       AluElen256: select_y = {NVecProc{decided_for_y[NVecProc-1]}};
       default:    select_y = decided_for_y;

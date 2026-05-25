@@ -80,3 +80,4 @@ echo "第二次模拟：比对 DMEM 期望值..."
 "$OTBN_SIM_TEST" --verbose "$OTBN_SIM" --expected_dmem "$SOURCE_DIR/mlkem768_keypair_test.dexp" "$TMPDIR/kyber768_mklem_keypair_test.elf" > "$TMPDIR/sim_test.log" 2>&1
 echo "模拟测试完成. 日志: $TMPDIR/sim_test.log"
 
+

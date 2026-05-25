@@ -86,6 +86,9 @@ module otbn_vec_shifter
   input  logic [1:0]              shift_direction_i,
   input  logic [$clog2(WLEN)-1:0] shift_amt_i,
   input  logic [WLEN-1:0]         vector_mask_i,
+`ifdef TOWARDS_BASE
+  input  logic                    is_16bit_vector_i,
+`endif
   output logic [WLEN-1:0]         shifter_res_o
 );
   logic [WLEN*2-1:0] shifter_in;
@@ -97,6 +100,7 @@ module otbn_vec_shifter
   logic [WLEN-1:0]   shifter_out_lower;
   logic [WLEN-1:0]   shifter_out_lower_reverse;
   logic [WLEN-1:0]   shifter_masked;
+  logic [WLEN-1:0]   shifter_res_regular;
 
   for (genvar i = 0; i < WLEN; i++) begin : g_shifter_in_lower_reverse
     assign shifter_in_lower_reverse[i] = shifter_in_lower_i[WLEN-i-1];
@@ -142,10 +146,50 @@ module otbn_vec_shifter
     .rst_ni,
     .in_i  (shifter_out_lower_mux),
     .sel_i (shift_direction_i),
-    .out_o (shifter_res_o)
+    .out_o (shifter_res_regular)
   );
 
   // Only the lower WLEN bits of the shift result are returned.
   logic unused_shifter_out_upper;
   assign unused_shifter_out_upper = ^shifter_out[WLEN*2-1:WLEN];
+
+`ifdef TOWARDS_BASE
+  /////////////////////////////////////
+  // 16-bit Vector Element Shifter  //
+  /////////////////////////////////////
+  // For 16-bit vector mode, each of the 16 elements is shifted independently
+  // with per-element bit-reversal for left shifts.
+
+  logic [15:0] shifter_16bit_in      [16];
+  logic [15:0] shifter_16bit_rev     [16];
+  logic [15:0] shifter_16bit_shifted [16];
+  logic [15:0] shifter_16bit_out     [16];
+  logic [WLEN-1:0] shifter_res_16bit;
+
+  for (genvar i = 0; i < 16; i++) begin : g_shifter_16bit
+    // Per-element bit reversal for left shift
+    for (genvar j = 0; j < 16; j++) begin : g_rev_in
+      assign shifter_16bit_rev[i][j] = shifter_in_lower_i[i*16 +: 16][15-j];
+    end
+
+    assign shifter_16bit_in[i] = shift_direction_i[AluShiftDirLeft]
+                                 ? shifter_16bit_rev[i]
+                                 : shifter_in_lower_i[i*16 +: 16];
+
+    assign shifter_16bit_shifted[i] = shifter_16bit_in[i] >> shift_amt_i[3:0];
+
+    for (genvar j = 0; j < 16; j++) begin : g_rev_out
+      assign shifter_16bit_out[i][j] = shifter_16bit_shifted[i][15-j];
+    end
+
+    assign shifter_res_16bit[i*16+:16] = shift_direction_i[AluShiftDirLeft]
+                                         ? shifter_16bit_out[i]
+                                         : shifter_16bit_shifted[i];
+  end
+
+  // MUX: select between regular 256-bit path and 16-bit vector path
+  assign shifter_res_o = is_16bit_vector_i ? shifter_res_16bit : shifter_res_regular;
+`else
+  assign shifter_res_o = shifter_res_regular;
+`endif
 endmodule
