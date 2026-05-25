@@ -2,7 +2,7 @@
 # Run bntrn smoke test (addv.16H, addv.8S, subv.16H) with RTL-ISS trace comparison
 set -o pipefail
 set -e
-
+rm -rf build/lowrisc_ip_otbn_top_sim_0.1
 SCRIPT_DIR="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(readlink -e "$SCRIPT_DIR/../../../../..")"
 UTIL_DIR="$ROOT_DIR/util"

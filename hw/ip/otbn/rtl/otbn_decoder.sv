@@ -103,8 +103,12 @@ module otbn_decoder
   logic [$clog2(WLEN)-1:0] shift_amt_a_type_bignum;
   // Shift amount for BN.RSHI
   logic [$clog2(WLEN)-1:0] shift_amt_s_type_bignum;
-  // Shift amount for BN.SHV
+  // Shift amount for BN.SHV (InsnOpcodeBignumVec encoding)
   logic [$clog2(WLEN)-1:0] shift_amt_shv_bignum;
+`ifdef TOWARDS_BASE
+  // Shift amount for BN.SHV (InsnOpcodeBignumShiftv encoding, ver2)
+  logic [$clog2(WLEN)-1:0] shift_amt_v_type_bignum;
+`endif
   // Shift amount for BN.UNPK and BN.PACK
   logic [$clog2(WLEN)-1:0] shift_amt_pack_bignum;
 
@@ -112,6 +116,9 @@ module otbn_decoder
   assign shift_amt_s_type_bignum = {insn[31:25], insn[14]};
   // Expand 5b to 8b to match shifter control signal width
   assign shift_amt_shv_bignum    = {3'b0, insn[19:15]};
+`ifdef TOWARDS_BASE
+  assign shift_amt_v_type_bignum = {3'b0, insn[29:25]};
+`endif
   assign shift_amt_pack_bignum   = {insn[28:27], 6'b0};
 
   // Bignum vectorized instruction options
@@ -608,6 +615,14 @@ module otbn_decoder
           3'b111: illegal_insn = 1'b1;
           default: ;
         endcase
+
+`ifdef TOWARDS_BASE
+        // funct3=101 with insn[25]=1: vector ops (ADDV/SUBV/ADDVM/SUBVM)
+        if (insn[14:12] == 3'b101 && insn[25]) begin
+          alu_vector_type_bignum = alu_vector_type_t'(insn[27:26]);
+          alu_vector_sel_bignum  = 1'b1;
+        end
+`endif
       end
 
       ////////////////////////////////
@@ -708,6 +723,29 @@ module otbn_decoder
           default: illegal_insn = 1'b1;
         endcase
       end
+
+`ifdef TOWARDS_BASE
+      ////////////////////////////////////////////
+      //              BN.SHV / BN.TRN           //
+      ////////////////////////////////////////////
+
+      InsnOpcodeBignumShiftv: begin
+        insn_subset            = InsnSubsetBignum;
+        rf_ren_b_bignum        = 1'b1;
+        rf_wdata_sel_bignum    = RfWdSelEx;
+        rf_we_bignum           = 1'b1;
+        alu_vector_type_bignum = alu_vector_type_t'({2'b01, insn[16]});
+        alu_vector_sel_bignum  = 1'b1;
+      end
+
+      InsnOpcodeBignumTrn: begin
+        insn_subset         = InsnSubsetBignum;
+        rf_ren_a_bignum     = 1'b1;
+        rf_ren_b_bignum     = 1'b1;
+        rf_wdata_sel_bignum = RfWdSelEx;
+        rf_we_bignum        = 1'b1;
+      end
+`endif
 
       ///////////////////////////////////////
   `ifdef BNMULV
@@ -1149,11 +1187,35 @@ module otbn_decoder
             end
           end
           3'b101: begin
+`ifdef TOWARDS_BASE
+            // insn[25] selects scalar (addm/subm) vs vector (addv/subv/addvm/subvm)
+            // insn[27:26] = vector_type, insn[28] = modulo, insn[30] = subtraction
+            if (insn_alu[25]) begin  // vector variant
+              alu_vector_sel_bignum  = 1'b1;
+              alu_elen_bignum        = insn_alu[26] ? AluElen16 : AluElen32;
+              if (insn_alu[30]) begin  // subtraction
+                if (insn_alu[28]) begin  // modulo
+                  alu_operator_bignum = AluOpBignumSubvm;
+                end else begin
+                  alu_operator_bignum = AluOpBignumSubv;
+                end
+              end else begin  // addition
+                if (insn_alu[28]) begin  // modulo
+                  alu_operator_bignum = AluOpBignumAddvm;
+                end else begin
+                  alu_operator_bignum = AluOpBignumAddv;
+                end
+              end
+            end else begin  // scalar
+`endif
             if (insn_alu[30]) begin
               alu_operator_bignum = AluOpBignumSubm;
             end else begin
               alu_operator_bignum = AluOpBignumAddm;
             end
+`ifdef TOWARDS_BASE
+            end
+`endif
           end
           default: ;
         endcase
@@ -1342,6 +1404,22 @@ module otbn_decoder
           mac_flag_en_bignum = 1'b1;
         end
       end
+
+`ifdef TOWARDS_BASE
+      ////////////////////////////////////////////
+      //              BN.SHV / BN.TRN           //
+      ////////////////////////////////////////////
+      InsnOpcodeBignumShiftv: begin
+        alu_shift_amt_bignum    = shift_amt_v_type_bignum;
+        alu_operator_bignum      = AluOpBignumShv;
+        alu_op_b_mux_sel_bignum  = OpBSelRegister;
+      end
+
+      InsnOpcodeBignumTrn: begin
+        alu_op_b_mux_sel_bignum  = OpBSelRegister;
+        alu_operator_bignum      = insn[27] ? AluOpBignumTrn2 : AluOpBignumTrn1;
+      end
+`endif
 
       default: ;
     endcase

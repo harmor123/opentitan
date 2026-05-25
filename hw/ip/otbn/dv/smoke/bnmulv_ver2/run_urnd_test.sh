@@ -2,7 +2,7 @@
 # Run URND/RND PRNG test with RTL-ISS trace comparison
 set -o pipefail
 set -e
-
+rm -rf build/lowrisc_ip_otbn_top_sim_0.1
 SCRIPT_DIR="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(readlink -e "$SCRIPT_DIR/../../../../..")"
 OTBN_UTIL=$ROOT_DIR/ip/otbn/util

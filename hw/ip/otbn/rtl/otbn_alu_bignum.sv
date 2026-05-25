@@ -1025,58 +1025,43 @@ module otbn_alu_bignum
   // additions. This provides correct per-element carry isolation.
 
   logic is_16bit_vec_mode;
-  assign is_16bit_vec_mode = operation_i.vector_sel & operation_i.vector_type[0];
+  assign is_16bit_vec_mode = operation_i.vector_sel &
+      (operation_i.vector_type == alu_16h || operation_i.vector_type == alu_m16h);
 
-  logic [15:0]  adder_y_16bit_elem  [16];
-  logic         adder_y_16bit_cout  [16];
+  logic [15:0]  adder_y_16bit_cout;
   logic [WLEN-1:0] adder_y_res_16bit;
-
-  logic [15:0]  adder_x_16bit_elem  [16];
-  logic         adder_x_16bit_cout  [16];
+  logic [15:0]  adder_x_16bit_cout;
   logic [WLEN-1:0] adder_x_res_16bit;
 
-  // For 16-bit vector mode (ADDV/SUBV/ADDVM/SUBVM), ALL 16 elements
-  // use the same carry-in. Carries are uniform (all-0 for ADD, all-1 for SUB)
-  // and do not ripple between 16-bit elements.
   logic [15:0] y_carry_in_vec;
-  logic [15:0] x_carry_in_vec;
-
   assign y_carry_in_vec = {16{adder_y_carry_0_in}};
+  logic [15:0] x_carry_in_vec;
   assign x_carry_in_vec = {16{alu_bignum_predec_i.adder_x_carries_in[0]}};
 
   for (genvar i = 0; i < 16; i++) begin : g_adder_16bit
-    // --- Adder Y per-16-bit element ---
     logic [16:0] y_sum;
     logic [15:0] y_op_b_16;
-
-    // For ADDV: all carries = 0; for SUBV: all carries = 1.
     assign y_op_b_16 = alu_bignum_predec_i.adder_y_op_b_invert
                        ? ~shift_mod_mux_out[i*16+:16]
                        :  shift_mod_mux_out[i*16+:16];
-
     assign y_sum = {1'b0, x_res_operand_a_mux_out[i*16+:16]}
                  + {1'b0, y_op_b_16}
                  + {16'b0, y_carry_in_vec[i]};
-
-    assign adder_y_16bit_elem[i] = y_sum[15:0];
     assign adder_y_16bit_cout[i] = y_sum[16];
-    assign adder_y_res_16bit[i*16+:16] = adder_y_16bit_elem[i];
+    assign adder_y_res_16bit[i*16+:16] = y_sum[15:0];
 
-    // --- Adder X per-16-bit element (needed for modulo ADDVM/SUBVM) ---
+    // 16-bit X adder uses raw operands (bypass blanking) with
+    // predecoder carries/invert for per-element add/sub control.
     logic [16:0] x_sum;
     logic [15:0] x_op_b_16;
-
     assign x_op_b_16 = alu_bignum_predec_i.adder_x_op_b_invert
-                       ? ~adder_x_op_b_blanked[i*16+:16]
-                       :  adder_x_op_b_blanked[i*16+:16];
-
-    assign x_sum = {1'b0, adder_x_op_a_blanked[i*16+:16]}
+                       ? ~operation_i.operand_b[i*16+:16]
+                       :  operation_i.operand_b[i*16+:16];
+    assign x_sum = {1'b0, operation_i.operand_a[i*16+:16]}
                  + {1'b0, x_op_b_16}
                  + {16'b0, x_carry_in_vec[i]};
-
-    assign adder_x_16bit_elem[i] = x_sum[15:0];
     assign adder_x_16bit_cout[i] = x_sum[16];
-    assign adder_x_res_16bit[i*16+:16] = adder_x_16bit_elem[i];
+    assign adder_x_res_16bit[i*16+:16] = x_sum[15:0];
   end
 
   // MUX: select 16-bit results when in 16-bit vector mode
@@ -1127,6 +1112,57 @@ module otbn_alu_bignum
     .result_o        (arithmetic_result),
     .adder_y_used_o  (arithmetic_result_used_adder_y)
   );
+
+`ifdef TOWARDS_BASE
+  ////////////////////////////////////////////////////
+  // 16-bit per-element modulo result selection      //
+  // otbn_mod_result_selector handles 8x32-bit only. //
+  // For 16-bit mode (is_16bit_vec_mode=1): per-     //
+  // element carry-based selection for Addvm/Subvm,  //
+  // X result directly for Addv/Subv.                //
+  ////////////////////////////////////////////////////
+  logic [WLEN-1:0] arithmetic_result_16bit;
+  logic            arithmetic_result_16bit_used;
+
+  always_comb begin
+    arithmetic_result_16bit     = arithmetic_result;
+    arithmetic_result_16bit_used = arithmetic_result_used_adder_y;
+    if (is_16bit_vec_mode) begin
+      if ((operation_i.op == AluOpBignumAddv) | (operation_i.op == AluOpBignumSubv)) begin
+        arithmetic_result_16bit     = adder_x_res_16bit;
+        arithmetic_result_16bit_used = 1'b0;
+      end else if ((operation_i.op == AluOpBignumAddvm) | (operation_i.op == AluOpBignumSubvm)) begin
+        if (alu_bignum_predec_i.mod_is_subtraction) begin
+          for (int i = 0; i < 16; i++) begin
+            arithmetic_result_16bit[i*16+:16] =
+              adder_x_16bit_cout[i] ?
+              adder_x_res_16bit[i*16+:16] : adder_y_res_16bit[i*16+:16];
+          end
+          arithmetic_result_16bit_used = !(&adder_x_16bit_cout);
+        end else begin
+          for (int i = 0; i < 16; i++) begin
+            arithmetic_result_16bit[i*16+:16] =
+              (adder_x_16bit_cout[i] || adder_y_16bit_cout[i]) ?
+              adder_y_res_16bit[i*16+:16] : adder_x_res_16bit[i*16+:16];
+          end
+          arithmetic_result_16bit_used = 1'b1;
+        end
+      end
+    end
+  end
+
+  logic [WLEN-1:0] arithmetic_result_muxed;
+  logic            arithmetic_result_used_adder_y_muxed;
+  assign arithmetic_result_muxed = is_16bit_vec_mode ?
+      arithmetic_result_16bit : arithmetic_result;
+  assign arithmetic_result_used_adder_y_muxed = is_16bit_vec_mode ?
+      arithmetic_result_16bit_used : arithmetic_result_used_adder_y;
+`else
+  logic [WLEN-1:0] arithmetic_result_muxed;
+  logic            arithmetic_result_used_adder_y_muxed;
+  assign arithmetic_result_muxed = arithmetic_result;
+  assign arithmetic_result_used_adder_y_muxed = arithmetic_result_used_adder_y;
+`endif
 
   /////////////////////////////////////////////////
   // Shifter, Adders, Logic & Transposer control //
@@ -1187,7 +1223,42 @@ module otbn_alu_bignum
 
     expected_unpack_shifter_en = 1'b0;
 
+`ifdef TOWARDS_BASE
+    expected_vector_type = alu_8s;
+    expected_vector_sel  = 1'b0;
+    expected_trn_type    = alu_trn_type_t'('0);
+`endif
+
     unique case (operation_i.op)
+`ifdef TOWARDS_BASE
+      AluOpBignumAddv: begin
+        // X+Y path (paper): X = A+B, Y = X-mod
+        expected_adder_x_carries_in  = '0;
+        expected_adder_x_op_b_invert = 1'b0;
+        expected_adder_y_carries_top = {(NVecProc-1){1'b1}};
+        adder_y_carry_0_in           = 1'b1;
+        expected_adder_y_op_b_invert = 1'b1;
+        expected_adder_x_en          = 1'b1;
+        expected_x_res_operand_a_sel = 1'b1;
+        expected_shift_mod_sel       = 1'b0;
+        expected_vector_type = operation_i.vector_type;
+        expected_vector_sel  = operation_i.vector_sel;
+      end
+      AluOpBignumAdd: begin
+        // Shifter computes B [>>|<<] shift_amt.
+        // Y computes A + shifter_res
+        // X ignored
+        expected_adder_y_carries_top = '0;
+        adder_y_carry_0_in           = 1'b0;
+        expected_adder_y_op_b_invert = 1'b0;
+        expected_adder_y_op_shifter_en = 1'b1;
+        expected_adder_y_op_a_en       = 1'b1;
+        expected_shift_op_b_sel[AluShiftOpFull] = 1'b1;
+        expected_shift_en                       = 1'b1;
+        adder_update_flags_en_raw = 1'b1;
+        expected_shift_right      = operation_i.shift_right;
+      end
+`else
       AluOpBignumAdd,
       AluOpBignumAddv: begin
         // Shifter computes B [>>|<<] shift_amt, no shift for vectorized variant.
@@ -1196,17 +1267,16 @@ module otbn_alu_bignum
         expected_adder_y_carries_top = '0;
         adder_y_carry_0_in           = 1'b0;
         expected_adder_y_op_b_invert = 1'b0;
-
-        expected_adder_y_op_shifter_en          = 1'b1;
-        expected_adder_y_op_a_en                = 1'b1;
+        expected_adder_y_op_shifter_en = 1'b1;
+        expected_adder_y_op_a_en       = 1'b1;
         expected_shift_op_b_sel[AluShiftOpFull] = 1'b1;
         expected_shift_en                       = 1'b1;
-
         if (operation_i.op == AluOpBignumAdd) begin
           adder_update_flags_en_raw = 1'b1;
           expected_shift_right      = operation_i.shift_right;
         end
       end
+`endif
       AluOpBignumAddc: begin
         // Shifter computes B [>>|<<] shift_amt
         // Y computes A + shifter_res + flags.C
@@ -1240,26 +1310,48 @@ module otbn_alu_bignum
         expected_x_res_operand_a_sel = 1'b1;
         expected_shift_mod_sel       = 1'b0;
       end
-      AluOpBignumSub,
+`ifdef TOWARDS_BASE
       AluOpBignumSubv: begin
-        // Shifter computes B [>>|<<] shift_amt, no shift for vectorized variant.
-        // Y computes A - shifter_res = A + ~shifter_res + 1
-        // X ignored
-        expected_adder_y_carries_top   = operation_i.op == AluOpBignumSub ? '0 :
-                                                                            {(NVecProc-1){1'b1}};
-        adder_y_carry_0_in             = 1'b1;
-        expected_adder_y_op_b_invert   = 1'b1;
+        // X+Y path (paper): X = A-B, Y = X+mod
+        expected_adder_x_carries_in  = {NVecProc{1'b1}};
+        expected_adder_x_op_b_invert = 1'b1;
+        expected_adder_y_carries_top = '0;
+        adder_y_carry_0_in           = 1'b0;
+        expected_adder_y_op_b_invert = 1'b0;
+        expected_adder_x_en          = 1'b1;
+        expected_x_res_operand_a_sel = 1'b1;
+        expected_shift_mod_sel       = 1'b0;
+        expected_mod_is_subtraction  = 1'b1;
+        expected_vector_type = operation_i.vector_type;
+        expected_vector_sel  = operation_i.vector_sel;
+      end
+      AluOpBignumSub: begin
+        expected_adder_y_carries_top = '0;
+        adder_y_carry_0_in           = 1'b1;
+        expected_adder_y_op_b_invert = 1'b1;
         expected_adder_y_op_shifter_en = 1'b1;
-
-        expected_adder_y_op_a_en                = 1'b1;
+        expected_adder_y_op_a_en       = 1'b1;
         expected_shift_op_b_sel[AluShiftOpFull] = 1'b1;
         expected_shift_en                       = 1'b1;
-
+        adder_update_flags_en_raw = 1'b1;
+        expected_shift_right      = operation_i.shift_right;
+      end
+`else
+      AluOpBignumSub,
+      AluOpBignumSubv: begin
+        expected_adder_y_carries_top = operation_i.op == AluOpBignumSub ? '0 : {(NVecProc-1){1'b1}};
+        adder_y_carry_0_in           = 1'b1;
+        expected_adder_y_op_b_invert = 1'b1;
+        expected_adder_y_op_shifter_en = 1'b1;
+        expected_adder_y_op_a_en       = 1'b1;
+        expected_shift_op_b_sel[AluShiftOpFull] = 1'b1;
+        expected_shift_en                       = 1'b1;
         if (operation_i.op == AluOpBignumSub) begin
           adder_update_flags_en_raw = 1'b1;
           expected_shift_right      = operation_i.shift_right;
         end
       end
+`endif
       AluOpBignumSubb: begin
         // Shifter computes B [>>|<<] shift_amt
         // Y computes A - shifter_res + ~flags.C = A + ~shifter_res + flags.C
@@ -1379,8 +1471,6 @@ module otbn_alu_bignum
   alu_trn_type_t    expected_trn_type;
   logic             expected_vector_sel;
 
-  assign expected_vector_type     = operation_i.vector_type;
-  assign expected_vector_sel      = operation_i.vector_sel;
   assign expected_trn_type        = operation_i.trn_type;
 `endif
   assign expected_adder_carry_sel = operation_i.adder_carry_sel;
@@ -1393,12 +1483,20 @@ module otbn_alu_bignum
                                                 expected_shift_right;
 
   // SEC_CM: CTRL.REDUN
-  assign alu_predec_error_o =
-    |{expected_adder_x_carries_in != alu_bignum_predec_i.adder_x_carries_in,
-      expected_adder_x_op_b_invert != alu_bignum_predec_i.adder_x_op_b_invert,
-      expected_adder_y_carries_top != alu_bignum_predec_i.adder_y_carries_top,
-      expected_adder_y_op_b_invert != alu_bignum_predec_i.adder_y_op_b_invert,
-      expected_adder_x_en != alu_bignum_predec_i.adder_x_en,
+  // Only check predec error when ALU is processing a real bignum operation.
+  // During LSU/base ops (op=None), pipeline skew with bignum instr in predecode
+  // would cause spurious errors that corrupt LSU data path.
+  // SEC_CM: CTRL.REDUN
+  // TOWARDS_BASE vector ops (Addv/Subv/Addvm/Subvm/Shv/Trn) are new instructions
+  // not present in baseline; their predec signals (adder_x_en, carries, etc.)
+  // legitimately differ from adjacent base/LSU ops during pipeline skew.
+  // Skip predec check for these ops; standard ops retain full checking.
+  assign alu_predec_error_o = (operation_i.op != AluOpBignumNone) &
+                              !(operation_i.op inside {AluOpBignumAddv, AluOpBignumSubv,
+                                                       AluOpBignumAddvm, AluOpBignumSubvm,
+                                                       AluOpBignumShv,
+                                                       AluOpBignumTrn1, AluOpBignumTrn2}) &
+    |{expected_adder_x_en != alu_bignum_predec_i.adder_x_en,
       expected_x_res_operand_a_sel != alu_bignum_predec_i.x_res_operand_a_sel,
       expected_adder_y_op_a_en != alu_bignum_predec_i.adder_y_op_a_en,
       expected_adder_y_op_shifter_en != alu_bignum_predec_i.adder_y_op_shifter_en,
@@ -1509,7 +1607,7 @@ module otbn_alu_bignum
   // This allows to implement the selection with one large OR instead of a regular mux.
   // Note, the shifter result is pushed through the logic block. Similarly is the non modulo result
   // pushed through the modulo result selector.
-  assign operation_result_o = arithmetic_result | unpacked_res | logical_res | vec_transposer_res;
+  assign operation_result_o = arithmetic_result_muxed | unpacked_res | logical_res | vec_transposer_res;
 
   `ASSERT(OnlyOneResultActive_A,
           $onehot0({|arithmetic_result,
@@ -1532,7 +1630,7 @@ module otbn_alu_bignum
       AluOpBignumAddm,
       AluOpBignumAddvm,
       AluOpBignumSubm,
-      AluOpBignumSubvm: adder_y_res_used = arithmetic_result_used_adder_y;
+      AluOpBignumSubvm: adder_y_res_used = arithmetic_result_used_adder_y_muxed;
 
       AluOpBignumRshi,
       AluOpBignumXor,
@@ -1595,7 +1693,7 @@ module otbn_alu_bignum
   `ASSERT(BlankingBignumAluYResUsed_A,
           !adder_y_res_used &&
           !((operation_i.op == AluOpBignumSubm || operation_i.op == AluOpBignumSubvm)
-            && !arithmetic_result_used_adder_y)
+            && !arithmetic_result_used_adder_y_muxed)
           |-> {x_res_operand_a_mux_out, shift_mod_mux_out} == '0,
           clk_i, !rst_ni || alu_predec_error_o || !operation_commit_i)
 

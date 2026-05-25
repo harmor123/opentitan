@@ -7,7 +7,7 @@
 # and checks expected output)
 #
 # To test the vectorized bignum instructions pass 'vectorized' as first argument.
-
+rm -rf build/lowrisc_ip_otbn_top_sim_0.1
 fail() {
     echo >&2 "OTBN SMOKE FAILURE: $*"
     exit 1

@@ -169,14 +169,21 @@ module otbn_predecode
   logic [$clog2(WLEN)-1:0] shift_amt_a_type_bignum;
   // Shift amount for BN.RSHI
   logic [$clog2(WLEN)-1:0] shift_amt_s_type_bignum;
-  // Shift amount for BN.SHV
+  // Shift amount for BN.SHV (InsnOpcodeBignumVec encoding)
   logic [$clog2(WLEN)-1:0] shift_amt_shv_bignum;
+`ifdef TOWARDS_BASE
+  // Shift amount for BN.SHV (InsnOpcodeBignumShiftv encoding, ver2)
+  logic [$clog2(WLEN)-1:0] shift_amt_v_type_bignum;
+`endif
   // Shift amount for BN.UNPK and BN.PACK
   logic [$clog2(WLEN)-1:0] shift_amt_pack_bignum;
 
   assign shift_amt_a_type_bignum = {imem_rdata_i[29:25], 3'b0};
   assign shift_amt_s_type_bignum = {imem_rdata_i[31:25], imem_rdata_i[14]};
   assign shift_amt_shv_bignum    = {1'b0, imem_rdata_i[28:27], imem_rdata_i[19:15]};
+`ifdef TOWARDS_BASE
+  assign shift_amt_v_type_bignum = {3'b0, imem_rdata_i[29:25]};
+`endif
   assign shift_amt_pack_bignum   = {imem_rdata_i[28:27], 6'b0};
 
   assign flag_group     = imem_rdata_i[31];
@@ -416,10 +423,41 @@ module otbn_predecode
               end
             end
             3'b101: begin
-              // BN.ADDM/BN.SUBM
-              rf_ren_a_bignum                = 1'b1;
-              rf_ren_b_bignum                = 1'b1;
-              rf_we_bignum                   = 1'b1;
+              // BN.ADDM/BN.SUBM (and vector variants under TOWARDS_BASE)
+              rf_ren_a_bignum = 1'b1;
+              rf_ren_b_bignum = 1'b1;
+              rf_we_bignum    = 1'b1;
+`ifdef TOWARDS_BASE
+              if (imem_rdata_i[25]) begin  // vector variant: ADDV/SUBV/ADDVM/SUBVM
+                alu_bignum_shift_amt = '0;
+                alu_bignum_vector_type = alu_vector_type_t'(imem_rdata_i[27:26]);
+                alu_bignum_vector_sel  = 1'b1;
+
+                // An invalid choice will raise an illegal insn error in the decoder.
+                unique case (imem_rdata_i[26])
+                  1'b0: alu_bignum_alu_elen = AluElen32;
+                  1'b1: alu_bignum_alu_elen = AluElen16;
+                  default: alu_bignum_alu_elen = AluElen256;
+                endcase
+
+                // All vector ops (addv/subv/addvm/subvm) use X+Y modular path
+                // matching paper's TOWARDS_BASE approach
+                alu_bignum_adder_x_en          = 1'b1;
+                alu_bignum_x_res_operand_a_sel = 1'b1;
+                alu_bignum_shift_mod_sel       = 1'b0;
+                alu_bignum_mod_is_subtraction  = imem_rdata_i[30];
+
+                // 16-bit adder uses predecoder carries/invert directly.
+                // Must be set here; cannot rely on ALU recomputing from opcode.
+                if (alu_bignum_mod_is_subtraction) begin
+                  alu_bignum_adder_x_carries_in  = {NVecProc{1'b1}};
+                  alu_bignum_adder_x_op_b_invert = 1'b1;
+                end else begin
+                  alu_bignum_adder_y_carries_top = {(NVecProc-1){1'b1}};
+                  alu_bignum_adder_y_op_b_invert = 1'b1;
+                end
+              end else begin  // scalar: ADDM/SUBM
+`endif
               // There is no actual shifting performed, we take the same value as the decoder
               alu_bignum_shift_amt           = shift_amt_a_type_bignum;
               alu_bignum_adder_x_en          = 1'b1;
@@ -434,6 +472,9 @@ module otbn_predecode
               end else begin
                 alu_bignum_adder_y_op_b_invert = 1'b1;
               end
+`ifdef TOWARDS_BASE
+              end
+`endif
             end
             default: ;
           endcase
@@ -675,25 +716,17 @@ module otbn_predecode
               rf_ren_a_base        = 1'b1;
               rf_ren_b_base        = 1'b1;
               lsu_addr_en_predec_o = 1'b1;
-
               if (imem_rdata_i[8]) begin
                 rf_we_a_base = 1'b1;
               end
-
               if (imem_rdata_i[7]) begin
                 rf_we_b_base = 1'b1;
               end
             end
             3'b110: begin
               if (imem_rdata_i[31]) begin // BN.MOVR
-                // bignum RF read and write occur in the following cycle due to the indirect
-                // register access so aren't set here. otbn_controller sets the appropriate read and
-                // write enables directly in the instruction fetch stage in the first cycle of the
-                // instruction's execution (so they can be used in the second cycle which performs
-                // the bignum RF access).
                 rf_ren_a_base   = 1'b1;
                 rf_ren_b_base   = 1'b1;
-
                 if (imem_rdata_i[9]) begin
                   rf_we_a_base = 1'b1;
                 end else if (imem_rdata_i[7]) begin
@@ -739,6 +772,35 @@ module otbn_predecode
           // Clear ACC by disabling the forwarding.
           mac_bignum_acc_add_en = ~imem_rdata_i[12];
         end
+
+
+`ifdef TOWARDS_BASE
+        ////////////////////////////////////////////
+        //          BN.SHV / BN.TRN               //
+        ////////////////////////////////////////////
+
+        InsnOpcodeBignumShiftv: begin
+          rf_we_bignum                           = 1'b1;
+          rf_ren_b_bignum                        = 1'b1;
+          alu_bignum_vector_type                 = alu_vector_type_t'({2'b01, imem_rdata_i[16]});
+          alu_bignum_shift_right                 = imem_rdata_i[30];
+          alu_bignum_shift_amt                   = shift_amt_v_type_bignum;
+          alu_bignum_shift_op_b_sel[AluShiftOpFull] = 1'b1;
+          alu_bignum_shift_en                       = 1'b1;
+          alu_bignum_logic_shifter_en            = 1'b1;
+          alu_bignum_logic_res_sel[AluOpLogicOr] = 1'b1;
+          alu_bignum_vector_sel                  = 1'b1;
+        end
+
+        InsnOpcodeBignumTrn: begin
+          rf_ren_a_bignum        = 1'b1;
+          rf_ren_b_bignum        = 1'b1;
+          rf_we_bignum           = 1'b1;
+          alu_bignum_trn_en      = 1'b1;
+          alu_bignum_trn_is_trn1 = ~imem_rdata_i[27];
+          alu_bignum_trn_type    = alu_trn_type_t'(imem_rdata_i[27:25]);
+        end
+`endif
 
 `ifdef BNMULV
         ///////////////////////////////////////////

@@ -23,8 +23,10 @@ main:
 
   /* Store results */
   la     x7, result
-  bn.sid x10, 0(x7)
-  bn.sid x11, 32(x7)
+  addi   x10, x0, 10
+  bn.sid x10, 0(x10)
+  addi   x11, x0, 11
+  bn.sid x11, 32(x11)
 
   /* Clear working registers */
   bn.xor w2, w2, w2

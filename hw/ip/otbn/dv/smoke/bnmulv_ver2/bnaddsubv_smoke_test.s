@@ -1,4 +1,4 @@
-/* Smoke test for bn.addv.16H, bn.addv.8S, bn.subv.16H — edge cases */
+/* Smoke test for bn.addv.16H, bn.addv.8S, bn.subv.16H, bn.subv.8S — edge cases */
 .section .text.start
 .globl main
 main:
@@ -28,9 +28,13 @@ main:
 
   /* Store results */
   la     x7, result
+  addi   x10, x0, 10
   bn.sid x10, 0(x7)
+  addi   x11, x0, 11
   bn.sid x11, 32(x7)
+  addi   x12, x0, 12
   bn.sid x12, 64(x7)
+  addi   x13, x0, 13
   bn.sid x13, 96(x7)
 
   /* Clear working registers */
@@ -93,8 +97,6 @@ main:
   16-bit vector vec_a for addv/subv
   Elements: [0x8000, 0x7fff, 0xffff, 0x0000, 0x0001, 0x0001, 0x7fff, 0x8000,
              0x8000, 0x7fff, 0x0000, 0xffff, 0x5555, 0xaaaa, 0x7fff, 0x0001]
-  (INT16_MIN, INT16_MAX, -1, 0, 1, 1, INT16_MAX, INT16_MIN,
-   INT16_MIN, INT16_MAX, 0, -1, 0x5555, 0xaaaa, INT16_MAX, 1)
 */
 vec_a_16h:
   .word 0x00017fff
@@ -110,8 +112,6 @@ vec_a_16h:
   16-bit vector vec_b for addv/subv
   Elements: [0x0001, 0x0001, 0x0001, 0x0001, 0xffff, 0x7fff, 0x8000, 0x8000,
              0x7fff, 0x8000, 0x0001, 0x0001, 0x5555, 0x5555, 0x8000, 0xffff]
-  (1, 1, 1, 1, -1, INT16_MAX, INT16_MIN, INT16_MIN,
-   INT16_MAX, INT16_MIN, 1, 1, 0x5555, 0x5555, INT16_MIN, -1)
 */
 vec_b_16h:
   .word 0xffff8000
@@ -124,50 +124,9 @@ vec_b_16h:
   .word 0x00010001
 
 /*
-  Expected addv.16H:
-  elem[0]:  0x8000 + 0x0001 = 0x8001
-  elem[1]:  0x7fff + 0x0001 = 0x8000
-  elem[2]:  0xffff + 0x0001 = 0x0000 (wrap)
-  elem[3]:  0x0000 + 0x0001 = 0x0001
-  elem[4]:  0x0001 + 0xffff = 0x0000 (wrap)
-  elem[5]:  0x0001 + 0x7fff = 0x8000
-  elem[6]:  0x7fff + 0x8000 = 0xffff
-  elem[7]:  0x8000 + 0x8000 = 0x0000 (wrap, 2*0x8000=0x10000)
-  elem[8]:  0x8000 + 0x7fff = 0xffff
-  elem[9]:  0x7fff + 0x8000 = 0xffff
-  elem[10]: 0x0000 + 0x0001 = 0x0001
-  elem[11]: 0xffff + 0x0001 = 0x0000 (wrap)
-  elem[12]: 0x5555 + 0x5555 = 0xaaaa
-  elem[13]: 0xaaaa + 0x5555 = 0xffff
-  elem[14]: 0x7fff + 0x8000 = 0xffff
-  elem[15]: 0x0001 + 0xffff = 0x0000 (wrap)
-  res = 0x0000ffff_ffffaaaa_00000001_ffffffff_0000ffff_80000000_00008000_80018000
-*/
-/* Expected subv.16H:
-  elem[0]:  0x8000 - 0x0001 = 0x7fff
-  elem[1]:  0x7fff - 0x0001 = 0x7ffe
-  elem[2]:  0xffff - 0x0001 = 0xfffe
-  elem[3]:  0x0000 - 0x0001 = 0xffff
-  elem[4]:  0x0001 - 0xffff = 0x0002
-  elem[5]:  0x0001 - 0x7fff = 0x8002
-  elem[6]:  0x7fff - 0x8000 = 0xffff
-  elem[7]:  0x8000 - 0x8000 = 0x0000
-  elem[8]:  0x8000 - 0x7fff = 0x0001
-  elem[9]:  0x7fff - 0x8000 = 0xffff
-  elem[10]: 0x0000 - 0x0001 = 0xffff
-  elem[11]: 0xffff - 0x0001 = 0xfffe
-  elem[12]: 0x5555 - 0x5555 = 0x0000
-  elem[13]: 0xaaaa - 0x5555 = 0x5555
-  elem[14]: 0x7fff - 0x8000 = 0xffff
-  elem[15]: 0x0001 - 0xffff = 0x0002
-  res = 0x0002ffff_55550000_fffeffff_0001ffff_0000ffff_80020002_fffeffff_7ffe7fff
-*/
-
-/*
   32-bit vector vec_a for addv/subv
   Elements: [0x80000000, 0x7fffffff, 0xffffffff, 0x00000000,
              0x00000001, 0x7fffffff, 0x80000000, 0xffffffff]
-  (INT32_MIN, INT32_MAX, -1, 0, 1, INT32_MAX, INT32_MIN, -1)
 */
 vec_a_8s:
   .word 0xffffffff
@@ -183,7 +142,6 @@ vec_a_8s:
   32-bit vector vec_b for addv/subv
   Elements: [0x00000001, 0x00000001, 0x00000001, 0x00000001,
              0xffffffff, 0x80000000, 0x80000000, 0x7fffffff]
-  (1, 1, 1, 1, -1, INT32_MIN, INT32_MIN, INT32_MAX)
 */
 vec_b_8s:
   .word 0x7fffffff
@@ -194,30 +152,6 @@ vec_b_8s:
   .word 0x00000001
   .word 0x00000001
   .word 0x00000001
-
-/*
-  Expected addv.8S:
-  elem[0]: 0x80000000 + 0x00000001 = 0x80000001
-  elem[1]: 0x7fffffff + 0x00000001 = 0x80000000
-  elem[2]: 0xffffffff + 0x00000001 = 0x00000000 (wrap)
-  elem[3]: 0x00000000 + 0x00000001 = 0x00000001
-  elem[4]: 0x00000001 + 0xffffffff = 0x00000000 (wrap)
-  elem[5]: 0x7fffffff + 0x80000000 = 0xffffffff
-  elem[6]: 0x80000000 + 0x80000000 = 0x00000000 (wrap)
-  elem[7]: 0xffffffff + 0x7fffffff = 0x7ffffffe
-  res = 0x7ffffffe_00000000_ffffffff_00000000_00000001_00000000_80000000_80000001
-*/
-/* Expected subv.8S:
-  elem[0]: 0x80000000 - 0x00000001 = 0x7fffffff
-  elem[1]: 0x7fffffff - 0x00000001 = 0x7ffffffe
-  elem[2]: 0xffffffff - 0x00000001 = 0xfffffffe
-  elem[3]: 0x00000000 - 0x00000001 = 0xffffffff
-  elem[4]: 0x00000001 - 0xffffffff = 0x00000002
-  elem[5]: 0x7fffffff - 0x80000000 = 0xffffffff
-  elem[6]: 0x80000000 - 0x80000000 = 0x00000000
-  elem[7]: 0xffffffff - 0x7fffffff = 0x80000000
-  res = 0x80000000_00000000_ffffffff_00000002_ffffffff_fffffffe_7ffffffe_7fffffff
-*/
 
 .balign 32
 .globl result
