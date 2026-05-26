@@ -770,13 +770,16 @@ module otbn_decoder
               mac_exec_mode_bignum    = insn[31:30];
               if (insn[25] == 1'b1) begin
                 insn_rs2 = {{4'b1000}, insn[24]};
+                mac_is_lane_bignum = 1'b1;  // inform FSM of lane mode for predec check
                 if (mac_data_type_bignum == 1'b0) begin
                   mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[23:22]};
                   mac_lane_word_32_bignum  = insn[21];
                   mac_lane_word_16_bignum  = insn[20];
+                  mac_lane_index_bignum          = insn[23:21];
                 end else begin
-                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[22:21]};
+                  mac_op_b_elem0_sel_raw_bignum   = {insn[22:21], 1'b0};
                   mac_lane_word_32_bignum  = insn[20];
+                  mac_lane_index_bignum          = {insn[22:21], insn[20]};
                 end
               end else begin
 
@@ -1296,13 +1299,16 @@ module otbn_decoder
               mac_exec_mode_bignum    = insn[31:30];
               if (insn[25] == 1'b1) begin
                 insn_rs2 = {{4'b1000}, insn[24]};
+                mac_is_lane_bignum = 1'b1;  // inform FSM of lane mode for predec check
                 if (mac_data_type_bignum == 1'b0) begin
                   mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[23:22]};
                   mac_lane_word_32_bignum  = insn[21];
                   mac_lane_word_16_bignum  = insn[20];
+                  mac_lane_index_bignum          = insn[23:21];
                 end else begin
-                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[22:21]};
+                  mac_op_b_elem0_sel_raw_bignum   = {insn[22:21], 1'b0};
                   mac_lane_word_32_bignum  = insn[20];
+                  mac_lane_index_bignum          = {insn[22:21], insn[20]};
                 end
               end else begin
 

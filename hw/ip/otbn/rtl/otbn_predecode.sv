@@ -864,6 +864,12 @@ module otbn_predecode
 
               if (imem_rdata_i[25] == 1'b1) begin  // lane mode
                 insn_rs2 = {{4'b1000}, imem_rdata_i[24]};
+                mac_bignum_is_lane = 1'b1;
+                // lane_index must match decoder formula for predec FSM comparison
+                if (imem_rdata_i[26] == 1'b0)  // 16-bit
+                  mac_bignum_lane_index = imem_rdata_i[23:21];
+                else                          // 32-bit
+                  mac_bignum_lane_index = {imem_rdata_i[22:21], imem_rdata_i[20]};
               end
 
               if (imem_rdata_i[29:28] == 2'b01) begin
