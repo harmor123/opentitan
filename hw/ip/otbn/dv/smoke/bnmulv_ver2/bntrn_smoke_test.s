@@ -34,13 +34,21 @@ main:
 
   /* Store results */
   la     x7, result
+  addi   x10, x0, 10
   bn.sid x10, 0(x7)
+  addi   x11, x0, 11
   bn.sid x11, 32(x7)
+  addi   x12, x0, 12
   bn.sid x12, 64(x7)
+  addi   x13, x0, 13
   bn.sid x13, 96(x7)
+  addi   x14, x0, 14
   bn.sid x14, 128(x7)
+  addi   x15, x0, 15
   bn.sid x15, 160(x7)
+  addi   x16, x0, 16
   bn.sid x16, 192(x7)
+  addi   x17, x0, 17
   bn.sid x17, 224(x7)
 
   /* Clear working registers */

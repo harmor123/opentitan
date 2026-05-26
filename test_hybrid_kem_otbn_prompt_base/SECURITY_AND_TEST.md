@@ -179,7 +179,27 @@ static void test_encaps_decaps_roundtrip(dif_otbn_t *otbn) {
 
 ---
 
-## 四、与 KMAC 加速版交叉验证方法
+## 四、测试状态
+
+### OTBN 仿真测试 (otbn_sim_test) — 7/7 通过
+
+| 测试 | 状态 | 说明 |
+|------|------|------|
+| `sha3_shake_test` | PASS | SHA3-224/256/384/512 + SHAKE128/256 + 边缘测试 |
+| `hmac_test` | PASS | HMAC-SHA3-256 纯软件 (key="key", msg="message") |
+| `hkdf_test` | PASS | HKDF-SHA3-256 Extract+Expand (64B OKM) |
+| `mlkem768_keypair_test` | PASS | ML-KEM-768 密钥生成 |
+| `mlkem768_encap_test` | PASS | ML-KEM-768 封装 |
+| `mlkem768_decap_test` | PASS | ML-KEM-768 解封装 |
+| `p256_ecdh_test` | PASS | P-256 ECDH 共享密钥 |
+
+### Ibex 集成测试 (Verilator)
+
+| 测试 | 状态 | 说明 |
+|------|------|------|
+| `hybrid_kem_test` | COMPILE OK | Alert 48 (OTBN DMEM ECC) — 待排查 |
+
+### 与 KMAC 加速版交叉验证
 
 ```bash
 # 1. 运行基线版，记录 OKM

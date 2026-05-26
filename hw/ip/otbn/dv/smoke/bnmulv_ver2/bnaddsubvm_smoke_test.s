@@ -1,8 +1,9 @@
-/* Smoke test for bn.addvm.16H, bn.subvm.16H — modular edge cases */
+/* Smoke test for bn.addvm.16H, bn.subvm.16H — modular (mod q=0x0D01=3329) */
+/* All inputs in [0, q-1], matching ML-KEM reduced input assumption. */
 .section .text.start
 .globl main
 main:
-  /* Load modulus q = 3329 = 0xD01 into MOD (ML-KEM prime) */
+  /* Load modulus q = 3329 = 0xD01 into MOD */
   li     x2, 20
   la     x3, mod_q
   bn.lid x2, 0(x3)
@@ -15,18 +16,15 @@ main:
   la     x3, vec_b
   bn.lid x2++, 0(x3)
 
-  /* bn.addvm.16H: (a+b) mod q */
   bn.addvm.16H  w10, w2, w3
-
-  /* bn.subvm.16H: (a-b) mod q */
   bn.subvm.16H  w11, w2, w3
 
   /* Store results */
   la     x7, result
   addi   x10, x0, 10
-  bn.sid x10, 0(x10)
+  bn.sid x10, 0(x7)
   addi   x11, x0, 11
-  bn.sid x11, 32(x11)
+  bn.sid x11, 32(x7)
 
   /* Clear working registers */
   bn.xor w2, w2, w2
@@ -90,87 +88,74 @@ main:
 .balign 32
 mod_q:
   .word 0x00000d01
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
+  .zero 28
 
 /*
-  16-bit vector vec_a for addvm/subvm
-  Elements: [0, 1, 0x0D00=q-1, 0x0D01=q, 0x0D02=q+1, 0x0000, 0x0D00, 0x0001,
-             0x0D00, 0x1A00=2q-2, 0x0000, 0x0D01, 0xffff=65535, 0x7fff, 0x8000, 0x0000]
+  16-bit vec_a (all in [0, q-1]):
+  [0x0000, 0x0001, 0x0D00, 0x0D00, 0x0001, 0x0000, 0x0D00, 0x0680,
+   0x0001, 0x0CFF, 0x0000, 0x0D00, 0x0680, 0x0000, 0x0D00, 0x0001]
 */
 vec_a:
-  .word 0x00010d00
-  .word 0x1a000d00
-  .word 0x00010000
-  .word 0x0d020d01
-  .word 0x0d000000
-  .word 0x00000001
-  .word 0x80007fff
-  .word 0x0000ffff
+  .word 0x00010000   /* [1]=0x0001, [0]=0x0000 */
+  .word 0x0D000D00   /* [3]=0x0D00, [2]=0x0D00 */
+  .word 0x00000001   /* [5]=0x0000, [4]=0x0001 */
+  .word 0x06800D00   /* [7]=0x0680, [6]=0x0D00 */
+  .word 0x0CFF0001   /* [9]=0x0CFF, [8]=0x0001 */
+  .word 0x0D000000   /* [11]=0x0D00, [10]=0x0000 */
+  .word 0x00000680   /* [13]=0x0000, [12]=0x0680 */
+  .word 0x00010D00   /* [15]=0x0001, [14]=0x0D00 */
 
 /*
-  16-bit vector vec_b for addvm/subvm
-  Elements: [0, 0, 1, 1, 1, 0x0D01, 1, 1,
-             1, 2, 0x0D01, 0x0D01, 1, 0x8000, 0x8000, 0x0001]
+  16-bit vec_b (all in [0, q-1]):
+  [0x0000, 0x0000, 0x0001, 0x0000, 0x0D00, 0x0D00, 0x0001, 0x0680,
+   0x0D00, 0x0001, 0x0001, 0x0001, 0x0001, 0x0D00, 0x0001, 0x0001]
 */
 vec_b:
-  .word 0x00010001
-  .word 0x00020001
-  .word 0x00010d01
-  .word 0x00010001
-  .word 0x00010d00
-  .word 0x00010001
-  .word 0x80008000
-  .word 0x00010000
+  .word 0x00000000   /* [1]=0, [0]=0 */
+  .word 0x00000001   /* [3]=0, [2]=1 */
+  .word 0x0D000D00   /* [5]=0xD00, [4]=0xD00 */
+  .word 0x06800001   /* [7]=0x680, [6]=1 */
+  .word 0x00010D00   /* [9]=1, [8]=0xD00 */
+  .word 0x00010001   /* [11]=1, [10]=1 */
+  .word 0x0D000001   /* [13]=0xD00, [12]=1 */
+  .word 0x00010001   /* [15]=1, [14]=1 */
 
 /*
-  Computed expected addvm.16H (mod q=0x0D01):
-  elem[0]:  (0     + 0)     % 0xd01 = 0x0000
-  elem[1]:  (1     + 0)     % 0xd01 = 0x0001
-  elem[2]:  (0xd00 + 1)     % 0xd01 = 0x0000 (wrap: 0xd01 % 0xd01)
-  elem[3]:  (0xd01 + 1)     % 0xd01 = 0x0001
-  elem[4]:  (0xd02 + 1)     % 0xd01 = 0x0002
-  elem[5]:  (0     + 0xd01) % 0xd01 = 0x0000
-  elem[6]:  (0xd00 + 1)     % 0xd01 = 0x0000 (wrap)
-  elem[7]:  (1     + 1)     % 0xd01 = 0x0002
-  elem[8]:  (0xd00 + 1)     % 0xd01 = 0x0000 (wrap)
-  elem[9]:  (0x1a00+ 2)     % 0xd01 = 0x0d01 -> 0x0000 (double wrap: 0x1a02%0xd01)
-           0x1a02 / 0xd01 = 6658 / 3329 = 2 rem 0. So result = 0x0000
-  elem[10]: (0     + 0xd01) % 0xd01 = 0x0000
-  elem[11]: (0xd01 + 0xd01) % 0xd01 = 0x0000 (wrap)
-  elem[12]: (0xffff+ 1)     % 0xd01 = 0x0000 mod 0xd01 = 0x0000 (65536%3329=...)
-           65536 / 3329 = 19 rem 2285 = 19*3329=63251, 65536-63251=2285=0x8ED
-           Wait, 16-bit unsigned mod. 0xffff + 1 = 0x10000 = 65536. 65536 % 3329.
-           3329 * 19 = 63251. 65536 - 63251 = 2285 = 0x08ED.
-  elem[13]: (0x7fff+ 0x8000)% 0xd01 = 0xffff % 0xd01 = 65535 % 3329
-           3329 * 19 = 63251. 65535 - 63251 = 2284 = 0x08EC.
-  elem[14]: (0x8000+ 0x8000)% 0xd01 = 0x10000 % 0xd01 = 65536 % 3329 = 2285 = 0x08ED
-  elem[15]: (0     + 1)     % 0xd01 = 0x0001
-*/
-/*
+  Expected addvm.16H (mod q=0x0D01):
+  elem[0]:  (0    + 0)    % q = 0x0000
+  elem[1]:  (1    + 0)    % q = 0x0001
+  elem[2]:  (0xD00+ 1)    % q = 0x0000  (wrap: D01%D01=0)
+  elem[3]:  (0xD00+ 0)    % q = 0x0D00
+  elem[4]:  (1    + 0xD00)% q = 0x0000  (wrap)
+  elem[5]:  (0    + 0xD00)% q = 0x0D00
+  elem[6]:  (0xD00+ 1)    % q = 0x0000  (wrap)
+  elem[7]:  (0x680+ 0x680)% q = 0x0D00  (680*2=D00<q)
+  elem[8]:  (1    + 0xD00)% q = 0x0000  (wrap)
+  elem[9]:  (0xCFF+ 1)    % q = 0x0D00  (CFF+1=D00<q)
+  elem[10]: (0    + 1)    % q = 0x0001
+  elem[11]: (0xD00+ 1)    % q = 0x0000  (wrap)
+  elem[12]: (0x680+ 1)    % q = 0x0681
+  elem[13]: (0    + 0xD00)% q = 0x0D00
+  elem[14]: (0xD00+ 1)    % q = 0x0000  (wrap)
+  elem[15]: (1    + 1)    % q = 0x0002
+
   Expected subvm.16H (mod q=0x0D01):
-  elem[0]:  (0     - 0)     mod 0xd01 = 0x0000
-  elem[1]:  (1     - 0)     mod 0xd01 = 0x0001
-  elem[2]:  (0xd00 - 1)     mod 0xd01 = 0x0CFF
-  elem[3]:  (0xd01 - 1)     mod 0xd01 = 0x0D00
-  elem[4]:  (0xd02 - 1)     mod 0xd01 = 0x0D01
-  elem[5]:  (0     - 0xd01) mod 0xd01 = 0x0000 (a-b<0, add q: -3329+q=0)
-  elem[6]:  (0xd00 - 1)     mod 0xd01 = 0x0CFF
-  elem[7]:  (1     - 1)     mod 0xd01 = 0x0000
-  elem[8]:  (0xd00 - 1)     mod 0xd01 = 0x0CFF
-  elem[9]:  (0x1a00- 2)     mod 0xd01 = 0x19FE % 0xd01 = 0x19FE - 0xd01 = 0x19FE-0x0D01=0x0CFD
-  elem[10]: (0     - 0xd01) mod 0xd01 = 0x0000
-  elem[11]: (0xd01 - 0xd01) mod 0xd01 = 0x0000
-  elem[12]: (0xffff- 1)     mod 0xd01 = 0xfffe % 0xd01 = 65534 % 3329
-           3329 * 19 = 63251. 65534 - 63251 = 2283 = 0x08EB.
-  elem[13]: (0x7fff- 0x8000)% 0xd01 = -1 mod 3329 = 3328 = 0x0D00
-  elem[14]: (0x8000- 0x8000)% 0xd01 = 0 mod 3329 = 0x0000
-  elem[15]: (0     - 1)     mod 0xd01 = -1 mod 3329 = 3328 = 0x0D00
+  elem[0]:  (0    - 0)    mod q = 0x0000
+  elem[1]:  (1    - 0)    mod q = 0x0001
+  elem[2]:  (0xD00- 1)    mod q = 0x0CFF
+  elem[3]:  (0xD00- 0)    mod q = 0x0D00
+  elem[4]:  (1    - 0xD00)mod q = 0x0002  (neg: +q=1-D00+D01=2)
+  elem[5]:  (0    - 0xD00)mod q = 0x0001  (neg: 0-D00+D01=1)
+  elem[6]:  (0xD00- 1)    mod q = 0x0CFF
+  elem[7]:  (0x680- 0x680)mod q = 0x0000
+  elem[8]:  (1    - 0xD00)mod q = 0x0002  (neg)
+  elem[9]:  (0xCFF- 1)    mod q = 0x0CFE
+  elem[10]: (0    - 1)    mod q = 0x0D00  (neg: 0-1+D01=D00=q-1)
+  elem[11]: (0xD00- 1)    mod q = 0x0CFF
+  elem[12]: (0x680- 1)    mod q = 0x067F
+  elem[13]: (0    - 0xD00)mod q = 0x0001  (neg)
+  elem[14]: (0xD00- 1)    mod q = 0x0CFF
+  elem[15]: (1    - 1)    mod q = 0x0000
 */
 
 .balign 32

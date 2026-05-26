@@ -388,6 +388,32 @@ module otbn_predecode
         InsnOpcodeBignumArith: begin
           unique case (imem_rdata_i[14:12])
             3'b000, 3'b001, 3'b010, 3'b011:  begin
+`ifdef TOWARDS_BASE
+              if (imem_rdata_i[25]) begin  // vector: ADDV/SUBV/ADDVM/SUBVM
+                rf_ren_a_bignum = 1'b1;
+                rf_ren_b_bignum = 1'b1;
+                rf_we_bignum    = 1'b1;
+                alu_bignum_shift_amt      = '0;
+                alu_bignum_vector_type    = alu_vector_type_t'(imem_rdata_i[27:26]);
+                alu_bignum_vector_sel     = 1'b1;
+                alu_bignum_adder_x_en     = 1'b1;
+                alu_bignum_x_res_operand_a_sel = 1'b1;
+                alu_bignum_shift_mod_sel  = 1'b0;
+                alu_bignum_mod_is_subtraction = imem_rdata_i[30];
+                unique case (imem_rdata_i[26])
+                  1'b0: alu_bignum_alu_elen = AluElen32;
+                  1'b1: alu_bignum_alu_elen = AluElen16;
+                  default: alu_bignum_alu_elen = AluElen256;
+                endcase
+                if (alu_bignum_mod_is_subtraction) begin
+                  alu_bignum_adder_x_carries_in  = {NVecProc{1'b1}};
+                  alu_bignum_adder_x_op_b_invert = 1'b1;
+                end else begin
+                  alu_bignum_adder_y_carries_top = {(NVecProc-1){1'b1}};
+                  alu_bignum_adder_y_op_b_invert = 1'b1;
+                end
+              end else begin  // scalar
+`endif
               // BN.ADD/BN.SUB/BN.ADDC/BN.SUBB
               rf_ren_a_bignum                           = 1'b1;
               rf_ren_b_bignum                           = 1'b1;
@@ -404,6 +430,9 @@ module otbn_predecode
               if ((imem_rdata_i[14:12] == 3'b001) || (imem_rdata_i[14:12] == 3'b011)) begin
                 alu_bignum_adder_y_op_b_invert = 1'b1;
               end
+`ifdef TOWARDS_BASE
+              end
+`endif
             end
             3'b100: begin
               // BN.ADDI/BN.SUBI
@@ -790,6 +819,8 @@ module otbn_predecode
           alu_bignum_logic_shifter_en            = 1'b1;
           alu_bignum_logic_res_sel[AluOpLogicOr] = 1'b1;
           alu_bignum_vector_sel                  = 1'b1;
+          // Set element size so shift_mask is applied correctly (line ~893)
+          alu_bignum_alu_elen = imem_rdata_i[16] ? AluElen16 : AluElen32;
         end
 
         InsnOpcodeBignumTrn: begin
@@ -799,6 +830,18 @@ module otbn_predecode
           alu_bignum_trn_en      = 1'b1;
           alu_bignum_trn_is_trn1 = ~imem_rdata_i[27];
           alu_bignum_trn_type    = alu_trn_type_t'(imem_rdata_i[27:25]);
+          // Map trn_type enum to trn_elen: bits[1:0] encode element size
+          // trn1_16h=000 trn2_16h=100 → 00 → TrnElen16
+          // trn1_8s =001 trn2_8s =101 → 01 → TrnElen32
+          // trn1_4d =010 trn2_4d =110 → 10 → TrnElen64
+          // trn1_2q =011 trn2_2q =111 → 11 → TrnElen128
+          unique case (alu_bignum_trn_type[1:0])
+            2'b00: alu_bignum_trn_elen = TrnElen16;
+            2'b01: alu_bignum_trn_elen = TrnElen32;
+            2'b10: alu_bignum_trn_elen = TrnElen64;
+            2'b11: alu_bignum_trn_elen = TrnElen128;
+            default: alu_bignum_trn_elen = TrnElen32;
+          endcase
         end
 `endif
 

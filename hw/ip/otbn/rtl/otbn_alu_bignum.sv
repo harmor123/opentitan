@@ -978,7 +978,13 @@ module otbn_alu_bignum
   );
 
   assign x_res_operand_a_mux_out =
-      alu_bignum_predec_i.x_res_operand_a_sel ? adder_x_res : adder_y_op_a_blanked;
+      alu_bignum_predec_i.x_res_operand_a_sel ?
+`ifdef TOWARDS_BASE
+        (is_16bit_vec_mode ? adder_x_res_16bit : adder_x_res) :
+`else
+        adder_x_res :
+`endif
+        adder_y_op_a_blanked;
 
   // SEC_CM: DATA_REG_SW.SCA
   prim_blanker #(.Width(WLEN)) u_adder_y_op_shifter_blanked (
@@ -1034,7 +1040,12 @@ module otbn_alu_bignum
   logic [WLEN-1:0] adder_x_res_16bit;
 
   logic [15:0] y_carry_in_vec;
-  assign y_carry_in_vec = {16{adder_y_carry_0_in}};
+  // In 16-bit mode Y carry follows predecoder invert flag:
+  //   addvm (invert=1): carry=1 → Y = X + ~mod + 1 = X - mod
+  //   subvm (invert=0): carry=0 → Y = X + mod + 0 = X + mod
+  assign y_carry_in_vec = is_16bit_vec_mode ?
+      {16{alu_bignum_predec_i.adder_y_op_b_invert}} :
+      {16{adder_y_carry_0_in}};
   logic [15:0] x_carry_in_vec;
   assign x_carry_in_vec = {16{alu_bignum_predec_i.adder_x_carries_in[0]}};
 
@@ -1128,24 +1139,33 @@ module otbn_alu_bignum
     arithmetic_result_16bit     = arithmetic_result;
     arithmetic_result_16bit_used = arithmetic_result_used_adder_y;
     if (is_16bit_vec_mode) begin
-      if ((operation_i.op == AluOpBignumAddv) | (operation_i.op == AluOpBignumSubv)) begin
-        arithmetic_result_16bit     = adder_x_res_16bit;
-        arithmetic_result_16bit_used = 1'b0;
-      end else if ((operation_i.op == AluOpBignumAddvm) | (operation_i.op == AluOpBignumSubvm)) begin
-        if (alu_bignum_predec_i.mod_is_subtraction) begin
-          for (int i = 0; i < 16; i++) begin
-            arithmetic_result_16bit[i*16+:16] =
-              adder_x_16bit_cout[i] ?
-              adder_x_res_16bit[i*16+:16] : adder_y_res_16bit[i*16+:16];
+      // SHV/TRN use logical/transposer paths, not arithmetic. Skip to avoid
+      // polluting operation_result_o (OR-based mux).
+      if ((operation_i.op != AluOpBignumShv) &&
+          (operation_i.op != AluOpBignumTrn1) && (operation_i.op != AluOpBignumTrn2)) begin
+        if (operation_i.vector_type[1]) begin
+          // addvm/subvm: per-element modulo selection
+          if (alu_bignum_predec_i.mod_is_subtraction) begin
+            // subvm: Y = X + mod, use X if carry else Y
+            for (int i = 0; i < 16; i++) begin
+              arithmetic_result_16bit[i*16+:16] =
+                adder_x_16bit_cout[i] ?
+                adder_x_res_16bit[i*16+:16] : adder_y_res_16bit[i*16+:16];
+            end
+            arithmetic_result_16bit_used = !(&adder_x_16bit_cout);
+          end else begin
+            // addvm: Y = X - mod, use Y if either carry
+            for (int i = 0; i < 16; i++) begin
+              arithmetic_result_16bit[i*16+:16] =
+                (adder_x_16bit_cout[i] || adder_y_16bit_cout[i]) ?
+                adder_y_res_16bit[i*16+:16] : adder_x_res_16bit[i*16+:16];
+            end
+            arithmetic_result_16bit_used = 1'b1;
           end
-          arithmetic_result_16bit_used = !(&adder_x_16bit_cout);
         end else begin
-          for (int i = 0; i < 16; i++) begin
-            arithmetic_result_16bit[i*16+:16] =
-              (adder_x_16bit_cout[i] || adder_y_16bit_cout[i]) ?
-              adder_y_res_16bit[i*16+:16] : adder_x_res_16bit[i*16+:16];
-          end
-          arithmetic_result_16bit_used = 1'b1;
+          // addv/subv: no modulo, X result directly
+          arithmetic_result_16bit     = adder_x_res_16bit;
+          arithmetic_result_16bit_used = 1'b0;
         end
       end
     end

@@ -60,33 +60,6 @@ status_t hybrid_decaps(dif_otbn_t *otbn, const uint8_t *sk_hyb, const uint8_t *c
                        uint8_t *okm, size_t okm_len);
 ```
 
-### 辅助 API (hkdf_integration)
-
-```c
-// 构造 IKM 缓冲区
-void hkdf_build_ikm(uint8_t *ikm_buf, size_t *ikm_len,
-                    const uint8_t *ss_e, const uint8_t *ss_m,
-                    const uint8_t *ctx, size_t ctx_len,
-                    const uint8_t *sid, size_t sid_len,
-                    const uint8_t *role, size_t role_len);
-
-// 写入 input_lengths 结构体到 OTBN DMEM
-status_t hkdf_write_input_lengths(dif_otbn_t *otbn, otbn_addr_t lengths_addr,
-                                  size_t ctx_len, size_t sid_len,
-                                  size_t role_len, size_t okm_len);
-
-// 一次性打包所有 HKDF 参数并写入 DMEM
-status_t hkdf_write_params(dif_otbn_t *otbn,
-                           otbn_addr_t salt_addr, otbn_addr_t ikm_addr,
-                           otbn_addr_t lengths_addr,
-                           const uint8_t *salt,
-                           const uint8_t *ss_e, const uint8_t *ss_m,
-                           const uint8_t *ctx, size_t ctx_len,
-                           const uint8_t *sid, size_t sid_len,
-                           const uint8_t *role, size_t role_len,
-                           size_t okm_len);
-```
-
 ### 性能测量宏 (otbn_utils.h)
 
 ```c
@@ -101,15 +74,15 @@ MCYCLE_BENCH(elapsed) { /* 被测代码 */ }
 
 ## 四、OTBN 汇编接口 — HMAC-SHA3-256
 
-### `hmac_sha3.s` — 纯软件 SHA3 版
+### `hmac_sha3.s` — 纯函数库（无数据段）
 
 | 子程序 | 功能 | 接口 |
 |--------|------|------|
-| `hmac` | HMAC-SHA3-256 | x10=key_ptr, x11=key_len, x12=msg_ptr, x13=msg_len, x14=out_ptr(32B) |
+| `hmac_sha3_256` | HMAC-SHA3-256 | x10=key_ptr, x11=key_len, x12=msg_ptr, x13=msg_len, x14=out_ptr(32B) |
 
-**内部调用链**：`hmac` → `sha3_init` / `sha3_update` / `sha3_final`（纯软件 Keccak-f）
+**内部调用链**：`hmac_sha3_256` → `sha3_init` / `sha3_update` / `sha3_final`（纯软件 Keccak-f）
 
-**DMEM 工作区标签**：
+**调用者需提供的 .globl 标签**：
 
 | 标签 | 大小 | 对齐 | 说明 |
 |------|------|------|------|
@@ -117,26 +90,32 @@ MCYCLE_BENCH(elapsed) { /* 被测代码 */ }
 | `hmac_opad` | 160B | 32B | opad 工作区 |
 | `hmac_inner` | 32B | 32B | 内部哈希输出 H(ipad \|\| msg) |
 | `hmac_key_hashed` | 32B | 32B | 超长密钥哈希后暂存 |
+| `const_0x36` | 160B | 32B | 全 0x36 常量表（bn.lid 加载） |
+| `const_0x5c` | 160B | 32B | 全 0x5C 常量表（bn.lid 加载） |
+| `context` | 212B | 32B | SHA-3 上下文 |
 
 ---
 
 ## 五、OTBN 汇编接口 — HKDF-SHA3-256
 
-### `hkdf_sha3_256.s` — DMEM 接口 + 纯软件 SHA3
+### `hkdf_sha3_256.s` — 纯函数库（无数据段）
 
 | 子程序 | 功能 | 接口 |
 |--------|------|------|
-| `hkdf_extract` | PRK = HMAC-SHA3-256(salt, IKM) | 从 DMEM label 读取, PRK→prk_buf |
+| `hkdf_extract` | PRK = HMAC-SHA3-256(salt, IKM) | 从 DMEM label 读取, PRK→hmac_key_hashed |
 | `hkdf_expand` | OKM = HKDF-Expand(PRK, L) | 从 DMEM label 读取, OKM→output_okm |
 
-**DMEM 标签**：
+**调用者需提供的 .globl 标签**：
 
 | 标签 | 大小 | 对齐 | 说明 |
 |------|------|------|------|
-| `input_salt` | 32B | 32B | HKDF salt |
+| `input_salt` | 32B | 32B | HKDF salt（Ibex 写入） |
 | `ikm_prebuilt` | 384B | 32B | 预拼接 IKM（Ibex 写入） |
-| `input_lengths` | 32B | 32B | 长度结构体 (+0=ctx_len, +4=sid_len, +8=role_len, +12=okm_len) |
+| `input_lengths` | 32B | 32B | 长度结构体 |
 | `output_okm` | 256B | 32B | OKM 输出 |
+| `ikm_buf` | 1024B | 32B | Expand 临时消息缓冲 |
+| `t_buf` | 32B | 32B | T(i) 暂存 |
+| 以及所有 HMAC/SHA3 工作区标签（hmac_ipad, hmac_opad, hmac_inner, hmac_key_hashed, const_0x36, const_0x5c, context, rc） |
 
 ### IKM 格式
 
