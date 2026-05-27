@@ -1331,6 +1331,10 @@ module otbn_alu_bignum
         expected_adder_x_en          = 1'b1;
         expected_x_res_operand_a_sel = 1'b1;
         expected_shift_mod_sel       = 1'b0;
+`ifdef TOWARDS_BASE
+        expected_vector_type = operation_i.vector_type;
+        expected_vector_sel  = operation_i.vector_sel;
+`endif
       end
 `ifdef TOWARDS_BASE
       AluOpBignumSubv: begin
@@ -1407,6 +1411,10 @@ module otbn_alu_bignum
         expected_x_res_operand_a_sel = 1'b1;
         expected_shift_mod_sel       = 1'b0;
         expected_mod_is_subtraction  = 1'b1;
+`ifdef TOWARDS_BASE
+        expected_vector_type = operation_i.vector_type;
+        expected_vector_sel  = operation_i.vector_sel;
+`endif
       end
       AluOpBignumRshi: begin
         // Shifter computes {A, B} >> shift_amt
@@ -1455,6 +1463,10 @@ module otbn_alu_bignum
         // logic operation set to OR.
         expected_logic_shifter_en            = 1'b1;
         expected_logic_res_sel[AluOpLogicOr] = 1'b1;
+`ifdef TOWARDS_BASE
+        expected_vector_type = operation_i.vector_type;
+        expected_vector_sel  = operation_i.vector_sel;
+`endif
       end
       AluOpBignumPack: begin
         expected_shift_op_a_sel[AluShiftOpDense] = 1'b1;

@@ -541,6 +541,22 @@ module otbn_predecode
               alu_bignum_vector_sel  = imem_rdata_i[25];
 `endif
 
+`ifdef TOWARDS_BASE
+              // All vector ops (addv/subv/addvm/subvm) use X+Y path.
+              // bit[28] (modulo) only affects vector_type[1]; datapath is identical.
+              alu_bignum_adder_x_en          = 1'b1;
+              alu_bignum_x_res_operand_a_sel = 1'b1;
+              alu_bignum_shift_mod_sel       = 1'b0;
+              alu_bignum_mod_is_subtraction  = imem_rdata_i[30];
+
+              if (alu_bignum_mod_is_subtraction) begin
+                alu_bignum_adder_x_carries_in  = {NVecProc{1'b1}};
+                alu_bignum_adder_x_op_b_invert = 1'b1;
+              end else begin
+                alu_bignum_adder_y_carries_top = {(NVecProc-1){1'b1}};
+                alu_bignum_adder_y_op_b_invert = 1'b1;
+              end
+`else
               if (imem_rdata_i[28]) begin // vectorized MOD operation
                 alu_bignum_adder_x_en          = 1'b1;
                 alu_bignum_x_res_operand_a_sel = 1'b1;
@@ -567,6 +583,7 @@ module otbn_predecode
                   alu_bignum_adder_y_op_b_invert = 1'b1;
                 end
               end
+`endif
             end
             3'b101: begin
               // BN.TRN1/BN.TRN2
