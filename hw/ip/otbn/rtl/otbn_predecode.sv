@@ -107,7 +107,7 @@ module otbn_predecode
 `ifdef BNMULV
   logic                  mac_bignum_mulv;
 `endif
-  logic [2:0]            mac_bignum_lane_index;
+  logic [3:0]            mac_bignum_lane_index;
   logic [1:0]            mac_bignum_op_a_qw_sel;
   logic [2:0]            mac_bignum_op_b_elem0_sel;
   logic [2:0]            mac_bignum_op_b_elem1_sel;
@@ -197,7 +197,7 @@ module otbn_predecode
 
   // BN MAC parsing
   assign mac_bignum_elen_raw   = imem_rdata_i[25];
-  assign mac_bignum_lane_index = imem_rdata_i[30:28];
+  assign mac_bignum_lane_index = imem_rdata_i[30:27];
 
   always_comb begin
     rf_ren_a_base   = 1'b0;
@@ -867,10 +867,7 @@ module otbn_predecode
                 insn_rs2 = {{4'b1000}, imem_rdata_i[24]};
                 mac_bignum_is_lane = 1'b1;
                 // lane_index must match decoder formula for predec FSM comparison
-                if (imem_rdata_i[26] == 1'b0)  // 16-bit
-                  mac_bignum_lane_index = imem_rdata_i[23:21];
-                else                          // 32-bit
-                  mac_bignum_lane_index = {imem_rdata_i[22:21], imem_rdata_i[20]};
+                mac_bignum_lane_index = imem_rdata_i[23:20];
               end
 
               if (imem_rdata_i[29:28] == 2'b01) begin

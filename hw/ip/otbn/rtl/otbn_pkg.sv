@@ -649,7 +649,7 @@ package otbn_pkg;
 `endif
     mac_elen_e               mac_elen;
     logic [VLEN/QWLEN-1:0]   mac_adder_carry_sel;
-    logic [2:0]              mac_lane_index;
+    logic [3:0]              mac_lane_index;
 
     logic                    rf_we;
     rf_wd_sel_e              rf_wdata_sel;
@@ -719,7 +719,7 @@ package otbn_pkg;
     logic                  is_vec;
     logic                  is_mod;
     logic                  is_lane;
-    logic [2:0]            lane_index;
+    logic [3:0]            lane_index;
     mac_elen_e             elen;
     logic [VLEN/QWLEN-1:0] adder_carry_sel;
     logic                  acc_add_en;
@@ -810,7 +810,7 @@ package otbn_pkg;
     logic                  is_lane;
     mac_elen_e             elen;
     logic [VLEN/QWLEN-1:0] adder_carry_sel;
-    logic [2:0]            lane_index;
+    logic [3:0]            lane_index;
 `ifdef BNMULV
     logic                  mulv;
     logic                  data_type;

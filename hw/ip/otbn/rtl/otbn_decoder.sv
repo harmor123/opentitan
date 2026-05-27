@@ -194,7 +194,7 @@ module otbn_decoder
   logic                  mac_is_lane_bignum;
   logic                  mac_vec_elen_raw_bignum;
   logic [VLEN/QWLEN-1:0] mac_adder_carry_sel_bignum;
-  logic [2:0]            mac_lane_index_bignum;
+  logic [3:0]            mac_lane_index_bignum;
 
 
 `ifdef BNMULV
@@ -218,7 +218,7 @@ module otbn_decoder
   assign mac_pre_acc_shift_bignum   = insn[14:13];
   assign mac_shift_out_bignum       = insn[30];
   assign mac_vec_elen_raw_bignum    = insn[25];
-  assign mac_lane_index_bignum      = insn[30:28];
+  assign mac_lane_index_bignum      = insn[30:27];
 
   logic d_inc_bignum;
   logic a_inc_bignum;
@@ -772,14 +772,14 @@ module otbn_decoder
                 insn_rs2 = {{4'b1000}, insn[24]};
                 mac_is_lane_bignum = 1'b1;  // inform FSM of lane mode for predec check
                 if (mac_data_type_bignum == 1'b0) begin
-                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[23:22]};
+                  mac_op_b_elem0_sel_raw_bignum   = {insn[23:22], 1'b0};
                   mac_lane_word_32_bignum  = insn[21];
                   mac_lane_word_16_bignum  = insn[20];
-                  mac_lane_index_bignum          = insn[23:21];
+                  mac_lane_index_bignum          = insn[23:20];
                 end else begin
                   mac_op_b_elem0_sel_raw_bignum   = {insn[22:21], 1'b0};
                   mac_lane_word_32_bignum  = insn[20];
-                  mac_lane_index_bignum          = {insn[22:21], insn[20]};
+                  mac_lane_index_bignum          = insn[23:20];
                 end
               end else begin
 
@@ -1306,14 +1306,14 @@ module otbn_decoder
                 insn_rs2 = {{4'b1000}, insn[24]};
                 mac_is_lane_bignum = 1'b1;  // inform FSM of lane mode for predec check
                 if (mac_data_type_bignum == 1'b0) begin
-                  mac_op_b_elem0_sel_raw_bignum   = {1'b0, insn[23:22]};
+                  mac_op_b_elem0_sel_raw_bignum   = {insn[23:22], 1'b0};
                   mac_lane_word_32_bignum  = insn[21];
                   mac_lane_word_16_bignum  = insn[20];
-                  mac_lane_index_bignum          = insn[23:21];
+                  mac_lane_index_bignum          = insn[23:20];
                 end else begin
                   mac_op_b_elem0_sel_raw_bignum   = {insn[22:21], 1'b0};
                   mac_lane_word_32_bignum  = insn[20];
-                  mac_lane_index_bignum          = {insn[22:21], insn[20]};
+                  mac_lane_index_bignum          = insn[23:20];
                 end
               end else begin
 

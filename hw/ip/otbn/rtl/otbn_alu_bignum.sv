@@ -838,9 +838,12 @@ module otbn_alu_bignum
   );
 
   // SEC_CM: CTRL.REDUN
+  // Suppress ISPR predec check during init/wipe (ispr_init_i), since wipe
+  // writes all ISPRs (including IsprAccH when BNMULV_ACCH is defined) but
+  // the predecoder can't predict hardware-driven writes.
   assign ispr_predec_error_o =
     |{expected_ispr_rd_en_onehot != ispr_bignum_predec_i.ispr_rd_en,
-      expected_ispr_wr_en_onehot != ispr_bignum_predec_i.ispr_wr_en};
+      expected_ispr_wr_en_onehot != ispr_bignum_predec_i.ispr_wr_en} & ~ispr_init_i;
 
   ///////////////////////
   // Shifter & Packing //

@@ -20,7 +20,7 @@ module otbn_mac_bignum_fsm
   input  logic                  is_vec_i,
   input  logic                  is_mod_i,
   input  logic                  is_lane_i,
-  input  logic [2:0]            lane_index_i,
+  input  logic [3:0]            lane_index_i,
   input  mac_elen_e             elen_i,
   input  logic [VLEN/QWLEN-1:0] adder_carry_sel_i,
   input  logic                  acc_add_en_i,
