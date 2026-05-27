@@ -56,12 +56,6 @@ kmac_init:
     csrrw   x0, 0x7db, x5           /* kmac_cfg */
     addi    x5, x0, 29              /* CMD_START = 0x1D */
     csrrw   x0, 0x7dd, x5           /* kmac_cmd */
-
-    addi    x6, x0, 2               /* kmac_status[1]: SHA3_ABSORB */
-.wait_absorb:
-    csrrs   x5, 0xfc2, x0
-    and     x5, x5, x6
-    beq     x5, x0, .wait_absorb
     ret
 
 /* ================================================================
