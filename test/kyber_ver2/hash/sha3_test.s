@@ -196,8 +196,7 @@ test_shake128_1run:
     jal     x1, keccak_send_message
     jal     x1, kmac_process
     la      x10, shake128_1run_b1
-    jal     x1, kmac_squeeze_32B
-    jal     x1, kmac_run
+    jal     x1, kmac_squeeze_32B   /* auto-RUN only if block exhausted */
     la      x10, shake128_1run_b2
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
@@ -213,7 +212,6 @@ test_shake256_1run:
     jal     x1, kmac_process
     la      x10, shake256_1run_b1
     jal     x1, kmac_squeeze_32B
-    jal     x1, kmac_run
     la      x10, shake256_1run_b2
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
@@ -227,7 +225,7 @@ test_shake128_rate_cross:
     addi    x11, x0, 256           /* 256B 消息 */
     jal     x1, keccak_send_message
     jal     x1, kmac_process
-    /* 5 squeezes: 20 lanes, within rate=21 */
+    /* 6 squeezes: 192B > 168B rate, auto-RUN at boundary */
     la      x10, rcx_b1
     jal     x1, kmac_squeeze_32B
     la      x10, rcx_b2
@@ -238,10 +236,8 @@ test_shake128_rate_cross:
     jal     x1, kmac_squeeze_32B
     la      x10, rcx_b5
     jal     x1, kmac_squeeze_32B
-    /* RUN: 跨 rate boundary */
-    jal     x1, kmac_run
     la      x10, rcx_b6
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_32B   /* crosses boundary → auto-RUN inside */
     jal     x1, kmac_done
     ret
 /* ==================== 数据段 ==================== */

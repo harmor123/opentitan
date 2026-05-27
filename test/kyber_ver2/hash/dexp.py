@@ -66,48 +66,23 @@ print(f"shake128_64b_out_1: {hx(hw(s128[0:32]))}")
 print(f"shake128_64b_out_2: {hx(hw(s128[32:64]))}")
 print()
 
-# ── SHAKE + RUN: 读 N 字节后 FORCE keccak-f, 再读 M 字节 ─
+# ── SHAKE: 连续 squeeze（auto-RUN 在 block 耗尽时触发）──
 
-def shake128_run(msg, n1, n2, rate=168):
-    """SHAKE128: read n1 bytes, RUN (discard block remaining), read n2 bytes"""
-    s = SHAKE128.new(data=msg)
-    b1 = s.read(n1)
-    remaining = rate - n1
-    if remaining > 0:
-        s.read(remaining)  # force keccak-f
-    b2 = s.read(n2)
-    return b1, b2
-
-def shake256_run(msg, n1, n2, rate=136):
-    """SHAKE256: read n1 bytes, RUN, read n2 bytes"""
-    s = SHAKE256.new(data=msg)
-    b1 = s.read(n1)
-    remaining = rate - n1
-    if remaining > 0:
-        s.read(remaining)
-    b2 = s.read(n2)
-    return b1, b2
-
-# SHAKE128 1run
-b1, b2 = shake128_run(MSG_8B, 32, 32)
-print(f"shake128_1run_b1: {hx(hw(b1))}")
-print(f"shake128_1run_b2: {hx(hw(b2))}")
+# SHAKE128 1run: 连续 64B
+s128 = SHAKE128.new(data=MSG_8B).read(64)
+print(f"shake128_1run_b1: {hx(hw(s128[0:32]))}")
+print(f"shake128_1run_b2: {hx(hw(s128[32:64]))}")
 print()
 
-# SHAKE256 1run
-b1, b2 = shake256_run(MSG_8B, 32, 32)
-print(f"shake256_1run_b1: {hx(hw(b1))}")
-print(f"shake256_1run_b2: {hx(hw(b2))}")
+# SHAKE256 1run: 连续 64B
+s256 = SHAKE256.new(data=MSG_8B).read(64)
+print(f"shake256_1run_b1: {hx(hw(s256[0:32]))}")
+print(f"shake256_1run_b2: {hx(hw(s256[32:64]))}")
 print()
 
-# SHAKE128 rate-cross: 5 squeezes (160B) + RUN + 1 squeeze (32B)
-s = SHAKE128.new(data=MSG_256B)
-batches = []
-for i in range(5):
-    batches.append(s.read(32))
-# After 5*32=160B, remaining in block 1 = 168-160 = 8B
-# RUN: discard 8B → force keccak-f
-s.read(8)
-batches.append(s.read(32))
+# SHAKE128 rate-cross: 6×32B 连续读取 = 192B > 168B rate
+# auto-RUN 在 6th squeeze 的第2个word自动触发(168B耗尽)
+s = SHAKE128.new(data=MSG_256B).read(192)
+batches = [s[i:i+32] for i in range(0, 192, 32)]
 for i, b in enumerate(batches):
     print(f"rcx_b{i+1}: {hx(hw(b))}")

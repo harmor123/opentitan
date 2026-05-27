@@ -153,10 +153,34 @@ kmac_process:
     ret
 
 /* ================================================================
+ * _ensure_digest: 确保 DIGEST_VALID 置起，否则自动 kmac_run
+ *
+ * 每次读 word 前调用，彻底消除调用方对 block 边界的感知。
+ * 输入: x6 = 8 (DIGEST_VALID 位掩码，调用者设定)
+ * 破坏: x5
+ * 保存/恢复: x1 (通过栈)，x6 (调用者负责)
+ * ================================================================ */
+_ensure_digest:
+    csrrs   x5, 0x7d9, x0           /* kmac_if_status */
+    and     x5, x5, x6
+    bne     x5, x0, _ed_ret         /* DIGEST_VALID 已置起 → 直接返回 */
+
+    /* Block 耗尽，需要 kmac_run */
+    addi    sp, sp, -8
+    sw      x1, 0(sp)               /* 保存 squeeze_32B 内的返回地址 */
+    sw      x6, 4(sp)               /* 保存 DIGEST_VALID 掩码 */
+    jal     x1, kmac_run
+    lw      x6, 4(sp)
+    lw      x1, 0(sp)
+    addi    sp, sp, 8
+_ed_ret:
+    jalr    x0, x1, 0               /* 通过 x1 返回到调用点 */
+
+/* ================================================================
  * kmac_squeeze_32B: 挤出 32 字节摘要到 DMEM
  *
- * 硬件 auto-advance: 读 s0+s1 后自动推进到下一 64-bit word，
- * 下一 word 的 DIGEST_VALID 在同一周期置起，无需重查。
+ * 每个 word 读之前通过 _ensure_digest 自动检测 block 边界，
+ * DIGEST_VALID 不可用时自动调用 kmac_run。
  *
  * 输入: x10 = out_ptr (32-byte aligned)
  * 破坏: x5, x6, w8, w9, w10, w31
@@ -164,19 +188,16 @@ kmac_process:
 .globl kmac_squeeze_32B
 kmac_squeeze_32B:
     bn.xor  w31, w31, w31           /* w31 = 0 (bn.rshi 零参考) */
-
-    addi    x6, x0, 8               /* kmac_if_status[3]: DIGEST_VALID */
-.wait_digest_0:
-    csrrs   x5, 0x7d9, x0
-    and     x5, x5, x6
-    beq     x5, x0, .wait_digest_0
+    addi    x6, x0, 8               /* DIGEST_VALID 位掩码 */
 
     /* Word 0 → w8[63:0] */
+    jal     x1, _ensure_digest
     bn.wsrr w8, 8                   /* kmac_data_s0 */
     bn.wsrr w9, 9                   /* kmac_data_s1 */
     bn.xor  w8, w8, w9
 
     /* Word 1 → w8[127:64] */
+    jal     x1, _ensure_digest
     bn.wsrr w9, 8
     bn.wsrr w10, 9
     bn.xor  w9, w9, w10
@@ -184,6 +205,7 @@ kmac_squeeze_32B:
     bn.or   w8, w8, w9
 
     /* Word 2 → w8[191:128] */
+    jal     x1, _ensure_digest
     bn.wsrr w9, 8
     bn.wsrr w10, 9
     bn.xor  w9, w9, w10
@@ -191,6 +213,7 @@ kmac_squeeze_32B:
     bn.or   w8, w8, w9
 
     /* Word 3 → w8[255:192] */
+    jal     x1, _ensure_digest
     bn.wsrr w9, 8
     bn.wsrr w10, 9
     bn.xor  w9, w9, w10

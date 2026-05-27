@@ -424,18 +424,13 @@ module otbn_top_sim (
       end
       if (insn_cnt != otbn_model_insn_cnt) begin
         if (!cnt_mismatch_latched) begin
-          $display("NOTE: At time %0t, FIRST insn_cnt mismatch: RTL=0x%0x ISS=0x%0x Diff=%0d",
+          $display("ERROR: At time %0t, FIRST insn_cnt mismatch: RTL=0x%0x ISS=0x%0x Diff=%0d",
                    $time, insn_cnt, otbn_model_insn_cnt,
                    $signed(insn_cnt) - $signed(otbn_model_insn_cnt));
-          $display("  RTL err_bits=0x%0x  ISS model_err=%b",
-                   otbn_err_bits, otbn_model_err);
+          $stop;  // stop immediately at first insn_cnt mismatch
         end
         cnt_mismatch_latched <= 1'b1;
       end
-      // DEBUG: track insn_cnt changes every cycle
-      if (insn_cnt != otbn_model_insn_cnt)
-        $display("[%0t] INSN_CNT_DBG: RTL=0x%0x ISS=0x%0x",
-                 $time, insn_cnt, otbn_model_insn_cnt);
       model_err_latched <= model_err_latched | otbn_model_err | loop_warp_model_err;
     end
   end
