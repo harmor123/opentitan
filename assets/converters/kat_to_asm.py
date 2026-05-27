@@ -86,35 +86,53 @@ def main():
         # keypair.s
         with open(os.path.join(ddir, "keypair.s"), "w") as f:
             f.write(f"/* KAT tcId={tc} keypair: d={d_hex[:16]}... z={z_hex[:16]}... */\n")
-            f.write(f"/* pk={len(kg_e[tc]['ek'])//2}B sk={len(kg_e[tc]['dk'])//2}B */\n\n")
-            f.write(".globl kat_coins\nkat_coins:\n")
+            f.write(f"/* ek={len(kg_e[tc]['ek'])//2}B dk={len(kg_e[tc]['dk'])//2}B */\n\n")
+            f.write(".globl coins\ncoins:\n")
             for w in hw(d_hex + z_hex): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_pk\nkat_pk:\n")
+            f.write("\n.globl ek\nek:\n")
             for w in hw(kg_e[tc]["ek"]): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_sk\nkat_sk:\n")
+            f.write("\n.globl dk\ndk:\n")
             for w in hw(kg_e[tc]["dk"]): f.write(f"    .word {w}\n")
 
-        # encap.s
+        # keypair.dexp  (.dexp = DMEM byte order = reversed big-endian)
+        with open(os.path.join(ddir, "keypair.dexp"), "w") as f:
+            f.write(f"ek: {bytes.fromhex(kg_e[tc]['ek'])[::-1].hex()}\n")
+            f.write(f"dk: {bytes.fromhex(kg_e[tc]['dk'])[::-1].hex()}\n")
+
+        # encap.s  (ACVP encap uses its OWN ek from prompt, NOT keypair's ek)
         with open(os.path.join(ddir, "encap.s"), "w") as f:
             f.write(f"/* KAT tcId={tc} encap: m={m_hex[:16]}... */\n")
-            f.write(f"/* ct={len(ct_h)//2}B ss={ss_h} */\n\n")
-            f.write(".globl kat_coins\nkat_coins:\n")
+            f.write(f"/* ek={len(enc_m[tc]['ek'])//2}B ct={len(ct_h)//2}B ss={ss_h} */\n\n")
+            f.write(".globl coins\ncoins:\n")
             for w in hw(m_hex): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_ct\nkat_ct:\n")
+            f.write("\n.globl ek\nek:\n")
+            for w in hw(enc_m[tc]["ek"]): f.write(f"    .word {w}\n")
+            f.write("\n.globl ct\nct:\n")
             for w in hw(ct_h): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_ss\nkat_ss:\n")
+            f.write("\n.globl ss\nss:\n")
             for w in hw(ss_h): f.write(f"    .word {w}\n")
 
-        # decap.s
+        # encap.dexp
+        with open(os.path.join(ddir, "encap.dexp"), "w") as f:
+            f.write(f"ct: {bytes.fromhex(ct_h)[::-1].hex()}\n")
+            f.write(f"ss: {bytes.fromhex(ss_h)[::-1].hex()}\n")
+
+        # decap.s  (NOTE: ACVP decap prompt has no dk field.
+        # dk is a tester-provided input, not recorded in prompt.json.
+        # Using keypair expected dk — NOT guaranteed to match decap ct.)
         with open(os.path.join(ddir, "decap.s"), "w") as f:
-            f.write(f"/* KAT tcId={tc} decap */\n")
-            f.write(f"/* ct={len(c_h)//2}B ss={ss2_h} */\n\n")
-            f.write(".globl kat_ct\nkat_ct:\n")
+            f.write(f"/* KAT tcId={tc} decap (WARNING: dk from keypair, may not match ct) */\n")
+            f.write(f"/* ct={len(c_h)//2}B dk={len(kg_e[tc]['dk'])//2}B ss={ss2_h} */\n\n")
+            f.write(".globl ct\nct:\n")
             for w in hw(c_h): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_ss\nkat_ss:\n")
+            f.write("\n.globl dk\ndk:\n")
+            for w in hw(kg_e[tc]["dk"]): f.write(f"    .word {w}\n")
+            f.write("\n.globl ss\nss:\n")
             for w in hw(ss2_h): f.write(f"    .word {w}\n")
 
-    print(f"Output: {OUT_BASE}/tcId_XXX/ (keypair.s, encap.s, decap.s) × {len(selected)}")
+        # decap.dexp
+        with open(os.path.join(ddir, "decap.dexp"), "w") as f:
+            f.write(f"ss: {bytes.fromhex(ss2_h)[::-1].hex()}\n")
 
 
 if __name__ == "__main__":

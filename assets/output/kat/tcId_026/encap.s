@@ -1,8 +1,8 @@
 /* KAT tcId=26 encap: m=2CE74AD291133518... */
-/* ct=1088B ss=2696D28E9C61C2A01CE9B1608DCB9D292785A0CD58EFB7FE13B1DE95F0DB55B3 */
+/* ek=1184B ct=1088B ss=2696D28E9C61C2A01CE9B1608DCB9D292785A0CD58EFB7FE13B1DE95F0DB55B3 */
 
-.globl kat_coins
-kat_coins:
+.globl coins
+coins:
     .word 0xd24ae72c
     .word 0x18351391
     .word 0xdfc760fe
@@ -12,8 +12,307 @@ kat_coins:
     .word 0x947e546e
     .word 0xf76b6b9e
 
-.globl kat_ct
-kat_ct:
+.globl ek
+ek:
+    .word 0x71a0146d
+    .word 0x2545ccf7
+    .word 0x1ae7d558
+    .word 0x6270087b
+    .word 0x6838b1ec
+    .word 0x46825844
+    .word 0xb1026412
+    .word 0x733716fa
+    .word 0x0cf6d53c
+    .word 0x64cb4bc8
+    .word 0x6192786a
+    .word 0xb1517c4d
+    .word 0x79a2f1c7
+    .word 0x34f13291
+    .word 0x2148dc27
+    .word 0x4425da58
+    .word 0x009ea570
+    .word 0x8696e4a4
+    .word 0x5577c0fd
+    .word 0x0c276793
+    .word 0x10f15321
+    .word 0x9c2c5907
+    .word 0x8acf1043
+    .word 0x71a8c612
+    .word 0x51bbd63b
+    .word 0x984f12f3
+    .word 0x40d5a09b
+    .word 0x2e24cc73
+    .word 0x0b786809
+    .word 0x9e865a87
+    .word 0x861585fb
+    .word 0xa368a8b9
+    .word 0x82e6b984
+    .word 0x931b201b
+    .word 0x6953452c
+    .word 0x22ec39a7
+    .word 0x7c979c56
+    .word 0x18382b21
+    .word 0x56368171
+    .word 0x7e565baf
+    .word 0x84b593f8
+    .word 0x3a864c62
+    .word 0xf1009025
+    .word 0x984b257b
+    .word 0x7c0985b1
+    .word 0x8bb6eb50
+    .word 0xe0424324
+    .word 0x20e54d5d
+    .word 0x108e5b12
+    .word 0x6043b133
+    .word 0xcee7ac93
+    .word 0x58b4718e
+    .word 0x336725d5
+    .word 0x3b5a0463
+    .word 0x5594ea3e
+    .word 0x87398a42
+    .word 0x2723a405
+    .word 0x4b77b3ad
+    .word 0x2bf45770
+    .word 0x73c07e01
+    .word 0x193f989a
+    .word 0x094d21e8
+    .word 0x4da25f19
+    .word 0xb71d572d
+    .word 0xf8a6193c
+    .word 0x83500e46
+    .word 0x625f410d
+    .word 0x4ae9887b
+    .word 0x9137157b
+    .word 0xe9c7c0a0
+    .word 0xd5744c48
+    .word 0x8948713c
+    .word 0xb621e3f0
+    .word 0x2a530a66
+    .word 0x57e5c05b
+    .word 0xe235cafb
+    .word 0x2011c69b
+    .word 0x33c6d30e
+    .word 0x874d7a07
+    .word 0x70c65c3c
+    .word 0xbf53b706
+    .word 0xf67a6b6d
+    .word 0xb62a40ca
+    .word 0x0a6c2318
+    .word 0x1f80bcff
+    .word 0xc3fb2282
+    .word 0x4e98e06c
+    .word 0x44c9182b
+    .word 0x03efcbbb
+    .word 0x1c36e1b1
+    .word 0xd7b0441f
+    .word 0x56b1af34
+    .word 0x4487ff6c
+    .word 0x43998bda
+    .word 0x3c5ab4d6
+    .word 0x02070309
+    .word 0xfe1f20ca
+    .word 0xc57ecb20
+    .word 0x9e14d4b0
+    .word 0x8b8ec2e2
+    .word 0x474f3723
+    .word 0x0d15571b
+    .word 0x6233c90e
+    .word 0xcbd5a261
+    .word 0xacaca384
+    .word 0x739428c4
+    .word 0xc6abc0a4
+    .word 0xc1abc917
+    .word 0x34447378
+    .word 0x85162ec8
+    .word 0x2e5c8a58
+    .word 0x6b8f67a2
+    .word 0x7328223c
+    .word 0x66c43031
+    .word 0xf46eb8e5
+    .word 0x483e1591
+    .word 0xb8472266
+    .word 0x0201d275
+    .word 0x816b560b
+    .word 0x9a834db6
+    .word 0xaa3b63b4
+    .word 0x2b20ce8a
+    .word 0x6249b4aa
+    .word 0x7a80f997
+    .word 0x331ebbdb
+    .word 0x22806f2c
+    .word 0xfd8ca1b2
+    .word 0x3025a8d4
+    .word 0x07f0d3b6
+    .word 0x983835c3
+    .word 0x2ccc66d9
+    .word 0x4442cb21
+    .word 0x3f4400bd
+    .word 0xac709820
+    .word 0x30c32bc4
+    .word 0xec24c768
+    .word 0x19362217
+    .word 0xca3c09c1
+    .word 0x5029eb6a
+    .word 0x22d16406
+    .word 0xb8b43650
+    .word 0x69909110
+    .word 0x1c1f4869
+    .word 0x0b143c72
+    .word 0x8f166c9d
+    .word 0xa6be645b
+    .word 0x38d65f9c
+    .word 0x4b36f75d
+    .word 0xc8bc2387
+    .word 0x7e8c035e
+    .word 0x0d904a46
+    .word 0x7812a268
+    .word 0x17429918
+    .word 0xb3bdc8ae
+    .word 0x990a979a
+    .word 0x6893de63
+    .word 0x2ac82a8e
+    .word 0xb92fc2bc
+    .word 0x20a27b27
+    .word 0x3878e809
+    .word 0x3916381a
+    .word 0xc8d4c701
+    .word 0x8d531950
+    .word 0x9caeca35
+    .word 0x928caf41
+    .word 0xb00be29e
+    .word 0xe719a68c
+    .word 0x62222f2c
+    .word 0x8593c9c1
+    .word 0xc01a5572
+    .word 0x8f26c92d
+    .word 0x795dc3bc
+    .word 0x093c1c01
+    .word 0x4f0ad40a
+    .word 0xe59b1c11
+    .word 0xb77e425c
+    .word 0x2d93c196
+    .word 0x9a577386
+    .word 0x38c6b4f1
+    .word 0x894494b0
+    .word 0x59252a01
+    .word 0x8124b0a3
+    .word 0x0bc31ab0
+    .word 0x800f96a8
+    .word 0x94b3c2c0
+    .word 0x2ca1367d
+    .word 0xbe980408
+    .word 0x6c7148e4
+    .word 0xc8163497
+    .word 0xa3042824
+    .word 0xe19e09da
+    .word 0x90bab037
+    .word 0x6a5c4afe
+    .word 0x76022089
+    .word 0x43b6cfa0
+    .word 0xa2562cec
+    .word 0xb4d708d7
+    .word 0xc1443e37
+    .word 0x3a762a50
+    .word 0xe6860560
+    .word 0x3827a6cd
+    .word 0x4844d497
+    .word 0xe6c27d28
+    .word 0x2039dc02
+    .word 0x6216f60b
+    .word 0xd19f5536
+    .word 0x2a89602a
+    .word 0xd63d15eb
+    .word 0x9946bb51
+    .word 0x46b3b410
+    .word 0xa81df969
+    .word 0xb71e4d65
+    .word 0x28e0b62e
+    .word 0xa7b0b300
+    .word 0x838ca4d0
+    .word 0xa8d35468
+    .word 0x9c56653e
+    .word 0xb40b23b7
+    .word 0x3a143f4f
+    .word 0x2c5fec6d
+    .word 0xf290ab39
+    .word 0x8b08f274
+    .word 0xfca6d6d3
+    .word 0x730207a0
+    .word 0x7784dcbe
+    .word 0x3c2eb57f
+    .word 0xe00a8b55
+    .word 0xa4d58361
+    .word 0x682f458d
+    .word 0xf80752e1
+    .word 0xca7a6261
+    .word 0x30962714
+    .word 0xa0c32ef8
+    .word 0x338607ca
+    .word 0xa7af00b6
+    .word 0x00a64397
+    .word 0x63e55b21
+    .word 0x2cce5874
+    .word 0xa0f5afe8
+    .word 0x7b01b58e
+    .word 0x7765762c
+    .word 0xc68d9f47
+    .word 0xc75c9fbf
+    .word 0x21938950
+    .word 0xea6cb961
+    .word 0xae206640
+    .word 0x070463db
+    .word 0xbb7e68f7
+    .word 0x794c81b4
+    .word 0x487a6381
+    .word 0x80e60da9
+    .word 0xa762e031
+    .word 0xb41276af
+    .word 0xdaa6c7f5
+    .word 0x6513bd86
+    .word 0x9542e629
+    .word 0xa73e61a5
+    .word 0x44d4d33b
+    .word 0x241fb88c
+    .word 0xa6c03531
+    .word 0xc1b9be60
+    .word 0xef1d657e
+    .word 0x907d9a46
+    .word 0x81345da1
+    .word 0xf2cb0b09
+    .word 0x28230127
+    .word 0x6fa41f94
+    .word 0x6a00c539
+    .word 0x8a453dd9
+    .word 0x55d6ada6
+    .word 0x8c412b86
+    .word 0x51f59430
+    .word 0x15f20d46
+    .word 0xa710583a
+    .word 0x61f074da
+    .word 0xbe88254c
+    .word 0x5e6fdc49
+    .word 0x42461588
+    .word 0x62371dbd
+    .word 0x43263356
+    .word 0x6a150735
+    .word 0x9476c557
+    .word 0x7a6ed2bd
+    .word 0x72eb6f24
+    .word 0xb067ed3a
+    .word 0xe4c88748
+    .word 0xab8cb476
+    .word 0x2f36e559
+    .word 0x50efa926
+    .word 0xba80bcc2
+    .word 0x21266214
+    .word 0x6829e66f
+    .word 0xe8040da6
+    .word 0x41d770c1
+    .word 0xe1b0a2c7
+    .word 0x68c9daab
+
+.globl ct
+ct:
     .word 0x592db456
     .word 0x878eab3a
     .word 0xd792bd73
@@ -287,8 +586,8 @@ kat_ct:
     .word 0xd7b0d7a7
     .word 0xc67558ca
 
-.globl kat_ss
-kat_ss:
+.globl ss
+ss:
     .word 0x8ed29626
     .word 0xa0c2619c
     .word 0x60b1e91c

@@ -1,8 +1,8 @@
 /* KAT tcId=26 keypair: d=E34A701C4C87582F... z=A85768F3486BD32A... */
-/* pk=1184B sk=2400B */
+/* ek=1184B dk=2400B */
 
-.globl kat_coins
-kat_coins:
+.globl coins
+coins:
     .word 0x1c704ae3
     .word 0x2f58874c
     .word 0xe44e2642
@@ -20,8 +20,8 @@ kat_coins:
     .word 0x2088b83e
     .word 0xddee59b1
 
-.globl kat_pk
-kat_pk:
+.globl ek
+ek:
     .word 0x71a0146d
     .word 0x2545ccf7
     .word 0x1ae7d558
@@ -319,8 +319,8 @@ kat_pk:
     .word 0xe1b0a2c7
     .word 0x68c9daab
 
-.globl kat_sk
-kat_sk:
+.globl dk
+dk:
     .word 0xdab2a198
     .word 0xb5cf654a
     .word 0x31a75e84

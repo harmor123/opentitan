@@ -83,7 +83,7 @@ ek:
   .zero 1184
 
 .balign 32
-/* First input: coins */
+/* First input: coins 
 .globl coins
 coins:
   .word 0xa42b9c7f
@@ -101,7 +101,26 @@ coins:
   .word 0x4afa016e
   .word 0x63a3e858
   .word 0xe3a1a89c
-  .word 0xe257aef9
+  .word 0xe257aef9 */
+
+.globl coins
+coins:
+    .word 0xa035997c
+    .word 0xaa9476b0
+    .word 0xe4106d0c
+    .word 0xdd1a6bdb
+    .word 0x251ad82f
+    .word 0x0348b1cc
+    .word 0x9973cd2d
+    .word 0x2d7f7336
+    .word 0xcfd705b5
+    .word 0x74491bad
+    .word 0x863c3299
+    .word 0x475e3286
+    .word 0xaa67f292
+    .word 0xca873ffa
+    .word 0xb51cd060
+    .word 0x2a20294f
 
 /* Modulus: KYBER_Q = 3329 */
 .globl modulus

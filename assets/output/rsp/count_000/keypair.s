@@ -1,17 +1,9 @@
 /* RSP count=0 seed=061550234D158C5EC95595FE04EF7A25... */
-/* d=7c9935a0b07694aa... z=8626ed79d4511408... */
-/* pk=1184B sk=2400B */
+/* d=8626ed79d4511408... z=7c9935a0b07694aa... */
+/* ek=1184B dk=2400B */
 
-.globl kat_coins
-kat_coins:
-    .word 0xa035997c
-    .word 0xaa9476b0
-    .word 0xe4106d0c
-    .word 0xdd1a6bdb
-    .word 0x251ad82f
-    .word 0x0348b1cc
-    .word 0x9973cd2d
-    .word 0x2d7f7336
+.globl coins
+coins:
     .word 0x79ed2686
     .word 0x081451d4
     .word 0x593be000
@@ -20,9 +12,17 @@ kat_coins:
     .word 0xdc137d40
     .word 0x8b9efa90
     .word 0x8ffb2b87
+    .word 0xa035997c
+    .word 0xaa9476b0
+    .word 0xe4106d0c
+    .word 0xdd1a6bdb
+    .word 0x251ad82f
+    .word 0x0348b1cc
+    .word 0x9973cd2d
+    .word 0x2d7f7336
 
-.globl kat_pk
-kat_pk:
+.globl ek
+ek:
     .word 0x9c2d2ca7
     .word 0xf8e93e84
     .word 0x7fcc3e31
@@ -320,8 +320,8 @@ kat_pk:
     .word 0x6516a354
     .word 0x2239b529
 
-.globl kat_sk
-kat_sk:
+.globl dk
+dk:
     .word 0xb68f6307
     .word 0xd3f36898
     .word 0x2b86e520

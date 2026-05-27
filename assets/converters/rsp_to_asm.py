@@ -81,41 +81,59 @@ def main():
 
         seed = bytes.fromhex(v["seed"])
         drbg = AES256_CTR_DRBG(seed=seed)
+        z = drbg.random_bytes(32)  # ML-KEM KAT: z first, then d
         d = drbg.random_bytes(32)
-        z = drbg.random_bytes(32)
         m = drbg.random_bytes(32)
 
         # keypair.s
         with open(os.path.join(ddir, "keypair.s"), "w") as f:
             f.write(f"/* RSP count={cnt} seed={v['seed'][:32]}... */\n")
             f.write(f"/* d={d.hex()[:16]}... z={z.hex()[:16]}... */\n")
-            f.write(f"/* pk={len(v['pk'])//2}B sk={len(v['sk'])//2}B */\n\n")
-            f.write(".globl kat_coins\nkat_coins:\n")
+            f.write(f"/* ek={len(v['pk'])//2}B dk={len(v['sk'])//2}B */\n\n")
+            f.write(".globl coins\ncoins:\n")
             for w in hw((d + z).hex()): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_pk\nkat_pk:\n")
+            f.write("\n.globl ek\nek:\n")
             for w in hw(v["pk"]): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_sk\nkat_sk:\n")
+            f.write("\n.globl dk\ndk:\n")
             for w in hw(v["sk"]): f.write(f"    .word {w}\n")
+
+        # keypair.dexp  (.dexp needs DMEM byte order = reversed .rsp big-endian)
+        with open(os.path.join(ddir, "keypair.dexp"), "w") as f:
+            f.write(f"ek: {bytes.fromhex(v['pk'])[::-1].hex()}\n")
+            f.write(f"dk: {bytes.fromhex(v['sk'])[::-1].hex()}\n")
 
         # encap.s
         with open(os.path.join(ddir, "encap.s"), "w") as f:
             f.write(f"/* RSP count={cnt} m={m.hex()[:16]}... */\n")
-            f.write(f"/* ct={len(v['ct'])//2}B ss={v['ss']} */\n\n")
-            f.write(".globl kat_coins\nkat_coins:\n")
+            f.write(f"/* ek={len(v['pk'])//2}B ct={len(v['ct'])//2}B ss={v['ss']} */\n\n")
+            f.write(".globl coins\ncoins:\n")
             for w in hw(m.hex()): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_ct\nkat_ct:\n")
+            f.write("\n.globl ek\nek:\n")
+            for w in hw(v["pk"]): f.write(f"    .word {w}\n")
+            f.write("\n.globl ct\nct:\n")
             for w in hw(v["ct"]): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_ss\nkat_ss:\n")
+            f.write("\n.globl ss\nss:\n")
             for w in hw(v["ss"]): f.write(f"    .word {w}\n")
+
+        # encap.dexp
+        with open(os.path.join(ddir, "encap.dexp"), "w") as f:
+            f.write(f"ct: {bytes.fromhex(v['ct'])[::-1].hex()}\n")
+            f.write(f"ss: {bytes.fromhex(v['ss'])[::-1].hex()}\n")
 
         # decap.s
         with open(os.path.join(ddir, "decap.s"), "w") as f:
             f.write(f"/* RSP count={cnt} */\n")
-            f.write(f"/* ct={len(v['ct'])//2}B ss={v['ss']} */\n\n")
-            f.write(".globl kat_ct\nkat_ct:\n")
+            f.write(f"/* ct={len(v['ct'])//2}B dk={len(v['sk'])//2}B ss={v['ss']} */\n\n")
+            f.write(".globl ct\nct:\n")
             for w in hw(v["ct"]): f.write(f"    .word {w}\n")
-            f.write("\n.globl kat_ss\nkat_ss:\n")
+            f.write("\n.globl dk\ndk:\n")
+            for w in hw(v["sk"]): f.write(f"    .word {w}\n")
+            f.write("\n.globl ss\nss:\n")
             for w in hw(v["ss"]): f.write(f"    .word {w}\n")
+
+        # decap.dexp
+        with open(os.path.join(ddir, "decap.dexp"), "w") as f:
+            f.write(f"ss: {bytes.fromhex(v['ss'])[::-1].hex()}\n")
 
     print(f"Output: {OUT_BASE}/count_XXX/ (keypair.s, encap.s, decap.s) × {len(selected)}")
 
