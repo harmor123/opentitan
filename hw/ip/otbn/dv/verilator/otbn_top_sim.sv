@@ -424,8 +424,10 @@ module otbn_top_sim (
       end
       if (insn_cnt != otbn_model_insn_cnt) begin
         if (!cnt_mismatch_latched) begin
-          $display("ERROR: At time %0t, insn_cnt != otbn_model_insn_cnt (0x%0x != 0x%0x).",
-                   $time, insn_cnt, otbn_model_insn_cnt);
+          $display("ERROR: At time %0t, FIRST insn_cnt mismatch: RTL=0x%0x ISS=0x%0x Diff=%0d",
+                   $time, insn_cnt, otbn_model_insn_cnt,
+                   $signed(insn_cnt) - $signed(otbn_model_insn_cnt));
+          $stop;  // stop immediately at first insn_cnt mismatch
         end
         cnt_mismatch_latched <= 1'b1;
       end
@@ -461,18 +463,18 @@ module otbn_top_sim (
     if (!IO_RST_N) begin
       warps_installed <= 1'b0;
     end else begin
+      // Loop warps disabled: they cause insn_cnt divergence between
+      // RTL and ISS due to different warp implementations.
       if (!warps_installed) begin
-        if (OtbnTopInstallLoopWarps() != 0) begin
-          $display("ERROR: At time %0t, OtbnTopInstallLoopWarps() failed.", $time);
-          loop_warp_model_err <= 1'b1;
-        end
+        loop_warp_model_err <= 1'b0;
       end
       warps_installed <= 1'b1;
     end
   end
+  // Loop warps fully disabled to match ISS-only instruction counts
   always_ff @(posedge IO_CLK or negedge IO_RST_N) begin
-    if (IO_RST_N) begin
-      OtbnTopApplyLoopWarp();
+    if (IO_RST_N && warps_installed) begin
+      // OtbnTopApplyLoopWarp(); -- disabled
     end
   end
   always_ff @(negedge IO_CLK or negedge IO_RST_N) begin

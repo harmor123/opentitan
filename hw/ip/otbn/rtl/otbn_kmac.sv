@@ -730,7 +730,10 @@ module otbn_kmac
       StSqueeze: begin
         // RUN transitions to StProcessing to start the counter, but
         // does NOT run keccak_f.  SHAKE is a continuous output stream.
-        if (cmd_run && !sha3_mode)
+        // Use cmd_run_raw to avoid 1 extra cycle of command register
+        // delay (matches ISS kmac.step() which reads CSR immediately
+        // after commit).
+        if ((cmd_run_raw && !sha3_mode) || (cmd_run && !sha3_mode))
           st_d = StProcessing;
         else if (cmd_done)
           st_d = StIdle;

@@ -220,9 +220,6 @@ class Kmac():
             and not self._kmac_msg_send_words_left.value
             and not self._keccak_round_ctr.value)
 
-        with open("/tmp/iss_rdy.txt", "a") as f:
-            f.write(f"st={str(self._state):20s} next={str(self._state_next):20s} sqz={self._keccak_squeezed_cnt.value:4d} ctr={self._keccak_round_ctr.value:4d} rdy_abs={int(self._csrs.KMAC_STATUS.is_squeezing())}\n")
-
         return
 
     def end_cycle(self) -> None:
@@ -445,12 +442,11 @@ class Kmac():
         if self._state != KmacState.ABSORBED:
             return
 
-        # Stop if Keccak is still processing (e.g. after RUN, keccak runs in
-        # ABSORBED state but the state machine keeps the keccak_round_ctr > 0).
+        # Stop if Keccak is still processing.
         if self._keccak_round_ctr.value:
             return
 
-        # Stop if KMAC_DATA is already valid (word not yet read by SW).
+        # Stop if KMAC_DATA is already valid.
         if self._csrs.KMAC_IF_STATUS.get_digest_valid():
             return
 
