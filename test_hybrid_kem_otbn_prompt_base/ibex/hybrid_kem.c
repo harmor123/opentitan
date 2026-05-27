@@ -843,6 +843,9 @@ bool test_main(void) {
   dif_alert_handler_alert_t otbn_recov =
       dt_otbn_alert_to_alert_id(kDtOtbn, kDtOtbnAlertRecov);
 
+  LOG_INFO("OTBN IMEM size: %u bytes, DMEM size: %u bytes",
+           (unsigned)dif_otbn_get_imem_size_bytes(&otbn),
+           (unsigned)dif_otbn_get_dmem_size_bytes(&otbn));
   LOG_INFO("===== Hybrid KEM (ver0_base) Round-Trip Test =====");
 
   /* Expect OTBN recoverable alert throughout the entire test.  Each OTBN app

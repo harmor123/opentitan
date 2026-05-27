@@ -1015,6 +1015,15 @@ module otbn_mac_bignum
   //////////////////////
   // SEC_CM: CTRL.REDUN
   assign predec_error_o = expected_predec != predec_i;
+`ifdef BNMULV
+  always_ff @(posedge clk_i) begin
+    if (expected_predec != predec_i && (predec_i.mac_en | operation_i.mulv))
+      $display("MAC_PREDEC_ERR: mulv=%b mac_en=%b is_vec=%b is_mod=%b is_lane=%b lane_idx_exp=%d lane_idx_act=%d op_elem0_exp=%b op_elem0_act=%b",
+        operation_i.mulv, predec_i.mac_en, predec_i.is_vec, predec_i.is_mod, predec_i.is_lane,
+        expected_predec.lane_index, predec_i.lane_index,
+        expected_predec.op_b_elem0_sel, predec_i.op_b_elem0_sel);
+  end
+`endif
 
   /////////////////////////////////////
   // Register and secure wipe output //

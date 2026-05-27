@@ -180,7 +180,7 @@ module otbn_predecode
 
   assign shift_amt_a_type_bignum = {imem_rdata_i[29:25], 3'b0};
   assign shift_amt_s_type_bignum = {imem_rdata_i[31:25], imem_rdata_i[14]};
-  assign shift_amt_shv_bignum    = {1'b0, imem_rdata_i[28:27], imem_rdata_i[19:15]};
+  assign shift_amt_shv_bignum    = {3'b0, imem_rdata_i[19:15]};
 `ifdef TOWARDS_BASE
   assign shift_amt_v_type_bignum = {3'b0, imem_rdata_i[29:25]};
 `endif
@@ -259,7 +259,8 @@ module otbn_predecode
 `ifdef TOWARDS_BASE
     alu_bignum_vector_type = alu_vector_type_t'('0);
     alu_bignum_vector_sel  = 1'b0;
-    alu_bignum_trn_type    = alu_trn_type_t'('0);
+    // Match decoder: always decode trn_type from insn[27:25]
+    alu_bignum_trn_type    = alu_trn_type_t'(imem_rdata_i[27:25]);
 `endif    ispr_rd_en = 1'b0;
     ispr_wr_en = 1'b0;
 

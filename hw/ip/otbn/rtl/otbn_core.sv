@@ -243,6 +243,8 @@ module otbn_core
   logic [ExtWLEN-1:0]          ispr_acch_intg;
   logic [ExtWLEN-1:0]          ispr_acch_wr_data_intg;
   logic                        ispr_acch_wr_en;
+  assign ispr_acch_wr_en = 1'b0;
+  assign ispr_acch_wr_data_intg = '0;
 `endif
   logic [ExtWLEN-1:0]          ispr_mod_intg;
   logic                        ispr_init;

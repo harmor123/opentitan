@@ -1246,7 +1246,6 @@ module otbn_alu_bignum
 `ifdef TOWARDS_BASE
     expected_vector_type = alu_8s;
     expected_vector_sel  = 1'b0;
-    expected_trn_type    = alu_trn_type_t'('0);
 `endif
 
     unique case (operation_i.op)

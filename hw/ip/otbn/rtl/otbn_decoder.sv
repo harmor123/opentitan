@@ -1049,6 +1049,11 @@ module otbn_decoder
 
     alu_operator_bignum      = AluOpBignumNone;
     alu_op_b_mux_sel_bignum  = OpBSelImmediate;
+`ifdef TOWARDS_BASE
+    alu_vector_type_bignum   = alu_vector_type_t'('0);
+    alu_vector_sel_bignum    = 1'b0;
+`endif
+    alu_elen_bignum          = AluElen256;
 
     alu_shift_amt_bignum     = shift_amt_a_type_bignum;
 

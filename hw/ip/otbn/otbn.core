@@ -188,9 +188,3 @@ targets:
       - bnmulv_ver2 ? (TOWARDS_ADDER=true)
       - bnmulv_ver2 ? (BNMULV=true)
       - bnmulv_ver2 ? (BNMULV_ACCH=true)
-
-      - bnmulv_ver3 ? (TOWARDS_BASE=true)
-      - bnmulv_ver3 ? (TOWARDS_ADDER=true)
-      - bnmulv_ver3 ? (BNMULV=true)
-      - bnmulv_ver3 ? (BNMULV_ACCH=true)
-      - bnmulv_ver3 ? (BNMULV_COND_SUB=true)
