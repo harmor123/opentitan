@@ -621,6 +621,8 @@ module otbn_decoder
         if (insn[14:12] == 3'b101 && insn[25]) begin
           alu_vector_type_bignum = alu_vector_type_t'(insn[27:26]);
           alu_vector_sel_bignum  = 1'b1;
+          alu_elen_bignum        = insn[26] ? AluElen16 : AluElen32;
+          alu_shift_amt_bignum   = '0;
         end
 `endif
       end
@@ -1190,8 +1192,26 @@ module otbn_decoder
         unique case (insn_alu[14:12])
           3'b000: alu_operator_bignum = AluOpBignumAdd;
           3'b001: alu_operator_bignum = AluOpBignumSub;
-          3'b010: alu_operator_bignum = AluOpBignumAddc;
-          3'b011: alu_operator_bignum = AluOpBignumSubb;
+          3'b010: begin
+`ifdef TOWARDS_BASE
+            if (insn_alu[25]) begin
+              alu_elen_bignum = insn_alu[26] ? AluElen16 : AluElen32;
+              alu_vector_sel_bignum = 1'b1;
+              alu_operator_bignum = insn_alu[28] ? AluOpBignumAddvm : AluOpBignumAddv;
+            end else
+`endif
+            alu_operator_bignum = AluOpBignumAddc;
+          end
+          3'b011: begin
+`ifdef TOWARDS_BASE
+            if (insn_alu[25]) begin
+              alu_elen_bignum = insn_alu[26] ? AluElen16 : AluElen32;
+              alu_vector_sel_bignum = 1'b1;
+              alu_operator_bignum = insn_alu[28] ? AluOpBignumSubvm : AluOpBignumSubv;
+            end else
+`endif
+            alu_operator_bignum = AluOpBignumSubb;
+          end
           3'b100: begin // BN.ADDI, BN.SUBI
             if (insn_alu[30]) begin
               alu_operator_bignum = AluOpBignumSub;
@@ -1255,6 +1275,16 @@ module otbn_decoder
             // BN.ADDV/BN.ADDVM/BN.SUBV/BN.SUBVM
             alu_shift_amt_bignum    = '0;
             alu_op_b_mux_sel_bignum = OpBSelRegister;
+            unique case (alu_elen_raw_bignum)
+              2'b00:   alu_elen_bignum = AluElen32;
+`ifdef TOWARDS_BASE
+              2'b01:   alu_elen_bignum = AluElen16;
+`endif
+              default: alu_elen_bignum = AluElen256;
+            endcase
+`ifdef TOWARDS_BASE
+            alu_vector_sel_bignum = 1'b1;
+`endif
 
             unique case ({alu_is_subtraction_vec_bignum, alu_is_modulo_vec_bignum})
               2'b00:   alu_operator_bignum = AluOpBignumAddv;

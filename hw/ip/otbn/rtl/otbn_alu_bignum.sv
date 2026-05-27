@@ -1526,10 +1526,6 @@ module otbn_alu_bignum
   // legitimately differ from adjacent base/LSU ops during pipeline skew.
   // Skip predec check for these ops; standard ops retain full checking.
   assign alu_predec_error_o = (operation_i.op != AluOpBignumNone) &
-                              !(operation_i.op inside {AluOpBignumAddv, AluOpBignumSubv,
-                                                       AluOpBignumAddvm, AluOpBignumSubvm,
-                                                       AluOpBignumShv,
-                                                       AluOpBignumTrn1, AluOpBignumTrn2}) &
     |{expected_adder_x_en != alu_bignum_predec_i.adder_x_en,
       expected_x_res_operand_a_sel != alu_bignum_predec_i.x_res_operand_a_sel,
       expected_adder_y_op_a_en != alu_bignum_predec_i.adder_y_op_a_en,
@@ -1562,6 +1558,17 @@ module otbn_alu_bignum
       expected_trn_type    != alu_bignum_predec_i.trn_type,
 `endif
       expected_unpack_shifter_en != alu_bignum_predec_i.unpack_shifter_en};
+
+`ifdef TOWARDS_BASE
+  always_ff @(posedge clk_i) begin
+    if (alu_predec_error_o)
+      $display("[%0t] ALU_PD: op=%s elen=%s/%s carry=%b/%b mask=%b/%b",
+        $time, operation_i.op.name(),
+        expected_alu_elen.name(), alu_bignum_predec_i.alu_elen.name(),
+        expected_adder_carry_sel, alu_bignum_predec_i.adder_carry_sel,
+        expected_shift_mask, alu_bignum_predec_i.shift_mask);
+  end
+`endif
 
   ////////////////////////
   // Logical operations //

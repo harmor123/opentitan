@@ -126,9 +126,6 @@ parameters:
   TOWARDS_BASE:
     datatype: bool
     paramtype: vlogdefine
-  TOWARDS_ADDER:
-    datatype: bool
-    paramtype: vlogdefine
   MAC_ADDER:
     datatype: str
     paramtype: vlogdefine
@@ -185,6 +182,5 @@ targets:
       - MAC_ADDER
       - ALU_ADDER
       - bnmulv_ver2 ? (TOWARDS_BASE=true)
-      - bnmulv_ver2 ? (TOWARDS_ADDER=true)
       - bnmulv_ver2 ? (BNMULV=true)
       - bnmulv_ver2 ? (BNMULV_ACCH=true)
