@@ -12,6 +12,7 @@ main:
     jal     x1, test_shake128_1run
     jal     x1, test_shake128_3run
     jal     x1, test_shake256_1run
+    jal     x1, test_shake128_rate_cross
 
     bn.xor  w0, w0, w0
     bn.xor  w1, w1, w1
@@ -218,6 +219,33 @@ test_shake256_1run:
     jal     x1, kmac_done
     jalr    x0, x31, 0
 
+/* 4. SHAKE128 rate-cross: 5 squeezes (20 lanes) + RUN + 1 squeeze → 24 lanes > 21 rate */
+test_shake128_rate_cross:
+    addi    x31, x1, 0
+    addi    x10, x0, 0x21          /* SHAKE128 */
+    jal     x1, kmac_start
+    la      x10, msg_256b
+    addi    x11, x0, 256
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    /* 5 squeezes: 20 lanes, within rate=21 */
+    la      x10, rcx_b1
+    jal     x1, kmac_squeeze_32B
+    la      x10, rcx_b2
+    jal     x1, kmac_squeeze_32B
+    la      x10, rcx_b3
+    jal     x1, kmac_squeeze_32B
+    la      x10, rcx_b4
+    jal     x1, kmac_squeeze_32B
+    la      x10, rcx_b5
+    jal     x1, kmac_squeeze_32B
+    /* RUN to cross rate boundary: needs keccak-f for next block */
+    jal     x1, kmac_run
+    la      x10, rcx_b6
+    jal     x1, kmac_squeeze_32B   /* word[0] from NEW block */
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
 /* ========== Data ========== */
 .data
 .balign 32
@@ -248,3 +276,22 @@ shake128_3r_b4:  .zero 32
 shake256_1r_b1:  .zero 32
 .balign 32
 shake256_1r_b2:  .zero 32
+
+.balign 32
+msg_256b:
+    .rept 64
+    .word 0x74616877
+    .endr
+
+.balign 32
+rcx_b1:  .zero 32
+.balign 32
+rcx_b2:  .zero 32
+.balign 32
+rcx_b3:  .zero 32
+.balign 32
+rcx_b4:  .zero 32
+.balign 32
+rcx_b5:  .zero 32
+.balign 32
+rcx_b6:  .zero 32
