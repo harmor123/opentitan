@@ -465,8 +465,8 @@ module otbn_kmac
       pad_word = (sha3_mode ? 64'h0000_0000_0000_0006   // SHA3: 01 + pad start
                             : 64'h0000_0000_0000_001F)  // SHAKE: 1111 + pad start
                  << (last_valid_bytes * 8);
-    else if (pad_cnt == (pad_words_needed - 1))
-      pad_word = 64'h8000_0000_0000_0000;  // pad10*1 terminator (all modes)
+    if (pad_cnt == (pad_words_needed - 1))
+      pad_word = pad_word | 64'h8000_0000_0000_0000;  // pad10*1 terminator (all modes)
   end
 
   // Feed padding words to Keccak during StPad state.
@@ -755,43 +755,43 @@ module otbn_kmac
     else         st_q <= st_d;
   end
 
-  // // Count msg_sends received for debug
-  // logic [7:0] msg_send_cnt;
-  // always_ff @(posedge clk_i or negedge rst_ni) begin
-  //   if (!rst_ni) msg_send_cnt <= '0;
-  //   else if (st_q == StIdle) msg_send_cnt <= '0;
-  //   else if (ispr_kmac_msg_send_wr_i) msg_send_cnt <= msg_send_cnt + 1'b1;
-  // end
+  // Count msg_sends received for debug
+  logic [7:0] msg_send_cnt;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) msg_send_cnt <= '0;
+    else if (st_q == StIdle) msg_send_cnt <= '0;
+    else if (ispr_kmac_msg_send_wr_i) msg_send_cnt <= msg_send_cnt + 1'b1;
+  end
 
-  // // KMAC event trace — gated behind a compile-time define to avoid
-  // // bloating simulation output during automated / CI / ISS-RTL checks.
+  // KMAC event trace — gated behind a compile-time define to avoid
+  // bloating simulation output during automated / CI / ISS-RTL checks.
 
-  // always_ff @(posedge clk_i) begin
-  //   if (st_q != st_d)
-  //     $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d",
-  //              $time, st_q, st_d, absorb_total, absorb_rate_pos,
-  //              pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt);
-  //   if (ispr_kmac_msg_send_wr_i)
-  //     $display("[KMAC] t=%0t MSG_SEND received  msgs=%0d",
-  //              $time, msg_send_cnt);
-  //   if (keccak_feed_valid_mux)
-  //     $display("[KMAC] t=%0t FEED  addr=%0d  data=0x%016x  src=%s",
-  //              $time, keccak_feed_addr_mux, keccak_feed_data_mux,
-  //              keccak_feed_valid ? "msg" : "pad");
-  //   if (sqz_write_en && st_q == StSqueeze)
-  //     $display("[KMAC] t=%0t SQUEEZE word[%0d]=0x%016x  rdy=%0d  both=%0d  adv=%0d  dv=%0d",
-  //              $time, sqz_eff_idx, sqz_word_64, sqz_rdy, both_shares_read,
-  //              advance_word, digest_valid_s);
-  //   if (keccak_run)
-  //     $display("[KMAC] t=%0t KECCAK_RUN  st=%0d  state_lane0=0x%016x",
-  //              $time, st_q, keccak_state[0][63:0]);
-  //   if (keccak_complete)
-  //     $display("[KMAC] t=%0t KECCAK_DONE  st=%0d  state_lane0=0x%016x",
-  //              $time, st_q, keccak_state[0][63:0]);
-  //   if (st_q == StSqueeze && st_d == StSqueeze && digest_valid_s == 0)
-  //     $display("[KMAC] t=%0t ** DV=0 in SQUEEZE: both=%0d  sqz=%0d  s0_rd=%0d  s1_rd=%0d  sqz_rdy=%0d",
-  //              $time, both_shares_read, sqz_word_idx, s0_read_q, s1_read_q, sqz_rdy);
-  // end
+  always_ff @(posedge clk_i) begin
+    if (st_q != st_d)
+      $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d",
+               $time, st_q, st_d, absorb_total, absorb_rate_pos,
+               pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt);
+    if (ispr_kmac_msg_send_wr_i)
+      $display("[KMAC] t=%0t MSG_SEND received  msgs=%0d",
+               $time, msg_send_cnt);
+    if (keccak_feed_valid_mux)
+      $display("[KMAC] t=%0t FEED  addr=%0d  data=0x%016x  src=%s",
+               $time, keccak_feed_addr_mux, keccak_feed_data_mux,
+               keccak_feed_valid ? "msg" : "pad");
+    if (sqz_write_en && st_q == StSqueeze)
+      $display("[KMAC] t=%0t SQUEEZE word[%0d]=0x%016x  rdy=%0d  both=%0d  adv=%0d  dv=%0d",
+               $time, sqz_eff_idx, sqz_word_64, sqz_rdy, both_shares_read,
+               advance_word, digest_valid_s);
+    if (keccak_run)
+      $display("[KMAC] t=%0t KECCAK_RUN  st=%0d  state_lane0=0x%016x",
+               $time, st_q, keccak_state[0][63:0]);
+    if (keccak_complete)
+      $display("[KMAC] t=%0t KECCAK_DONE  st=%0d  state_lane0=0x%016x",
+               $time, st_q, keccak_state[0][63:0]);
+    if (st_q == StSqueeze && st_d == StSqueeze && digest_valid_s == 0)
+      $display("[KMAC] t=%0t ** DV=0 in SQUEEZE: both=%0d  sqz=%0d  s0_rd=%0d  s1_rd=%0d  sqz_rdy=%0d",
+               $time, both_shares_read, sqz_word_idx, s0_read_q, s1_read_q, sqz_rdy);
+  end
 
 
   // Pad counter

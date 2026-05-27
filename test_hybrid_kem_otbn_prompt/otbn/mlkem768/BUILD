@@ -75,12 +75,13 @@ otbn_library(
 )
 
 # Ibex-embeddable binaries (provide CcInfo for opentitan_test deps)
+# NOTE: test file must be FIRST in srcs so main() lands at _imem_start (addr 0)
 otbn_binary(
     name = "mlkem768_keypair",
     srcs = [
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_keypair_test.s",
         "mlkem_keypair.s", "basemul.s", "cbd.s", "ntt.s",
         "pack_keys.s", "poly.s", "poly_gen_matrix.s", "kmac_sha3_template.s",
-        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_keypair_test.s",
     ],
     args = ["--bnmulv_version_id=2"],
 )
@@ -88,10 +89,10 @@ otbn_binary(
 otbn_binary(
     name = "mlkem768_encap",
     srcs = [
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_encap_test.s",
         "mlkem_encap.s", "pack_ciphertext.s", "basemul.s", "cbd.s",
         "intt.s", "ntt.s", "pack_keys.s", "poly.s",
         "poly_gen_matrix.s", "kmac_sha3_template.s",
-        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_encap_test.s",
     ],
     args = ["--bnmulv_version_id=2"],
 )
@@ -99,10 +100,10 @@ otbn_binary(
 otbn_binary(
     name = "mlkem768_decap",
     srcs = [
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_decap_test.s",
         "mlkem_decap.s", "mlkem_encap.s", "pack_ciphertext.s",
         "basemul.s", "cbd.s", "intt.s", "ntt.s", "pack_keys.s",
         "poly.s", "poly_gen_matrix.s", "kmac_sha3_template.s",
-        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_decap_test.s",
     ],
     args = ["--bnmulv_version_id=2"],
 )
