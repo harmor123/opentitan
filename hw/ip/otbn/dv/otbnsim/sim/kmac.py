@@ -318,7 +318,7 @@ class Kmac():
                     # rem = ongoing keccak + pad cycles for current rate block.
                     # _calc_pad_cycles replaces the hardcoded rem=17 hack.
                     rem = self._keccak_round_ctr.value + self._calc_pad_cycles(mode)
-                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + rem + 2)
+                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + rem + 1)
                     self._state_next = KmacState.PROCESSING
                     self._skip_absorb_decrement = True
 
