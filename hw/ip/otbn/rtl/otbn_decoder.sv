@@ -745,6 +745,14 @@ module otbn_decoder
         rf_ren_b_bignum     = 1'b1;
         rf_wdata_sel_bignum = RfWdSelEx;
         rf_we_bignum        = 1'b1;
+        // Map trn_type[1:0] to trn_elen (match predecoder)
+        unique case (alu_trn_type_bignum[1:0])
+          2'b00: trn_elen_bignum = TrnElen16;
+          2'b01: trn_elen_bignum = TrnElen32;
+          2'b10: trn_elen_bignum = TrnElen64;
+          2'b11: trn_elen_bignum = TrnElen128;
+          default: trn_elen_bignum = TrnElen32;
+        endcase
       end
 `endif
 
