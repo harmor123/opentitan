@@ -279,8 +279,9 @@ shake256_1r_b2:  .zero 32
 
 .balign 32
 msg_256b:
-    .rept 64
-    .word 0x74616877
+    .rept 32
+    .word 0x74616877    /* "what" little-endian */
+    .word 0x206f6420    /* " do " little-endian */
     .endr
 
 .balign 32

@@ -207,6 +207,12 @@ class Kmac():
             self._keccak_round_ctr.decrement()
         self._skip_absorb_decrement = False
 
+        # csrrs reads CSR before _step_fsm updates it — 1-cycle skew.
+        # Pre-set SQUEEZE when counter is about to hit 0 so Phase 2 sees it.
+        if (self._state == KmacState.SQUEEZING and
+                not self._keccak_round_ctr._next_val):
+            self._csrs.KMAC_STATUS.set_squeeze()
+
         # Decrement absorption delay counter (simulates RTL's 4-cycle WSR feed).
         if self._kmac_msg_send_words_left.value:
             self._kmac_msg_send_words_left.decrement()
@@ -312,7 +318,7 @@ class Kmac():
                     # rem = ongoing keccak + pad cycles for current rate block.
                     # _calc_pad_cycles replaces the hardcoded rem=17 hack.
                     rem = self._keccak_round_ctr.value + self._calc_pad_cycles(mode)
-                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + rem + 1)
+                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + rem + 2)
                     self._state_next = KmacState.PROCESSING
                     self._skip_absorb_decrement = True
 
@@ -328,7 +334,20 @@ class Kmac():
 
                 if command == KmacCmd.RUN and mode != KmacMode.SHA3:
                     self._state_next = KmacState.SQUEEZING
-                    self._keccak_round_ctr.set_next(self._keccak_process_cycles)
+                    # Immediately reflect ABSORB status — csrrs reads CSR
+                    # before _step_fsm updates it in the next cycle.
+                    self._csrs.KMAC_STATUS.set_absorb()
+                    # Clear stale DIGEST_VALID from old auto-advance word
+                    self._csrs.KMAC_IF_STATUS.clr_digest_valid()
+                    # +1: keccak_done_q register delay in RTL StProcessing
+                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + 1)
+                    # Discard remaining bytes in current block to force keccak-f.
+                    # Only needed when position is not at a block boundary.
+                    pos_bytes = self._keccak_squeezed_cnt.value // 8
+                    rate_bytes = self._keccak_rate_words * KMAC_WORD_BYTES
+                    pos_in_block = pos_bytes % rate_bytes
+                    if pos_in_block != 0:
+                        self._keccak_state.read(rate_bytes - pos_in_block)
                     self._keccak_squeezed_cnt.set_next(0)
                 elif command == KmacCmd.DONE:
                     self._state_next = KmacState.IDLE
