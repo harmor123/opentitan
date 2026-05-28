@@ -79,6 +79,7 @@ module otbn_mod_result_selector
   input  logic [NVecProc-1:0] carries_y_i,
   input  logic                is_subtraction_i,
   input  logic                is_modulo_i,
+  input  logic                adder_x_en_i,
   input  alu_elen_e           elen_i,
   output logic [VLEN-1:0]     result_o,
   output logic                adder_y_used_o
@@ -89,10 +90,20 @@ module otbn_mod_result_selector
   // Compute for each vector chunk whether to take the result of adder X or Y based upon the
   // carries. See explanation in header. For non-modulo instructions we always decide for the Y
   // result to push it through this selection logic unchanged.
+  // TOWARDS_BASE: all vector ops use X+Y. X=raw, Y=mod-adjusted.
+  // adder_x_en=0 (scalar ops): X blanked, Y=correct via shifter path → select Y.
+  // adder_x_en=1 (vector ops): X holds raw result → select X for non-modulo.
   logic [NVecProc-1:0] decided_for_y;
+`ifdef TOWARDS_BASE
+  assign decided_for_y = (!is_modulo_i && adder_x_en_i) ? '0 :
+                         !is_modulo_i     ? '1                        :
+                         is_subtraction_i ? ~carries_x_i              :
+                                            carries_x_i | carries_y_i;
+`else
   assign decided_for_y = !is_modulo_i     ? '1                        :
                          is_subtraction_i ? ~carries_x_i              :
                                             carries_x_i | carries_y_i;
+`endif
 
   /////////////////////
   // Selection stage //
