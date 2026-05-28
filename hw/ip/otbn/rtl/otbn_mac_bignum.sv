@@ -785,10 +785,6 @@ module otbn_mac_bignum
         acch_no_intg_d = urnd_data_i;
         acch_intg_d    = acch_intg_calc;
       end
-      ispr_acc_wr_en_i: begin
-        acch_no_intg_d = '0;
-        acch_intg_d    = acch_intg_calc;
-      end
       default: begin
         if (ispr_acch_wr_en_i) begin
           acch_intg_d = ispr_acch_wr_data_intg_i;
@@ -819,7 +815,7 @@ module otbn_mac_bignum
 
 `ifdef BNMULV_ACCH
   assign acch_wr_en = (predec_i.mac_en & mac_commit_i & operation_i.mulv)
-                       | ispr_acch_wr_en_i | ispr_acc_wr_en_i | sec_wipe_urnd_i;
+                       | ispr_acch_wr_en_i | sec_wipe_urnd_i;
 `endif
 
   /////////////////////////
