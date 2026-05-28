@@ -26,9 +26,9 @@ FAIL=0
 for t in "${TESTS[@]}"; do
   echo -e "${BLUE}===== ${t} =====${NC}"
   if bash "$SCRIPT_DIR/$t"; then
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
   echo ""
 done

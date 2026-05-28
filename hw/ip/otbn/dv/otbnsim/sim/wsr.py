@@ -345,6 +345,9 @@ class WSRFile:
             return
 
         self._by_addr[wsr_addr].write_unsigned(value)
+        # RTL: writing ACC via WSRW also clears ACCH (ispr_acc_wr_en_i in acch_wr_en)
+        if _HAS_ACCH and wsr_addr == WsrAddrs.ACC:
+            self.ACCH.write_unsigned(0)
 
     def commit(self) -> None:
         self.MOD.commit()
