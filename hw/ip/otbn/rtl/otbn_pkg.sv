@@ -458,7 +458,11 @@ package otbn_pkg;
   } csr_e;
 
   // Wide Special Purpose Registers (WSRs)
-  parameter int NWsr = 16; // Number of WSRs
+`ifdef BNMULV_ACCH
+  parameter int NWsr = 17; // Number of WSRs (+ACCH)
+`else
+  parameter int NWsr = 16;
+`endif
   parameter int WsrNumWidth = $clog2(NWsr);
   typedef enum logic [WsrNumWidth-1:0] {
     WsrMod        = 'd0,
@@ -477,6 +481,9 @@ package otbn_pkg;
     WsrMaiIn0S1   = 'd13,
     WsrMaiIn1S0   = 'd14,
     WsrMaiIn1S1   = 'd15
+`ifdef BNMULV_ACCH
+   ,WsrAccH       = 'd16
+`endif
   } wsr_e;
 
   // Internal Special Purpose Registers (ISPRs)

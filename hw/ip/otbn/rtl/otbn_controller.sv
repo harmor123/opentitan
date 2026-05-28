@@ -1518,6 +1518,9 @@ module otbn_controller
       WsrMaiIn0S1: ispr_addr_bignum = IsprMaiIn0S1;
       WsrMaiIn1S0: ispr_addr_bignum = IsprMaiIn1S0;
       WsrMaiIn1S1: ispr_addr_bignum = IsprMaiIn1S1;
+`ifdef BNMULV_ACCH
+      WsrAccH:     ispr_addr_bignum = IsprAccH;
+`endif
       default: wsr_illegal_addr = 1'b1;
     endcase
   end

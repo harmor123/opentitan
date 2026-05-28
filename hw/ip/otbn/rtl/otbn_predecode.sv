@@ -1000,6 +1000,9 @@ module otbn_predecode
         WsrMaiIn0S1: ispr_addr = IsprMaiIn0S1;
         WsrMaiIn1S0: ispr_addr = IsprMaiIn1S0;
         WsrMaiIn1S1: ispr_addr = IsprMaiIn1S1;
+`ifdef BNMULV_ACCH
+        WsrAccH:     ispr_addr = IsprAccH;
+`endif
         default: ;
       endcase
     end
