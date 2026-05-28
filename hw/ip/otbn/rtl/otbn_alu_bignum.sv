@@ -1121,8 +1121,12 @@ module otbn_alu_bignum
 `endif
     .is_subtraction_i(alu_bignum_predec_i.mod_is_subtraction),
     // Adder X is exclusively used for modulo instructions
+`ifdef TOWARDS_BASE
     .is_modulo_i     (alu_bignum_predec_i.adder_x_en &&
                       operation_i.vector_type[1]),
+`else
+    .is_modulo_i     (alu_bignum_predec_i.adder_x_en),
+`endif
     .adder_x_en_i   (alu_bignum_predec_i.adder_x_en),
     .elen_i          (alu_bignum_predec_i.alu_elen),
     .result_o        (arithmetic_result),
