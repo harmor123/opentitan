@@ -36,13 +36,6 @@ The following utilities provide generic helper tasks and functions to perform ac
 * [dv_utils_pkg](../../../dv/sv/dv_utils/README.md)
 * [csr_utils_pkg](../../../dv/sv/csr_utils/README.md)
 
-### Global types & methods
-All common types and methods defined at the package level can be found in
-`csrng_env_pkg`. Some of them in use are:
-```systemverilog
-parameter uint NUM_HW_APPS = 2;
-```
-
 ### TL_agent
 CSRNG testbench instantiates (already handled in CIP base env) [tl_agent](../../../dv/sv/tl_agent/README.md)
 which provides the ability to drive and independently monitor random traffic via
@@ -86,11 +79,11 @@ It creates the following analysis ports to retrieve the data monitored by corres
 * Unknown checks on DUT outputs: The RTL has assertions to ensure all outputs are initialized to known values after coming out of reset.
 
 ## Building and running tests
-We are using our in-house developed [regression tool](../../../../util/dvsim/README.md) for building and running our tests and regressions.
+The [dvsim](https://github.com/lowRISC/dvsim) tool is used for building and running our tests and regressions.
 Please take a look at the link for detailed information on the usage, capabilities, features and known issues.
 Here's how to run a smoke test:
 ```console
-$ $REPO_TOP/util/dvsim/dvsim.py $REPO_TOP/hw/ip/csrng/dv/csrng_sim_cfg.hjson -i csrng_smoke
+$ dvsim $REPO_TOP/hw/ip/csrng/dv/csrng_sim_cfg.hjson -i csrng_smoke
 ```
 
 ## Testplan

@@ -78,6 +78,7 @@ _MANUF_TEST_LOCKED_KEY = None
         srcs = ["empty_functest.c"],
         ecdsa_key = _MANUF_TEST_LOCKED_KEY if (lc_state, lc_val) in _TEST_LOCKED_LC_ITEMS else ecdsa_key_for_lc_state(ECDSA_SPX_KEY_STRUCTS, lc_val),
         exec_env = {
+            "//hw/top_earlgrey:sim_dv": None,
             "//hw/top_earlgrey:fpga_cw340_sival": None,
             "//hw/top_earlgrey:fpga_cw310_rom_with_fake_keys": None,
         },
@@ -143,6 +144,7 @@ opentitan_test(
     srcs = ["//sw/device/silicon_creator/rom/e2e:empty_test.c"],
     exec_env = {
         "//hw/top_earlgrey:fpga_cw310_rom_with_fake_keys": None,
+        "//hw/top_earlgrey:fpga_cw340_rom_with_fake_keys": None,
     },
     fpga = fpga_params(
         changes_otp = True,
@@ -501,6 +503,7 @@ opentitan_test(
     srcs = [":empty_functest.c"],
     exec_env = {
         "//hw/top_earlgrey:fpga_cw310_rom_with_fake_keys": None,
+        "//hw/top_earlgrey:fpga_cw340_rom_with_fake_keys": None,
     },
     fpga = fpga_params(
         changes_otp = True,

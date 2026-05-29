@@ -1039,11 +1039,8 @@ def _amend_block_reset_connections(module: ConfigT,
             if "domain" not in module:
                 domain = default_power_domain
             else:
-                if len(module["domain"]) > 1:
-                    raise ValueError(
-                        f"{module['name']} reset connection {reset} "
-                        "has no assigned domain")
-                domain = module["domain"][0]
+                domain = module["domain"]
+
             module["reset_connections"][port] = {
                 'name': reset,
                 'domain': domain,
@@ -1572,8 +1569,7 @@ def main():
 
     args = parser.parse_args()
 
-    if args.vendor_specific_fields:
-        vendor_specific.extend_optional_fields(args.vendor_specific_fields)
+    vendor_specific.extend_optional_fields(args.vendor_specific_fields)
 
     # check combinations
     if args.top_ral:

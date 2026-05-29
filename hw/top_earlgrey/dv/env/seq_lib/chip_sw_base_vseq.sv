@@ -112,20 +112,25 @@ class chip_sw_base_vseq extends chip_base_vseq;
 `endif
     end
 
-    if (cfg.sw_images.exists(SwTypeTestSlotA)) begin
-      if (cfg.use_spi_load_bootstrap) begin
-        `uvm_info(`gfn, "Initializing SPI flash bootstrap", UVM_MEDIUM)
-        spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
-        cfg.use_spi_load_bootstrap = 1'b0;
-      end else begin
-        cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(
-            {cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
+    if (cfg.use_spi_load_bootstrap) begin
+      // If use_spi_load_bootstrap is defined, load the image for slot A
+      if (!cfg.sw_images.exists(SwTypeTestSlotA)) begin
+        `uvm_error(get_name(), "Cannot load slot A over SPI: no SW image defined.")
       end
-    end
-    if (cfg.sw_images.exists(SwTypeTestSlotB)) begin
+      spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
+      cfg.use_spi_load_bootstrap = 1'b0;
+
       // TODO: support bootstrapping entire flash address space, not just slot A.
-      cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file(
-          {cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
+
+    end else begin
+      if (cfg.sw_images.exists(SwTypeTestSlotA)) begin
+        string image_path = {cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"};
+        cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(image_path);
+      end
+      if (cfg.sw_images.exists(SwTypeTestSlotB)) begin
+        string image_path = {cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"};
+        cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file(image_path);
+      end
     end
 
     config_jitter();
@@ -534,9 +539,11 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
     erase_seq = spi_host_flash_seq::type_id::create("erase_seq");
     erase_seq.opcode = SpiFlashChipErase;
+    `uvm_info(get_name(), "Erasing flash over SPI", UVM_MEDIUM)
     spi_host_flash_issue_write_cmd(.write_command(erase_seq),
                                    .busy_timeout_ns(200_000_000),
                                    .busy_poll_interval_ns(1_000_000));
+    `uvm_info(get_name(), "Flash erased", UVM_MEDIUM)
   endtask
 
   // Load the flash binary specified by the `sw_image` path by sending a chip erase, then
@@ -559,21 +566,32 @@ class chip_sw_base_vseq extends chip_base_vseq;
     cfg.m_spi_host_agent_cfg.max_idle_ns_after_csb_drop = 200;
 
     // Configure the spi_agent for flash mode and add command info.
+    `uvm_info(`gfn, "Configuring SPI flash commands.", UVM_LOW)
     spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
 
     // Wait for the commands to be ready
+    `uvm_info(`gfn, "Waiting for SPI flash commands to be ready.", UVM_LOW)
     wait_for_flash_command_load();
 
+    `uvm_info(`gfn, $sformatf("Reading SW image frames from %0s ...", sw_image), UVM_LOW)
     read_sw_frames(sw_image, sw_byte_q);
 
+    `uvm_info(`gfn, "Sending SPI flash erase command ...", UVM_LOW)
     erase_flash_over_spi();
 
-    for (int unsigned idx = 0; idx < sw_byte_q.size(); idx += SPI_FLASH_PAGE_SIZE) begin
-      spi_write_flash_page(sw_byte_q, idx, SPI_FLASH_PAGE_SIZE);
-    end
+    `uvm_info(`gfn, "Sending page program commands ...", UVM_LOW)
+    spi_write_flash_stream(sw_byte_q, SPI_FLASH_PAGE_SIZE);
 
     cfg.chip_vif.sw_straps_if.drive(3'h0);
     assert_por_reset();
+  endtask
+
+  // Stream a byte queue into SPI flash, using sequential page-write operations of size page_size.
+  protected virtual task spi_write_flash_stream(const ref byte byte_q[$],
+                                                int unsigned page_size);
+    for (int unsigned idx = 0; idx < byte_q.size(); idx += page_size) begin
+      spi_write_flash_page(byte_q, idx, page_size);
+    end
   endtask
 
   // Write a single page to flash, starting with item at index start_idx. Send up to page_size bytes
@@ -590,6 +608,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
       page_seq.payload_q.push_back(byte_q[i]);
     end
 
+    `uvm_info(get_name(), $sformatf("Writing flash page to 0x%0h over SPI.", start_idx), UVM_MEDIUM)
     spi_host_flash_issue_write_cmd(page_seq);
   endtask
 

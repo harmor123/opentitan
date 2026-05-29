@@ -15,9 +15,9 @@
     domains:
     [
       Aon
-      "0"
+      Main
     ]
-    default: "0"
+    default: Main
     wait_for_external_reset: false
   }
   unmanaged_clocks: {}
@@ -187,7 +187,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
           Aon
         ]
         shadowed: false
@@ -291,7 +291,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
           Aon
         ]
         shadowed: true
@@ -321,7 +321,7 @@
         domains:
         [
           Aon
-          "0"
+          Main
         ]
         shadowed: false
         sw: false
@@ -336,7 +336,7 @@
         domains:
         [
           Aon
-          "0"
+          Main
         ]
         shadowed: false
         sw: false
@@ -350,7 +350,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
           Aon
         ]
         shadowed: true
@@ -366,7 +366,7 @@
         domains:
         [
           Aon
-          "0"
+          Main
         ]
         shadowed: false
         sw: false
@@ -380,7 +380,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: false
@@ -408,7 +408,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -422,7 +422,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -436,7 +436,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -450,7 +450,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -464,7 +464,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -478,7 +478,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -492,7 +492,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -506,7 +506,7 @@
         type: top
         domains:
         [
-          "0"
+          Main
         ]
         shadowed: false
         sw: true
@@ -640,7 +640,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -714,10 +714,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: uart1
@@ -732,7 +729,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -806,10 +803,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: uart2
@@ -824,7 +818,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -898,10 +892,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: uart3
@@ -916,7 +907,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -990,10 +981,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: gpio
@@ -1009,7 +997,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -1121,10 +1109,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: spi_device
@@ -1140,7 +1125,7 @@
         rst_ni:
         {
           name: spi_device
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -1292,10 +1277,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: i2c0
@@ -1310,7 +1292,7 @@
         rst_ni:
         {
           name: i2c0
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -1421,10 +1403,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: i2c1
@@ -1439,7 +1418,7 @@
         rst_ni:
         {
           name: i2c1
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -1550,10 +1529,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: i2c2
@@ -1568,7 +1544,7 @@
         rst_ni:
         {
           name: i2c2
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -1679,10 +1655,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: pattgen
@@ -1697,7 +1670,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -1731,10 +1704,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: rv_timer
@@ -1749,7 +1719,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -1809,10 +1779,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: otp_ctrl
@@ -1829,12 +1796,12 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       base_addrs:
@@ -2113,10 +2080,7 @@
         }
       ]
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: otp_macro
@@ -2131,7 +2095,7 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       base_addrs:
@@ -2391,10 +2355,7 @@
         }
       ]
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: lc_ctrl
@@ -2410,12 +2371,12 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_kmac_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       base_addrs:
@@ -3064,10 +3025,7 @@
         }
       ]
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: alert_handler
@@ -3084,12 +3042,12 @@
         rst_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -3203,10 +3161,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: spi_host0
@@ -3221,7 +3176,7 @@
         rst_ni:
         {
           name: spi_host0
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -3318,10 +3273,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: spi_host1
@@ -3336,7 +3288,7 @@
         rst_ni:
         {
           name: spi_host1
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -3431,10 +3383,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: usbdev
@@ -3450,12 +3399,12 @@
         rst_ni:
         {
           name: usb
-          domain: "0"
+          domain: Main
         }
         rst_aon_ni:
         {
           name: usb_aon
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -3758,10 +3707,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: pwrmgr_aon
@@ -3789,7 +3735,7 @@
         rst_main_ni:
         {
           name: por_aon
-          domain: "0"
+          domain: Main
         }
         rst_lc_ni:
         {
@@ -3807,11 +3753,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-        "0"
-      ]
+      domain: Aon
       param_decl:
       {
         EscNumSeverities: AlertHandlerEscNumSeverities
@@ -4151,11 +4093,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-        "0"
-      ]
+      domain: Aon
       attr: ipgen
       clock_connections:
       {
@@ -4420,10 +4358,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       attr: ipgen
       clock_connections:
       {
@@ -4682,10 +4617,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       clock_connections:
       {
         clk_i: clkmgr_aon_clocks.clk_io_div4_secure
@@ -4765,10 +4697,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       clock_connections:
       {
         clk_i: clkmgr_aon_clocks.clk_io_div4_peri
@@ -4851,10 +4780,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       attr: ipgen
       clock_connections:
       {
@@ -4943,10 +4869,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       attr: ipgen
       param_decl:
       {
@@ -5407,10 +5330,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       clock_connections:
       {
         clk_i: clkmgr_aon_clocks.clk_io_div4_timers
@@ -5574,7 +5494,7 @@
         rst_ast_tlul_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_ast_adc_ni:
         {
@@ -5584,29 +5504,25 @@
         rst_ast_alert_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_ast_es_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_ast_rng_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_ast_usb_ni:
         {
           name: usb
-          domain: "0"
+          domain: Main
         }
       }
-      domain:
-      [
-        Aon
-        "0"
-      ]
+      domain: Aon
       attr: reggen_only
       clock_connections:
       {
@@ -5664,10 +5580,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       attr: reggen_top
       clock_connections:
       {
@@ -5806,10 +5719,7 @@
           domain: Aon
         }
       }
-      domain:
-      [
-        Aon
-      ]
+      domain: Aon
       param_decl:
       {
         InstrExec: "0"
@@ -6081,12 +5991,12 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_otp_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       base_addrs:
@@ -6464,10 +6374,7 @@
         }
       ]
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: rv_dm
@@ -6483,12 +6390,12 @@
         rst_ni:
         {
           name: sys
-          domain: "0"
+          domain: Main
         }
         rst_lc_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -6882,10 +6789,7 @@
           index: -1
         }
       ]
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: rv_plic
@@ -6901,7 +6805,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       attr: ipgen
@@ -6977,10 +6881,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: aes
@@ -6996,12 +6897,12 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -7172,10 +7073,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: hmac
@@ -7190,7 +7088,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -7236,10 +7134,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: kmac
@@ -7259,12 +7154,12 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -7462,10 +7357,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: otbn
@@ -7494,17 +7386,17 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_otp_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -7756,10 +7648,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: keymgr
@@ -7775,12 +7664,12 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -7991,10 +7880,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: csrng
@@ -8009,7 +7895,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -8105,10 +7991,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: entropy_src
@@ -8123,7 +8006,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -8439,10 +8322,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: edn0
@@ -8457,7 +8337,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -8543,10 +8423,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: edn1
@@ -8561,7 +8438,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -8646,10 +8523,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: sram_ctrl_main
@@ -8665,12 +8539,12 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_otp_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       param_decl:
@@ -8931,10 +8805,7 @@
         }
       ]
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: rom_ctrl
@@ -8949,7 +8820,7 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
       }
       base_addrs:
@@ -9113,10 +8984,7 @@
         }
       ]
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
     {
       name: rv_core_ibex
@@ -9180,22 +9048,22 @@
         rst_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_edn_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_esc_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_otp_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -9846,10 +9714,7 @@
         }
       }
       generate_dif: true
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
     }
   ]
   port:
@@ -10663,27 +10528,27 @@
         rst_main_ni:
         {
           name: lc
-          domain: "0"
+          domain: Main
         }
         rst_fixed_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
         rst_usb_ni:
         {
           name: lc_usb
-          domain: "0"
+          domain: Main
         }
         rst_spi_host0_ni:
         {
           name: lc_io
-          domain: "0"
+          domain: Main
         }
         rst_spi_host1_ni:
         {
           name: lc_io_div2
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
@@ -10694,10 +10559,7 @@
         clk_spi_host0_i: clkmgr_aon_clocks.clk_io_infra
         clk_spi_host1_i: clkmgr_aon_clocks.clk_io_div2_infra
       }
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
       connections:
       {
         rv_core_ibex.corei:
@@ -11689,17 +11551,14 @@
         rst_peri_ni:
         {
           name: lc_io_div4
-          domain: "0"
+          domain: Main
         }
       }
       clock_connections:
       {
         clk_peri_i: clkmgr_aon_clocks.clk_io_div4_infra
       }
-      domain:
-      [
-        "0"
-      ]
+      domain: Main
       connections:
       {
         main:
@@ -15646,7 +15505,7 @@
       handler: alert_handler
       module_name: uart0
       desc: uart0 fatal_fault alert
-      lpg_name: peri_lc_io_div4_0
+      lpg_name: peri_lc_io_div4_Main
       lpg_idx: 0
     }
     {
@@ -15657,7 +15516,7 @@
       handler: alert_handler
       module_name: uart1
       desc: uart1 fatal_fault alert
-      lpg_name: peri_lc_io_div4_0
+      lpg_name: peri_lc_io_div4_Main
       lpg_idx: 0
     }
     {
@@ -15668,7 +15527,7 @@
       handler: alert_handler
       module_name: uart2
       desc: uart2 fatal_fault alert
-      lpg_name: peri_lc_io_div4_0
+      lpg_name: peri_lc_io_div4_Main
       lpg_idx: 0
     }
     {
@@ -15679,7 +15538,7 @@
       handler: alert_handler
       module_name: uart3
       desc: uart3 fatal_fault alert
-      lpg_name: peri_lc_io_div4_0
+      lpg_name: peri_lc_io_div4_Main
       lpg_idx: 0
     }
     {
@@ -15690,7 +15549,7 @@
       handler: alert_handler
       module_name: gpio
       desc: gpio fatal_fault alert
-      lpg_name: peri_lc_io_div4_0
+      lpg_name: peri_lc_io_div4_Main
       lpg_idx: 0
     }
     {
@@ -15701,7 +15560,7 @@
       handler: alert_handler
       module_name: spi_device
       desc: spi_device fatal_fault alert
-      lpg_name: peri_spi_device_0
+      lpg_name: peri_spi_device_Main
       lpg_idx: 1
     }
     {
@@ -15712,7 +15571,7 @@
       handler: alert_handler
       module_name: i2c0
       desc: i2c0 fatal_fault alert
-      lpg_name: peri_i2c0_0
+      lpg_name: peri_i2c0_Main
       lpg_idx: 2
     }
     {
@@ -15723,7 +15582,7 @@
       handler: alert_handler
       module_name: i2c1
       desc: i2c1 fatal_fault alert
-      lpg_name: peri_i2c1_0
+      lpg_name: peri_i2c1_Main
       lpg_idx: 3
     }
     {
@@ -15734,7 +15593,7 @@
       handler: alert_handler
       module_name: i2c2
       desc: i2c2 fatal_fault alert
-      lpg_name: peri_i2c2_0
+      lpg_name: peri_i2c2_Main
       lpg_idx: 4
     }
     {
@@ -15745,7 +15604,7 @@
       handler: alert_handler
       module_name: pattgen
       desc: pattgen fatal_fault alert
-      lpg_name: peri_lc_io_div4_0
+      lpg_name: peri_lc_io_div4_Main
       lpg_idx: 0
     }
     {
@@ -15756,7 +15615,7 @@
       handler: alert_handler
       module_name: rv_timer
       desc: rv_timer fatal_fault alert
-      lpg_name: timers_lc_io_div4_0
+      lpg_name: timers_lc_io_div4_Main
       lpg_idx: 5
     }
     {
@@ -15767,7 +15626,7 @@
       handler: alert_handler
       module_name: otp_ctrl
       desc: otp_ctrl fatal_macro_error alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15778,7 +15637,7 @@
       handler: alert_handler
       module_name: otp_ctrl
       desc: otp_ctrl fatal_check_error alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15789,7 +15648,7 @@
       handler: alert_handler
       module_name: otp_ctrl
       desc: otp_ctrl fatal_bus_integ_error alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15800,7 +15659,7 @@
       handler: alert_handler
       module_name: otp_ctrl
       desc: otp_ctrl fatal_prim_otp_alert alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15811,7 +15670,7 @@
       handler: alert_handler
       module_name: otp_ctrl
       desc: otp_ctrl recov_prim_otp_alert alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15822,7 +15681,7 @@
       handler: alert_handler
       module_name: lc_ctrl
       desc: lc_ctrl fatal_prog_error alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15833,7 +15692,7 @@
       handler: alert_handler
       module_name: lc_ctrl
       desc: lc_ctrl fatal_state_error alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15844,7 +15703,7 @@
       handler: alert_handler
       module_name: lc_ctrl
       desc: lc_ctrl fatal_bus_integ_error alert
-      lpg_name: secure_lc_io_div4_0
+      lpg_name: secure_lc_io_div4_Main
       lpg_idx: 6
     }
     {
@@ -15855,7 +15714,7 @@
       handler: alert_handler
       module_name: spi_host0
       desc: spi_host0 fatal_fault alert
-      lpg_name: peri_spi_host0_0
+      lpg_name: peri_spi_host0_Main
       lpg_idx: 7
     }
     {
@@ -15866,7 +15725,7 @@
       handler: alert_handler
       module_name: spi_host1
       desc: spi_host1 fatal_fault alert
-      lpg_name: peri_spi_host1_0
+      lpg_name: peri_spi_host1_Main
       lpg_idx: 8
     }
     {
@@ -15877,7 +15736,7 @@
       handler: alert_handler
       module_name: usbdev
       desc: usbdev fatal_fault alert
-      lpg_name: peri_usb_0
+      lpg_name: peri_usb_Main
       lpg_idx: 9
     }
     {
@@ -16031,7 +15890,7 @@
       handler: alert_handler
       module_name: flash_ctrl
       desc: flash_ctrl recov_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16042,7 +15901,7 @@
       handler: alert_handler
       module_name: flash_ctrl
       desc: flash_ctrl fatal_std_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16053,7 +15912,7 @@
       handler: alert_handler
       module_name: flash_ctrl
       desc: flash_ctrl fatal_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16064,7 +15923,7 @@
       handler: alert_handler
       module_name: flash_ctrl
       desc: flash_ctrl fatal_prim_flash_alert alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16075,7 +15934,7 @@
       handler: alert_handler
       module_name: flash_ctrl
       desc: flash_ctrl recov_prim_flash_alert alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16086,7 +15945,7 @@
       handler: alert_handler
       module_name: rv_dm
       desc: rv_dm fatal_fault alert
-      lpg_name: infra_sys_0
+      lpg_name: infra_sys_Main
       lpg_idx: 18
     }
     {
@@ -16097,7 +15956,7 @@
       handler: alert_handler
       module_name: rv_plic
       desc: rv_plic fatal_fault alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16108,7 +15967,7 @@
       handler: alert_handler
       module_name: aes
       desc: aes recov_ctrl_update_err alert
-      lpg_name: aes_trans_lc_0
+      lpg_name: aes_trans_lc_Main
       lpg_idx: 20
     }
     {
@@ -16119,7 +15978,7 @@
       handler: alert_handler
       module_name: aes
       desc: aes fatal_fault alert
-      lpg_name: aes_trans_lc_0
+      lpg_name: aes_trans_lc_Main
       lpg_idx: 20
     }
     {
@@ -16130,7 +15989,7 @@
       handler: alert_handler
       module_name: hmac
       desc: hmac fatal_fault alert
-      lpg_name: hmac_trans_lc_0
+      lpg_name: hmac_trans_lc_Main
       lpg_idx: 21
     }
     {
@@ -16141,7 +16000,7 @@
       handler: alert_handler
       module_name: kmac
       desc: kmac recov_operation_err alert
-      lpg_name: kmac_trans_lc_0
+      lpg_name: kmac_trans_lc_Main
       lpg_idx: 22
     }
     {
@@ -16152,7 +16011,7 @@
       handler: alert_handler
       module_name: kmac
       desc: kmac fatal_fault_err alert
-      lpg_name: kmac_trans_lc_0
+      lpg_name: kmac_trans_lc_Main
       lpg_idx: 22
     }
     {
@@ -16163,7 +16022,7 @@
       handler: alert_handler
       module_name: otbn
       desc: otbn fatal alert
-      lpg_name: otbn_trans_lc_0
+      lpg_name: otbn_trans_lc_Main
       lpg_idx: 23
     }
     {
@@ -16174,7 +16033,7 @@
       handler: alert_handler
       module_name: otbn
       desc: otbn recov alert
-      lpg_name: otbn_trans_lc_0
+      lpg_name: otbn_trans_lc_Main
       lpg_idx: 23
     }
     {
@@ -16185,7 +16044,7 @@
       handler: alert_handler
       module_name: keymgr
       desc: keymgr recov_operation_err alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16196,7 +16055,7 @@
       handler: alert_handler
       module_name: keymgr
       desc: keymgr fatal_fault_err alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16207,7 +16066,7 @@
       handler: alert_handler
       module_name: csrng
       desc: csrng recov_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16218,7 +16077,7 @@
       handler: alert_handler
       module_name: csrng
       desc: csrng fatal_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16229,7 +16088,7 @@
       handler: alert_handler
       module_name: entropy_src
       desc: entropy_src recov_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16240,7 +16099,7 @@
       handler: alert_handler
       module_name: entropy_src
       desc: entropy_src fatal_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16251,7 +16110,7 @@
       handler: alert_handler
       module_name: edn0
       desc: edn0 recov_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16262,7 +16121,7 @@
       handler: alert_handler
       module_name: edn0
       desc: edn0 fatal_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16273,7 +16132,7 @@
       handler: alert_handler
       module_name: edn1
       desc: edn1 recov_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16284,7 +16143,7 @@
       handler: alert_handler
       module_name: edn1
       desc: edn1 fatal_alert alert
-      lpg_name: secure_lc_0
+      lpg_name: secure_lc_Main
       lpg_idx: 19
     }
     {
@@ -16295,7 +16154,7 @@
       handler: alert_handler
       module_name: sram_ctrl_main
       desc: sram_ctrl_main fatal_error alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16306,7 +16165,7 @@
       handler: alert_handler
       module_name: rom_ctrl
       desc: rom_ctrl fatal alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16317,7 +16176,7 @@
       handler: alert_handler
       module_name: rv_core_ibex
       desc: rv_core_ibex fatal_sw_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16328,7 +16187,7 @@
       handler: alert_handler
       module_name: rv_core_ibex
       desc: rv_core_ibex recov_sw_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16339,7 +16198,7 @@
       handler: alert_handler
       module_name: rv_core_ibex
       desc: rv_core_ibex fatal_hw_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
     {
@@ -16350,7 +16209,7 @@
       handler: alert_handler
       module_name: rv_core_ibex
       desc: rv_core_ibex recov_hw_err alert
-      lpg_name: infra_lc_0
+      lpg_name: infra_lc_Main
       lpg_idx: 17
     }
   ]
@@ -18726,7 +18585,7 @@
   alert_lpgs:
   [
     {
-      name: peri_lc_io_div4_0
+      name: peri_lc_io_div4_Main
       clock_group:
       {
         name: peri
@@ -18748,11 +18607,11 @@
       reset_connection:
       {
         name: lc_io_div4
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_spi_device_0
+      name: peri_spi_device_Main
       clock_group:
       {
         name: peri
@@ -18774,11 +18633,11 @@
       reset_connection:
       {
         name: spi_device
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_i2c0_0
+      name: peri_i2c0_Main
       clock_group:
       {
         name: peri
@@ -18800,11 +18659,11 @@
       reset_connection:
       {
         name: i2c0
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_i2c1_0
+      name: peri_i2c1_Main
       clock_group:
       {
         name: peri
@@ -18826,11 +18685,11 @@
       reset_connection:
       {
         name: i2c1
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_i2c2_0
+      name: peri_i2c2_Main
       clock_group:
       {
         name: peri
@@ -18852,11 +18711,11 @@
       reset_connection:
       {
         name: i2c2
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: timers_lc_io_div4_0
+      name: timers_lc_io_div4_Main
       clock_group:
       {
         name: timers
@@ -18875,11 +18734,11 @@
       reset_connection:
       {
         name: lc_io_div4
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: secure_lc_io_div4_0
+      name: secure_lc_io_div4_Main
       clock_group:
       {
         name: secure
@@ -18899,11 +18758,11 @@
       reset_connection:
       {
         name: lc_io_div4
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_spi_host0_0
+      name: peri_spi_host0_Main
       clock_group:
       {
         name: peri
@@ -18925,11 +18784,11 @@
       reset_connection:
       {
         name: spi_host0
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_spi_host1_0
+      name: peri_spi_host1_Main
       clock_group:
       {
         name: peri
@@ -18951,11 +18810,11 @@
       reset_connection:
       {
         name: spi_host1
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: peri_usb_0
+      name: peri_usb_Main
       clock_group:
       {
         name: peri
@@ -18977,7 +18836,7 @@
       reset_connection:
       {
         name: usb
-        domain: "0"
+        domain: Main
       }
     }
     {
@@ -19108,7 +18967,7 @@
       }
     }
     {
-      name: infra_lc_io_div4_0
+      name: infra_lc_io_div4_Main
       clock_group:
       {
         name: infra
@@ -19130,7 +18989,7 @@
       reset_connection:
       {
         name: lc_io_div4
-        domain: "0"
+        domain: Main
       }
     }
     {
@@ -19160,7 +19019,7 @@
       }
     }
     {
-      name: infra_lc_0
+      name: infra_lc_Main
       clock_group:
       {
         name: infra
@@ -19182,11 +19041,11 @@
       reset_connection:
       {
         name: lc
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: infra_sys_0
+      name: infra_sys_Main
       clock_group:
       {
         name: infra
@@ -19208,11 +19067,11 @@
       reset_connection:
       {
         name: sys
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: secure_lc_0
+      name: secure_lc_Main
       clock_group:
       {
         name: secure
@@ -19232,11 +19091,11 @@
       reset_connection:
       {
         name: lc
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: aes_trans_lc_0
+      name: aes_trans_lc_Main
       clock_group:
       {
         name: trans
@@ -19257,11 +19116,11 @@
       reset_connection:
       {
         name: lc
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: hmac_trans_lc_0
+      name: hmac_trans_lc_Main
       clock_group:
       {
         name: trans
@@ -19282,11 +19141,11 @@
       reset_connection:
       {
         name: lc
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: kmac_trans_lc_0
+      name: kmac_trans_lc_Main
       clock_group:
       {
         name: trans
@@ -19307,11 +19166,11 @@
       reset_connection:
       {
         name: lc
-        domain: "0"
+        domain: Main
       }
     }
     {
-      name: otbn_trans_lc_0
+      name: otbn_trans_lc_Main
       clock_group:
       {
         name: trans
@@ -19332,7 +19191,7 @@
       reset_connection:
       {
         name: lc
-        domain: "0"
+        domain: Main
       }
     }
   ]

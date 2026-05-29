@@ -252,6 +252,10 @@ static rom_error_t rom_ext_boot(boot_data_t *boot_data, boot_log_t *boot_log,
     memset(&sealing_binding, 0x55, sizeof(sealing_binding));
   }
 
+  // Prepare dice chain builder for CDI_1.
+  HARDENED_RETURN_IF_ERROR(dice_chain_init());
+  HARDENED_RETURN_IF_ERROR(dice_chain_rom_ext_check());
+
   // Generate CDI_1 attestation keys and certificate.
   HARDENED_RETURN_IF_ERROR(dice_chain_attestation_owner(
       manifest, &boot_measurements.bl0, &owner_measurement, &owner_history_hash,
@@ -390,11 +394,15 @@ static rom_error_t rom_ext_try_next_stage(boot_data_t *boot_data,
   rom_error_t slot[2] = {0, 0};
   for (size_t i = 0; i < ARRAYSIZE(manifests.ordered); ++i) {
     uint32_t flash_exec = 0;
+    char slot_id =
+        (manifests.ordered[i] == rom_ext_boot_policy_manifest_a_get()) ? 'A'
+                                                                       : 'B';
     error =
-        rom_ext_verify(manifests.ordered[i], boot_data, &flash_exec, &keyring,
-                       &verify_key, &owner_config, &isfb_check_count);
+        rom_ext_verify(manifests.ordered[i], slot_id, boot_data, &flash_exec,
+                       &keyring, &verify_key, &owner_config, &isfb_check_count);
     slot[i] = error;
     if (error != kErrorOk) {
+      dbg_printf("verifyfail: Slot%c;%x\r\n", slot_id, error);
       continue;
     }
     HARDENED_CHECK_EQ(flash_exec, kSigverifyFlashExec);
@@ -495,9 +503,18 @@ hardened_bool_t rom_ext_allow_boot_svc_after_wakeup(void) {
   return owner_config.boot_svc_after_wakeup;
 }
 
+// This weak function allows downstream ROM_EXT builds to provide
+// sku-specific initialization.
+OT_WEAK
+void rom_ext_sku_init(void) {}
+
 static rom_error_t rom_ext_start(boot_data_t *boot_data, boot_log_t *boot_log) {
   HARDENED_RETURN_IF_ERROR(rom_ext_init(boot_data));
   const manifest_t *self = rom_ext_manifest();
+
+  // Security version self-check
+  HARDENED_CHECK_GE(self->security_version,
+                    boot_data->min_security_version_rom_ext);
 
   lifecycle_claim(kMultiBitBool8True);
   lifecycle_set_status(kLifecycleStatusWordRomExtVersion, self->version_minor);
@@ -530,9 +547,7 @@ static rom_error_t rom_ext_start(boot_data_t *boot_data, boot_log_t *boot_log) {
   // Maybe advance the security version.
   HARDENED_RETURN_IF_ERROR(rom_ext_advance_secver(boot_data, self));
 
-  // Prepare dice chain builder for CDI_1.
-  HARDENED_RETURN_IF_ERROR(dice_chain_init());
-  HARDENED_RETURN_IF_ERROR(dice_chain_rom_ext_check());
+  rom_ext_sku_init();
 
   // Initialize the boot_log in retention RAM.
   const build_info_t *rom_chip_info =

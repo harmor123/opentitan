@@ -65,10 +65,14 @@ opentitan_test(
     ),
     deps = [
         ":aes",
+        ":rv_core_ibex",
+        "//hw/top:aes_c_regs",
+        "//hw/top/dt:aes",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_alerts",
         "//sw/device/lib/testing/test_framework:ottf_main",
     ],
 )
@@ -95,31 +99,20 @@ cc_library(
 opentitan_test(
     name = "keymgr_test",
     srcs = ["keymgr_test.c"],
-    broken = fpga_params(tags = ["broken"]),
-    exec_env = dicts.add(
-        CRYPTO_EXEC_ENVS,
-        {
-            # FIXME broken in sival ROM_EXT, remove these lines when fixed. See #21706.
-            "//hw/top_earlgrey:fpga_cw310_sival_rom_ext": "broken",
-            "//hw/top_earlgrey:fpga_cw340_sival_rom_ext": "broken",
-        },
-    ),
-    qemu = qemu_params(
-        globals = {
-            # Test uses rstmgr, keep running on fatal resets:
-            "ot-rstmgr.fatal_reset": 0,
-        },
-    ),
+    exec_env = CRYPTO_EXEC_ENVS,
     verilator = verilator_params(
         timeout = "long",
     ),
     deps = [
         ":keymgr",
+        "//hw/top:keymgr_c_regs",
+        "//hw/top/dt:keymgr",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing:keymgr_testutils",
         "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_alerts",
         "//sw/device/lib/testing/test_framework:ottf_main",
     ],
 )
@@ -143,6 +136,26 @@ cc_library(
         "//sw/device/lib/base:macros",
         "//sw/device/lib/crypto/impl:integrity",
         "//sw/device/lib/crypto/impl:status",
+    ],
+)
+
+opentitan_test(
+    name = "kmac_test",
+    srcs = ["kmac_test.c"],
+    exec_env = CRYPTO_EXEC_ENVS,
+    verilator = verilator_params(
+        timeout = "long",
+    ),
+    deps = [
+        ":kmac",
+        ":rv_core_ibex",
+        "//hw/top:kmac_c_regs",
+        "//hw/top/dt:kmac",
+        "//sw/device/lib/base:macros",
+        "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/impl:status",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
     ],
 )
 
@@ -202,11 +215,19 @@ opentitan_test(
     deps = [
         ":entropy",
         ":entropy_kat",
+        "//hw/top:csrng_c_regs",
+        "//hw/top:edn_c_regs",
+        "//hw/top:entropy_src_c_regs",
+        "//hw/top/dt:csrng",
+        "//hw/top/dt:edn",
+        "//hw/top/dt:entropy_src",
         "//hw/top/dt:otbn",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/dif:otbn",
         "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_alerts",
         "//sw/device/lib/testing/test_framework:ottf_main",
         "//sw/device/tests:otbn_randomness_impl",
     ],
@@ -230,6 +251,26 @@ cc_library(
         "//sw/device/lib/crypto/drivers:rv_core_ibex",
         "//sw/device/lib/crypto/impl:integrity",
         "//sw/device/lib/crypto/impl:status",
+    ],
+)
+
+opentitan_test(
+    name = "hmac_test",
+    srcs = ["hmac_test.c"],
+    exec_env = CRYPTO_EXEC_ENVS,
+    verilator = verilator_params(
+        timeout = "long",
+    ),
+    deps = [
+        ":hmac",
+        ":rv_core_ibex",
+        "//hw/top:hmac_c_regs",
+        "//hw/top/dt:hmac",
+        "//sw/device/lib/base:macros",
+        "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/impl:status",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
     ],
 )
 
@@ -290,5 +331,26 @@ cc_library(
         "//sw/device/lib/base:hardened",
         "//sw/device/lib/base:random_order",
         "//sw/device/lib/crypto/impl:status",
+    ],
+)
+
+opentitan_test(
+    name = "otbn_test",
+    srcs = ["otbn_test.c"],
+    exec_env = CRYPTO_EXEC_ENVS,
+    verilator = verilator_params(
+        timeout = "long",
+    ),
+    deps = [
+        ":otbn",
+        ":rv_core_ibex",
+        "//hw/top:otbn_c_regs",
+        "//hw/top/dt:otbn",
+        "//sw/device/lib/base:macros",
+        "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/impl:status",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_alerts",
+        "//sw/device/lib/testing/test_framework:ottf_main",
     ],
 )

@@ -14,15 +14,16 @@ use anyhow::{Context, Result, ensure};
 use opentitanlib::collection;
 use opentitanlib::io::gpio::GpioError;
 use opentitanlib::io::spi::SpiError;
+use opentitanlib::io::usb::{UsbContext, UsbDevice};
+use opentitanlib::transport::common::usb::RusbContext;
 use opentitanlib::transport::{ProgressIndicator, TransportError, TransportInterfaceType};
 use opentitanlib::util::parse_int::ParseInt;
-use opentitanlib::util::usb::UsbBackend;
 
 use super::board::Board;
 
 /// The `Backend` struct provides high-level access to the Chip Whisperer board.
 pub struct Backend<B: Board> {
-    usb: UsbBackend,
+    usb: Box<dyn UsbDevice>,
     _marker: PhantomData<B>,
 }
 
@@ -109,8 +110,9 @@ impl<B: Board> Backend<B> {
         usb_pid: Option<u16>,
         usb_serial: Option<&str>,
     ) -> Result<Self> {
+        let usb_context = RusbContext::new();
         Ok(Backend {
-            usb: UsbBackend::new(
+            usb: usb_context.device_by_id(
                 usb_vid.unwrap_or(B::VENDOR_ID),
                 usb_pid.unwrap_or(B::PRODUCT_ID),
                 usb_serial,
@@ -147,7 +149,9 @@ impl<B: Board> Backend<B> {
 
     /// Gets the usb serial number of the device.
     pub fn get_serial_number(&self) -> &str {
-        self.usb.get_serial_number()
+        self.usb
+            .get_serial_number()
+            .expect("The chip whisperer does not have a serial number!")
     }
 
     /// Get the firmware build date as a string.

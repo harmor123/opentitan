@@ -167,20 +167,6 @@ module top_darjeeling #(
   parameter logic [31:0] RvCoreIbexCsrMvendorId = '0,
   parameter logic [31:0] RvCoreIbexCsrMimpId = '0
 ) (
-  // Multiplexed I/O
-  input        [11:0] mio_in_i,
-  output logic [11:0] mio_out_o,
-  output logic [11:0] mio_oe_o,
-  // Dedicated I/O
-  input        [72:0] dio_in_i,
-  output logic [72:0] dio_out_o,
-  output logic [72:0] dio_oe_o,
-
-  // pad attributes to padring
-  output prim_pad_wrapper_pkg::pad_attr_t [pinmux_reg_pkg::NMioPads-1:0] mio_attr_o,
-  output prim_pad_wrapper_pkg::pad_attr_t [pinmux_reg_pkg::NDioPads-1:0] dio_attr_o,
-
-
   // Inter-module Signal External type
   output lc_ctrl_pkg::lc_tx_t       ast_lc_dft_en_o,
   output lc_ctrl_pkg::lc_tx_t       ast_lc_hw_debug_en_o,
@@ -290,6 +276,19 @@ module top_darjeeling #(
   output tlul_pkg::tl_h2d_t       ctn_tl_h2d_o,
   input  tlul_pkg::tl_d2h_t       ctn_tl_d2h_i,
 
+  // Multiplexed I/O
+  input  logic [11:0] mio_in_i,
+  output logic [11:0] mio_out_o,
+  output logic [11:0] mio_oe_o,
+
+  // Dedicated I/O
+  input  logic [72:0] dio_in_i,
+  output logic [72:0] dio_out_o,
+  output logic [72:0] dio_oe_o,
+
+  // Pad attributes to padring
+  output prim_pad_wrapper_pkg::pad_attr_t [pinmux_reg_pkg::NMioPads-1:0] mio_attr_o,
+  output prim_pad_wrapper_pkg::pad_attr_t [pinmux_reg_pkg::NDioPads-1:0] dio_attr_o,
 
   // All externally supplied clocks
   input clk_main_i,
@@ -305,9 +304,6 @@ module top_darjeeling #(
   input prim_mubi_pkg::mubi4_t scanmode_i   // lc_ctrl_pkg::On for Scan
 );
 
-  import tlul_pkg::*;
-  import top_pkg::*;
-  import tl_main_pkg::*;
   import top_darjeeling_pkg::*;
   // Compile-time random constants
   import top_darjeeling_rnd_cnst_pkg::*;
@@ -425,7 +421,6 @@ module top_darjeeling #(
   // ac_range_check
   // rv_core_ibex
 
-
   logic [131:0]  intr_vector;
   // Interrupt source list
   logic intr_uart0_tx_watermark;
@@ -532,7 +527,6 @@ module top_darjeeling #(
   // Alert list
   prim_alert_pkg::alert_tx_t [alert_handler_pkg::NAlerts-1:0]  alert_tx;
   prim_alert_pkg::alert_rx_t [alert_handler_pkg::NAlerts-1:0]  alert_rx;
-
 
   // define inter-module signals
   ast_pkg::ast_obs_ctrl_t       ast_obs_ctrl;
@@ -807,13 +801,12 @@ module top_darjeeling #(
   assign pwrmgr_boot_status_o = pwrmgr_aon_boot_status;
   assign racl_policies_o = racl_ctrl_racl_policies;
 
-  // define partial inter-module tie-off
+  // Define partial inter-module tie-off
   edn_pkg::edn_rsp_t unused_edn0_edn_rsp7;
 
-  // assign partial inter-module tie-off
+  // Assign partial inter-module tie-off
   assign unused_edn0_edn_rsp7 = edn0_edn_rsp[7];
   assign edn0_edn_req[7] = '0;
-
 
   // OTP HW_CFG Broadcast signals.
   // TODO(#6713): The actual struct breakout and mapping currently needs to
@@ -845,7 +838,7 @@ module top_darjeeling #(
   assign clks_ast_o = clkmgr_aon_clocks;
   assign rsts_ast_o = rstmgr_aon_resets;
 
-  // ibex specific assignments
+  // Ibex-specific assignments
   // TODO: This should be further automated in the future.
   assign rv_core_ibex_irq_timer = intr_rv_timer_timer_expired_hart0_timer0;
   assign rv_core_ibex_hart_id = '0;
@@ -853,31 +846,31 @@ module top_darjeeling #(
   // Unconditionally disable the late debug feature and enable early debug
   assign rv_dm_otp_dis_rv_dm_late_debug = prim_mubi_pkg::MuBi8True;
 
-  assign rv_core_ibex_boot_addr = ADDR_SPACE_ROM_CTRL0__ROM;
+  assign rv_core_ibex_boot_addr = tl_main_pkg::ADDR_SPACE_ROM_CTRL0__ROM;
 
   // Wire up alert handler LPGs
   prim_mubi_pkg::mubi4_t [alert_handler_pkg::NLpg-1:0] lpg_cg_en;
   prim_mubi_pkg::mubi4_t [alert_handler_pkg::NLpg-1:0] lpg_rst_en;
 
 
-  // peri_lc_io_0
+  // peri_lc_io_Main
   assign lpg_cg_en[0] = clkmgr_aon_cg_en.io_peri;
-  assign lpg_rst_en[0] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::Domain0Sel];
-  // peri_spi_device_0
+  assign lpg_rst_en[0] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::DomainMainSel];
+  // peri_spi_device_Main
   assign lpg_cg_en[1] = clkmgr_aon_cg_en.io_peri;
-  assign lpg_rst_en[1] = rstmgr_aon_rst_en.spi_device[rstmgr_pkg::Domain0Sel];
-  // peri_i2c0_0
+  assign lpg_rst_en[1] = rstmgr_aon_rst_en.spi_device[rstmgr_pkg::DomainMainSel];
+  // peri_i2c0_Main
   assign lpg_cg_en[2] = clkmgr_aon_cg_en.io_peri;
-  assign lpg_rst_en[2] = rstmgr_aon_rst_en.i2c0[rstmgr_pkg::Domain0Sel];
-  // timers_lc_io_0
+  assign lpg_rst_en[2] = rstmgr_aon_rst_en.i2c0[rstmgr_pkg::DomainMainSel];
+  // timers_lc_io_Main
   assign lpg_cg_en[3] = clkmgr_aon_cg_en.io_timers;
-  assign lpg_rst_en[3] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::Domain0Sel];
-  // secure_lc_io_0
+  assign lpg_rst_en[3] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::DomainMainSel];
+  // secure_lc_io_Main
   assign lpg_cg_en[4] = clkmgr_aon_cg_en.io_secure;
-  assign lpg_rst_en[4] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::Domain0Sel];
-  // peri_spi_host0_0
+  assign lpg_rst_en[4] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::DomainMainSel];
+  // peri_spi_host0_Main
   assign lpg_cg_en[5] = clkmgr_aon_cg_en.io_peri;
-  assign lpg_rst_en[5] = rstmgr_aon_rst_en.spi_host0[rstmgr_pkg::Domain0Sel];
+  assign lpg_rst_en[5] = rstmgr_aon_rst_en.spi_host0[rstmgr_pkg::DomainMainSel];
   // powerup_por_io_Aon
   assign lpg_cg_en[6] = clkmgr_aon_cg_en.io_powerup;
   assign lpg_rst_en[6] = rstmgr_aon_rst_en.por_io[rstmgr_pkg::DomainAonSel];
@@ -887,84 +880,82 @@ module top_darjeeling #(
   // timers_lc_io_Aon
   assign lpg_cg_en[8] = clkmgr_aon_cg_en.io_timers;
   assign lpg_rst_en[8] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::DomainAonSel];
-  // infra_lc_io_0
+  // infra_lc_io_Main
   assign lpg_cg_en[9] = clkmgr_aon_cg_en.io_infra;
-  assign lpg_rst_en[9] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::Domain0Sel];
-  // infra_lc_0
+  assign lpg_rst_en[9] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::DomainMainSel];
+  // infra_lc_Main
   assign lpg_cg_en[10] = clkmgr_aon_cg_en.main_infra;
-  assign lpg_rst_en[10] = rstmgr_aon_rst_en.lc[rstmgr_pkg::Domain0Sel];
+  assign lpg_rst_en[10] = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainMainSel];
   // infra_lc_io_Aon
   assign lpg_cg_en[11] = clkmgr_aon_cg_en.io_infra;
   assign lpg_rst_en[11] = rstmgr_aon_rst_en.lc_io[rstmgr_pkg::DomainAonSel];
-  // infra_sys_0
+  // infra_sys_Main
   assign lpg_cg_en[12] = clkmgr_aon_cg_en.main_infra;
-  assign lpg_rst_en[12] = rstmgr_aon_rst_en.sys[rstmgr_pkg::Domain0Sel];
-  // secure_lc_0
+  assign lpg_rst_en[12] = rstmgr_aon_rst_en.sys[rstmgr_pkg::DomainMainSel];
+  // secure_lc_Main
   assign lpg_cg_en[13] = clkmgr_aon_cg_en.main_secure;
-  assign lpg_rst_en[13] = rstmgr_aon_rst_en.lc[rstmgr_pkg::Domain0Sel];
-  // aes_trans_lc_0
+  assign lpg_rst_en[13] = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainMainSel];
+  // aes_trans_lc_Main
   assign lpg_cg_en[14] = clkmgr_aon_cg_en.main_aes;
-  assign lpg_rst_en[14] = rstmgr_aon_rst_en.lc[rstmgr_pkg::Domain0Sel];
-  // hmac_trans_lc_0
+  assign lpg_rst_en[14] = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainMainSel];
+  // hmac_trans_lc_Main
   assign lpg_cg_en[15] = clkmgr_aon_cg_en.main_hmac;
-  assign lpg_rst_en[15] = rstmgr_aon_rst_en.lc[rstmgr_pkg::Domain0Sel];
-  // kmac_trans_lc_0
+  assign lpg_rst_en[15] = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainMainSel];
+  // kmac_trans_lc_Main
   assign lpg_cg_en[16] = clkmgr_aon_cg_en.main_kmac;
-  assign lpg_rst_en[16] = rstmgr_aon_rst_en.lc[rstmgr_pkg::Domain0Sel];
-  // otbn_trans_lc_0
+  assign lpg_rst_en[16] = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainMainSel];
+  // otbn_trans_lc_Main
   assign lpg_cg_en[17] = clkmgr_aon_cg_en.main_otbn;
-  assign lpg_rst_en[17] = rstmgr_aon_rst_en.lc[rstmgr_pkg::Domain0Sel];
+  assign lpg_rst_en[17] = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainMainSel];
 
 
 // tie-off unused connections
 //VCS coverage off
 // pragma coverage off
-    prim_mubi_pkg::mubi4_t unused_cg_en_0;
-    assign unused_cg_en_0 = clkmgr_aon_cg_en.aon_powerup;
-    prim_mubi_pkg::mubi4_t unused_cg_en_1;
-    assign unused_cg_en_1 = clkmgr_aon_cg_en.main_powerup;
-    prim_mubi_pkg::mubi4_t unused_cg_en_2;
-    assign unused_cg_en_2 = clkmgr_aon_cg_en.aon_infra;
-    prim_mubi_pkg::mubi4_t unused_cg_en_3;
-    assign unused_cg_en_3 = clkmgr_aon_cg_en.aon_timers;
-    prim_mubi_pkg::mubi4_t unused_rst_en_0;
-    assign unused_rst_en_0 = rstmgr_aon_rst_en.por_aon[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_1;
-    assign unused_rst_en_1 = rstmgr_aon_rst_en.por_aon[rstmgr_pkg::Domain0Sel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_2;
-    assign unused_rst_en_2 = rstmgr_aon_rst_en.por[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_3;
-    assign unused_rst_en_3 = rstmgr_aon_rst_en.por[rstmgr_pkg::Domain0Sel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_4;
-    assign unused_rst_en_4 = rstmgr_aon_rst_en.por_io[rstmgr_pkg::Domain0Sel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_5;
-    assign unused_rst_en_5 = rstmgr_aon_rst_en.lc_shadowed[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_6;
-    assign unused_rst_en_6 = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_7;
-    assign unused_rst_en_7 = rstmgr_aon_rst_en.lc_shadowed[rstmgr_pkg::Domain0Sel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_8;
-    assign unused_rst_en_8 = rstmgr_aon_rst_en.lc_aon[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_9;
-    assign unused_rst_en_9 = rstmgr_aon_rst_en.lc_aon[rstmgr_pkg::Domain0Sel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_10;
-    assign unused_rst_en_10 = rstmgr_aon_rst_en.lc_io_shadowed[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_11;
-    assign unused_rst_en_11 = rstmgr_aon_rst_en.lc_io_shadowed[rstmgr_pkg::Domain0Sel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_12;
-    assign unused_rst_en_12 = rstmgr_aon_rst_en.sys[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_13;
-    assign unused_rst_en_13 = rstmgr_aon_rst_en.spi_device[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_14;
-    assign unused_rst_en_14 = rstmgr_aon_rst_en.spi_host0[rstmgr_pkg::DomainAonSel];
-    prim_mubi_pkg::mubi4_t unused_rst_en_15;
-    assign unused_rst_en_15 = rstmgr_aon_rst_en.i2c0[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_cg_en_0;
+  assign unused_cg_en_0 = clkmgr_aon_cg_en.aon_powerup;
+  prim_mubi_pkg::mubi4_t unused_cg_en_1;
+  assign unused_cg_en_1 = clkmgr_aon_cg_en.main_powerup;
+  prim_mubi_pkg::mubi4_t unused_cg_en_2;
+  assign unused_cg_en_2 = clkmgr_aon_cg_en.aon_infra;
+  prim_mubi_pkg::mubi4_t unused_cg_en_3;
+  assign unused_cg_en_3 = clkmgr_aon_cg_en.aon_timers;
+  prim_mubi_pkg::mubi4_t unused_rst_en_0;
+  assign unused_rst_en_0 = rstmgr_aon_rst_en.por_aon[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_1;
+  assign unused_rst_en_1 = rstmgr_aon_rst_en.por_aon[rstmgr_pkg::DomainMainSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_2;
+  assign unused_rst_en_2 = rstmgr_aon_rst_en.por[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_3;
+  assign unused_rst_en_3 = rstmgr_aon_rst_en.por[rstmgr_pkg::DomainMainSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_4;
+  assign unused_rst_en_4 = rstmgr_aon_rst_en.por_io[rstmgr_pkg::DomainMainSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_5;
+  assign unused_rst_en_5 = rstmgr_aon_rst_en.lc_shadowed[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_6;
+  assign unused_rst_en_6 = rstmgr_aon_rst_en.lc[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_7;
+  assign unused_rst_en_7 = rstmgr_aon_rst_en.lc_shadowed[rstmgr_pkg::DomainMainSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_8;
+  assign unused_rst_en_8 = rstmgr_aon_rst_en.lc_aon[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_9;
+  assign unused_rst_en_9 = rstmgr_aon_rst_en.lc_aon[rstmgr_pkg::DomainMainSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_10;
+  assign unused_rst_en_10 = rstmgr_aon_rst_en.lc_io_shadowed[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_11;
+  assign unused_rst_en_11 = rstmgr_aon_rst_en.lc_io_shadowed[rstmgr_pkg::DomainMainSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_12;
+  assign unused_rst_en_12 = rstmgr_aon_rst_en.sys[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_13;
+  assign unused_rst_en_13 = rstmgr_aon_rst_en.spi_device[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_14;
+  assign unused_rst_en_14 = rstmgr_aon_rst_en.spi_host0[rstmgr_pkg::DomainAonSel];
+  prim_mubi_pkg::mubi4_t unused_rst_en_15;
+  assign unused_rst_en_15 = rstmgr_aon_rst_en.i2c0[rstmgr_pkg::DomainAonSel];
 //VCS coverage on
 // pragma coverage on
 
   // Peripheral Instantiation
-
-
   uart #(
     .AlertAsyncOn(alert_handler_reg_pkg::AsyncOn[0:0]),
     .AlertSkewCycles(top_pkg::AlertSkewCycles)
@@ -1001,7 +992,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_peri),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   gpio #(
@@ -1035,7 +1026,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_peri),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   spi_device #(
@@ -1087,7 +1078,7 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_peri),
     .scan_clk_i (clkmgr_aon_clocks.clk_io_peri),
-    .rst_ni (rstmgr_aon_resets.rst_spi_device_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_spi_device_n[rstmgr_pkg::DomainMainSel])
   );
 
   i2c #(
@@ -1138,7 +1129,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_peri),
-    .rst_ni (rstmgr_aon_resets.rst_i2c0_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_i2c0_n[rstmgr_pkg::DomainMainSel])
   );
 
   rv_timer #(
@@ -1161,7 +1152,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_timers),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   otp_ctrl #(
@@ -1221,8 +1212,8 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_secure),
     .clk_edn_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   otp_macro #(
@@ -1261,7 +1252,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   lc_ctrl #(
@@ -1342,8 +1333,8 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_secure),
     .clk_kmac_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
-    .rst_kmac_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
+    .rst_kmac_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   alert_handler #(
@@ -1379,9 +1370,9 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_secure),
     .clk_edn_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_io_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_io_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   spi_host #(
@@ -1420,7 +1411,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_peri),
-    .rst_ni (rstmgr_aon_resets.rst_spi_host0_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_spi_host0_n[rstmgr_pkg::DomainMainSel])
   );
 
   pwrmgr #(
@@ -1473,7 +1464,7 @@ module top_darjeeling #(
     .clk_lc_i (clkmgr_aon_clocks.clk_io_powerup),
     .clk_esc_i (clkmgr_aon_clocks.clk_io_secure),
     .rst_ni (rstmgr_aon_resets.rst_por_io_n[rstmgr_pkg::DomainAonSel]),
-    .rst_main_ni (rstmgr_aon_resets.rst_por_aon_n[rstmgr_pkg::Domain0Sel]),
+    .rst_main_ni (rstmgr_aon_resets.rst_por_aon_n[rstmgr_pkg::DomainMainSel]),
     .rst_lc_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainAonSel]),
     .rst_esc_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainAonSel]),
     .rst_slow_ni (rstmgr_aon_resets.rst_por_aon_n[rstmgr_pkg::DomainAonSel])
@@ -1668,7 +1659,7 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_aon_i (clkmgr_aon_clocks.clk_aon_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
     .rst_por_ni (rstmgr_aon_resets.rst_por_io_n[rstmgr_pkg::DomainAonSel])
   );
 
@@ -1765,8 +1756,8 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_lc_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_sys_n[rstmgr_pkg::Domain0Sel]),
-    .rst_lc_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_sys_n[rstmgr_pkg::DomainMainSel]),
+    .rst_lc_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   rv_plic #(
@@ -1788,7 +1779,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   aes #(
@@ -1825,9 +1816,9 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_aes),
     .clk_edn_i (clkmgr_aon_clocks.clk_main_aes),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   hmac #(
@@ -1851,7 +1842,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_hmac),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   kmac #(
@@ -1894,9 +1885,9 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_kmac),
     .clk_edn_i (clkmgr_aon_clocks.clk_main_kmac),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   otbn #(
@@ -1945,9 +1936,9 @@ module top_darjeeling #(
     .clk_i (clkmgr_aon_clocks.clk_main_otbn),
     .clk_edn_i (clkmgr_aon_clocks.clk_main_secure),
     .clk_otp_i (clkmgr_aon_clocks.clk_io_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   keymgr_dpe #(
@@ -1994,9 +1985,9 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
     .clk_edn_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   csrng #(
@@ -2030,7 +2021,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   entropy_src #(
@@ -2075,7 +2066,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   edn #(
@@ -2103,7 +2094,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   edn #(
@@ -2131,7 +2122,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   sram_ctrl #(
@@ -2176,8 +2167,8 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_otp_i (clkmgr_aon_clocks.clk_io_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   sram_ctrl #(
@@ -2222,8 +2213,8 @@ module top_darjeeling #(
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_otp_i (clkmgr_aon_clocks.clk_io_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   rom_ctrl #(
@@ -2254,7 +2245,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   rom_ctrl #(
@@ -2285,7 +2276,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   dma #(
@@ -2323,7 +2314,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2362,7 +2353,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2401,7 +2392,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2440,7 +2431,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2479,7 +2470,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2518,7 +2509,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2557,7 +2548,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2596,7 +2587,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2635,7 +2626,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2674,7 +2665,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   mbx #(
@@ -2713,7 +2704,7 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   soc_dbg_ctrl #(
@@ -2744,8 +2735,8 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_io_secure),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_io_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_io_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
   racl_ctrl #(
@@ -2773,8 +2764,8 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   ac_range_check #(
@@ -2807,8 +2798,8 @@ module top_darjeeling #(
 
     // Clock and reset connections
     .clk_i (clkmgr_aon_clocks.clk_main_secure),
-    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::Domain0Sel]),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel])
+    .rst_shadowed_ni (rstmgr_aon_resets.rst_lc_shadowed_n[rstmgr_pkg::DomainMainSel]),
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel])
   );
 
   rv_core_ibex #(
@@ -2899,10 +2890,10 @@ module top_darjeeling #(
     .clk_edn_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_esc_i (clkmgr_aon_clocks.clk_io_secure),
     .clk_otp_i (clkmgr_aon_clocks.clk_io_secure),
-    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_esc_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
-    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel])
+    .rst_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_edn_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_esc_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
+    .rst_otp_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel])
   );
 
 
@@ -3011,12 +3002,12 @@ module top_darjeeling #(
     1'b0 // ID 0 is a special case and tied to zero.
   };
 
-  // TL-UL Crossbar
+  // TL-UL Crossbars
   xbar_main u_xbar_main (
     .clk_main_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_fixed_i (clkmgr_aon_clocks.clk_io_infra),
-    .rst_main_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_fixed_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
+    .rst_main_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_fixed_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
 
     // port: tl_rv_core_ibex__corei
     .tl_rv_core_ibex__corei_i(main_tl_rv_core_ibex__corei_req),
@@ -3219,7 +3210,7 @@ module top_darjeeling #(
 
   xbar_peri u_xbar_peri (
     .clk_peri_i (clkmgr_aon_clocks.clk_io_infra),
-    .rst_peri_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
+    .rst_peri_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
 
     // port: tl_main
     .tl_main_i(main_tl_peri_req),
@@ -3306,7 +3297,7 @@ module top_darjeeling #(
 
   xbar_mbx u_xbar_mbx (
     .clk_mbx_i (clkmgr_aon_clocks.clk_main_infra),
-    .rst_mbx_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
+    .rst_mbx_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
 
     // port: tl_mbx
     .tl_mbx_i(mbx_tl_req_i),
@@ -3362,8 +3353,8 @@ module top_darjeeling #(
   xbar_dbg u_xbar_dbg (
     .clk_dbg_i (clkmgr_aon_clocks.clk_main_infra),
     .clk_peri_i (clkmgr_aon_clocks.clk_io_infra),
-    .rst_dbg_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::Domain0Sel]),
-    .rst_peri_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::Domain0Sel]),
+    .rst_dbg_ni (rstmgr_aon_resets.rst_lc_n[rstmgr_pkg::DomainMainSel]),
+    .rst_peri_ni (rstmgr_aon_resets.rst_lc_io_n[rstmgr_pkg::DomainMainSel]),
 
     // port: tl_dbg
     .tl_dbg_i(dbg_tl_req_i),
@@ -3622,12 +3613,12 @@ module top_darjeeling #(
   assign dio_en_d2p[DioSocProxySocGpo10] = cio_soc_proxy_soc_gpo_en_d2p[10];
   assign dio_en_d2p[DioSocProxySocGpo11] = cio_soc_proxy_soc_gpo_en_d2p[11];
 
-  // make sure scanmode_i is never X (including during reset)
-  `ASSERT_KNOWN(scanmodeKnown, scanmode_i, clk_main_i, 0)
-
   // TODO(#26288) : EnCsrngSwAppReadSize should not be present in Darjeeling; presently, this signal
   // must be used to avoid a lint error.
   logic unused_en_csrng;
   assign unused_en_csrng = ^otp_ctrl_otp_broadcast.hw_cfg1_data.en_csrng_sw_app_read;
+
+  // make sure scanmode_i is never X (including during reset)
+  `ASSERT_KNOWN(scanmodeKnown, scanmode_i, clk_main_i, 0)
 
 endmodule

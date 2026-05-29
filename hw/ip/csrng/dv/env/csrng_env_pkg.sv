@@ -24,8 +24,10 @@ package csrng_env_pkg;
   `include "uvm_macros.svh"
   `include "dv_macros.svh"
 
+  // The maximum number of HW apps supported by the environment
+  parameter int unsigned MaxNumHwApps = 4;
+
   // parameters
-  parameter uint     NUM_HW_APPS                = 2;
   parameter uint     HW_APP0                    = 0;
   parameter uint     HW_APP1                    = 1;
   parameter uint     SW_APP                     = 2;

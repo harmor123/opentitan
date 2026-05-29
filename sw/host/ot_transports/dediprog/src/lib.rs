@@ -14,17 +14,18 @@ use regex::Regex;
 use opentitanlib::backend::{Backend, BackendOpts, define_interface};
 use opentitanlib::io::gpio::{GpioError, GpioPin, PinMode, PullMode};
 use opentitanlib::io::spi::Target;
+use opentitanlib::io::usb::{UsbContext, UsbDevice, desc};
+use opentitanlib::transport::common::usb::RusbContext;
 use opentitanlib::transport::{
     Capabilities, Capability, Transport, TransportError, TransportInterfaceType,
 };
 use opentitanlib::util::fs::builtin_file;
-use opentitanlib::util::usb::UsbBackend;
 
 pub mod gpio;
 pub mod spi;
 
 pub struct Inner {
-    device: UsbBackend,
+    device: Box<dyn UsbDevice>,
     spi: Option<Rc<dyn Target>>,
     gpio: HashMap<String, Rc<dyn GpioPin>>,
     gpio_levels: u16,
@@ -35,7 +36,7 @@ pub struct Inner {
 }
 
 impl Inner {
-    fn new(device: UsbBackend, in_endpoint: u8, out_endpoint: u8) -> Self {
+    fn new(device: Box<dyn UsbDevice>, in_endpoint: u8, out_endpoint: u8) -> Self {
         Self {
             device,
             spi: None,
@@ -124,7 +125,8 @@ impl Dediprog {
         usb_pid: Option<u16>,
         usb_serial: Option<&str>,
     ) -> anyhow::Result<Self> {
-        let device = UsbBackend::new(
+        let usb_context = RusbContext::new();
+        let device = usb_context.device_by_id(
             usb_vid.unwrap_or(Self::VID_ST_MICROELECTRONICS),
             usb_pid.unwrap_or(Self::PID_DEDIPROG_SF100),
             usb_serial,
@@ -132,35 +134,32 @@ impl Dediprog {
 
         device.set_active_configuration(1)?;
 
-        let config_desc = device.active_config_descriptor()?;
+        let config_desc = device.active_configuration()?;
         // Iterate through each USB interface, discovering endpoints.
         let mut in_endpoint: Option<u8> = None;
         let mut out_endpoint: Option<u8> = None;
-        for interface in config_desc.interfaces() {
-            for interface_desc in interface.descriptors() {
-                for endpoint_desc in interface_desc.endpoint_descriptors() {
-                    if endpoint_desc.transfer_type() != rusb::TransferType::Bulk {
-                        continue;
+        for interface in config_desc.interface_alt_settings() {
+            for endpoint in interface.endpoints() {
+                let endpoint_desc = endpoint.descriptor()?;
+                if endpoint_desc.transfer_type() != desc::TransferType::Bulk {
+                    continue;
+                }
+                match endpoint_desc.direction() {
+                    desc::Direction::In => {
+                        ensure!(
+                            in_endpoint.is_none(),
+                            TransportError::CommunicationError("Multiple IN endpoints".to_string())
+                        );
+                        in_endpoint.replace(endpoint_desc.addr);
                     }
-                    match endpoint_desc.direction() {
-                        rusb::Direction::In => {
-                            ensure!(
-                                in_endpoint.is_none(),
-                                TransportError::CommunicationError(
-                                    "Multiple IN endpoints".to_string()
-                                )
-                            );
-                            in_endpoint.replace(endpoint_desc.address());
-                        }
-                        rusb::Direction::Out => {
-                            ensure!(
-                                out_endpoint.is_none(),
-                                TransportError::CommunicationError(
-                                    "Multiple OUT endpoints".to_string()
-                                )
-                            );
-                            out_endpoint.replace(endpoint_desc.address());
-                        }
+                    desc::Direction::Out => {
+                        ensure!(
+                            out_endpoint.is_none(),
+                            TransportError::CommunicationError(
+                                "Multiple OUT endpoints".to_string()
+                            )
+                        );
+                        out_endpoint.replace(endpoint_desc.addr);
                     }
                 }
             }
@@ -174,7 +173,7 @@ impl Dediprog {
 
         device.claim_interface(0)?;
 
-        let protocol_version = match Self::get_protocol_version(&device) {
+        let protocol_version = match Self::get_protocol_version(&*device) {
             Ok(protocol_version) => protocol_version,
             Err(_) => {
                 let mut init_byte = [0u8];
@@ -197,7 +196,7 @@ impl Dediprog {
                     )
                     .into());
                 }
-                Self::get_protocol_version(&device)?
+                Self::get_protocol_version(&*device)?
             }
         };
         if protocol_version < 2 {
@@ -217,7 +216,7 @@ impl Dediprog {
         Ok(board)
     }
 
-    fn get_protocol_version(device: &UsbBackend) -> Result<u32> {
+    fn get_protocol_version(device: &dyn UsbDevice) -> Result<u32> {
         let mut device_id_bytes = [0u8; 16];
         device.read_control(
             rusb::request_type(

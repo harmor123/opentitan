@@ -10,8 +10,8 @@
 ## Current status
 * [Design & verification stage](../../../README.md)
   * [HW development stages](../../../../doc/project_governance/development_stages.md)
-* [Simulation results for Masked AES](https://reports.opentitan.org/hw/ip/aes_masked/dv/latest/report.html)
-* [Simulation results for Unmasked AES](https://reports.opentitan.org/hw/ip/aes_unmasked/dv/latest/report.html)
+* [Simulation results for Masked/Unmasked AES](https://dashboard.reports.lowrisc.org/opentitan/earlgrey/dashboard.html)
+* [Simulation results for Masked/Unmasked AES with GCM Support](https://dashboard.reports.lowrisc.org/opentitan/darjeeling/dashboard.html)
 
 ## Design features
 For detailed information on AES design features, please see the [AES HWIP Technical Specification](../README.md).
@@ -57,6 +57,9 @@ which provides the ability to drive and monitor edn traffic via the edn interfac
 The AES RAL model is created with the [`ralgen`](../../../dv/tools/ralgen/README.md) FuseSoC generator script automatically when the simulation is at the build stage.
 
 It can be created manually by invoking [`regtool`](../../../../util/reggen/doc/setup_and_use.md):
+```console
+$ $REPO_TOP/util/regtool.py $REPO_TOP/hw/ip/aes/data/aes.hjson -s --outdir <path_to_directory>
+```
 
 ### Stimulus strategy
 #### Test sequences
@@ -135,16 +138,19 @@ This setting is only available when using the C-model as reference and is contro
 * Unknown checks on DUT outputs: The RTL has assertions to ensure all outputs are initialized to known values after coming out of reset.
 
 ## Building and running tests
-We are using our in-house developed [regression tool](../../../../util/dvsim/README.md) for both building and running our tests and regressions.
+The [dvsim](https://github.com/lowRISC/dvsim) tool is used for building and running our tests and regressions.
 Please take a look at the link for detailed information on the usage, capabilities, features and known issues.
-Here's how to run a smoke test:
+
+In the examples below, the VARIANT variable should contain one of `masked`, `unmasked`, `gcm_masked` and `gcm_unmasked`.
+
+To run a smoke test, use:
 ```console
-$ $REPO_TOP/util/dvsim/dvsim.py $REPO_TOP/hw/ip/aes/dv/aes_sim_cfg.hjson -i aes_smoke
+$ dvsim $REPO_TOP/hw/ip/aes/dv/aes_${VARIANT}_sim_cfg.hjson -i aes_smoke
 ```
-Here's how to run a basic test without DPI calls:
+To run a basic test without DPI calls, run:
 ```console
-$ $REPO_TOP/util/dvsim/dvsim.py $REPO_TOP/hw/ip/aes/dv/aes_${VARIANT}_sim_cfg.hjson -i aes_wakeup
+$ dvsim $REPO_TOP/hw/ip/aes/dv/aes_${VARIANT}_sim_cfg.hjson -i aes_wakeup
 ```
-In this run command, $VARIANT can be `masked` or `unmasked`.
+
 ## Testplan
 [Testplan](../data/aes_testplan.hjson)
