@@ -28,6 +28,12 @@ module otbn
   parameter bit SecSkipUrndReseedAtStart = 1'b0,
   // Masking accelerator interface will not randomize operand start indexes.
   parameter bit SecFixMaiOpSeq = 1'b0,
+  // Enable keccak-f χ-step DOM masking inside OTBN KMAC.
+  // 0 = functional test (25 cycles/keccak-f), 1 = production SCA (97 cycles).
+  parameter bit EnMaskingOtnb = 1'b0,
+  // Fix KMAC squeeze masking for deterministic DV trace comparison.
+  // 1 = deterministic (DV), 0 = normal SCA 2-share masking.
+  parameter bit SecFixKmacMasking = 1'b0,
 
   // Masking accelerator is not present. Useful for resource-bound targets only.
   parameter bit FeatStubMai = 1'b0,
@@ -1122,6 +1128,8 @@ module otbn
     .RndCnstUrndPrngSeed(RndCnstUrndPrngSeed),
     .SecMuteUrnd(SecMuteUrnd),
     .SecFixMaiOpSeq(SecFixMaiOpSeq),
+    .EnMaskingOtnb(EnMaskingOtnb),
+    .SecFixKmacMasking(SecFixKmacMasking),
     .FeatStubMai(FeatStubMai),
     .SecSkipUrndReseedAtStart(SecSkipUrndReseedAtStart),
     .RndCnstBnMacUrndPerm(RndCnstBnMacUrndPerm)

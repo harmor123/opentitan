@@ -72,6 +72,13 @@ module otbn_kmac
   input  logic               ispr_kmac_data_s0_rd_i,
   input  logic               ispr_kmac_data_s1_rd_i,
 
+  // KMAC DOM masking randomness (800b, from otbn_rnd dedicated Trivium)
+  // Only used when EnMasking=1.  Hardwired to 0 when EnMasking=0 (test mode).
+  input  logic                        kmac_dom_rand_valid_i,
+  input  logic [Width/2-1:0]          kmac_dom_rand_data_i,
+  input  logic                        kmac_dom_rand_aux_i,
+  output logic                        kmac_dom_rand_advance_o,
+
   // Error
   output logic kmac_state_err_o
 );
@@ -425,6 +432,17 @@ module otbn_kmac
   // keccak_round handles the rate-capacity boundary internally.
   assign keccak_feed_addr  = DInAddr'(absorb_rate_pos);
 
+  // Latch cmd_process when keccak is busy (rate-full auto-trigger).
+  // Cleared when entering StPad or leaving StMsgFeed.
+  logic process_pending_q;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni)                              process_pending_q <= 1'b0;
+    else if (st_q != StMsgFeed)               process_pending_q <= 1'b0;
+    else if (st_d == StPad)                   process_pending_q <= 1'b0;
+    else if (cmd_process && (absorb_hold_q || keccak_run_pending_q))
+      process_pending_q <= 1'b1;
+  end
+
   ////////////////////////////////////////////////////////////////////////////
   // SHA3 Padding
   ////////////////////////////////////////////////////////////////////////////
@@ -502,9 +520,33 @@ module otbn_kmac
   logic [Width-1:0] keccak_state [Share];
   logic keccak_sparse_err, keccak_round_err, keccak_rst_err;
 
-  // Tie off unused masking/randomness inputs
-  logic [Width/2-1:0] unused_rand;
-  assign unused_rand = '0;
+  // KMAC DOM masking randomness mux: EnMasking=0 → tie to 0 (test mode),
+  // EnMasking=1 → forward from dedicated 800b Trivium (production SCA).
+  logic                        kmac_rand_valid;
+  logic [Width/2-1:0]          kmac_rand_data;
+  logic                        kmac_rand_aux;
+  logic                        kmac_rand_update, kmac_rand_consumed;
+
+  if (!EnMasking) begin : gen_kmac_rand_tie_off
+    // Test mode: keccak-f runs unmasked, no randomness needed.
+    // Tie all rand ports to 0 and suppress advance requests.
+    assign kmac_rand_valid  = 1'b0;
+    assign kmac_rand_data   = '0;
+    assign kmac_rand_aux    = 1'b0;
+    // Unused advance signals — tie off
+    logic unused_kmac_rand_update;
+    logic unused_kmac_rand_consumed;
+    assign unused_kmac_rand_update   = kmac_rand_update;
+    assign unused_kmac_rand_consumed = kmac_rand_consumed;
+  end else begin : gen_kmac_rand_connected
+    // Production SCA mode: forward 800b randomness from dedicated Trivium.
+    assign kmac_rand_valid  = kmac_dom_rand_valid_i;
+    assign kmac_rand_data   = kmac_dom_rand_data_i;
+    assign kmac_rand_aux    = kmac_dom_rand_aux_i;
+  end
+
+  // Advance the DOM PRNG when keccak_round signals consumption or update.
+  assign kmac_dom_rand_advance_o = kmac_rand_update | kmac_rand_consumed;
 
   keccak_round #(
     .Width(Width),
@@ -519,12 +561,12 @@ module otbn_kmac
     .data_i             ('{keccak_feed_data_mux}),  // Share=1 with EnMasking=0
     .ready_o            (keccak_feed_ready),
     .run_i              (keccak_run),
-    .rand_valid_i       (1'b0),
+    .rand_valid_i       (kmac_rand_valid),
     .rand_early_i       (1'b0),
-    .rand_data_i        (unused_rand),
-    .rand_aux_i         (1'b0),
-    .rand_update_o      (),
-    .rand_consumed_o    (),
+    .rand_data_i        (kmac_rand_data),
+    .rand_aux_i         (kmac_rand_aux),
+    .rand_update_o      (kmac_rand_update),
+    .rand_consumed_o    (kmac_rand_consumed),
     .complete_o         (keccak_complete),
     .state_o            (keccak_state),
     .lc_escalate_en_i   (lc_ctrl_pkg::Off),

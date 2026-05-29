@@ -33,6 +33,9 @@ module otbn_core
   parameter bit SecFixMaiOpSeq = 1'b0,
 
   // Fix KMAC squeeze masking to zero for DV trace comparison.
+  // Enable keccak-f χ-step DOM masking (requires KmacDomWidth=800 Trivium in otbn_rnd).
+  // 0 = unmasked (25 cycles/keccak-f, functional test), 1 = DOM masked (97 cycles, production SCA).
+  parameter bit EnMaskingOtnb = 1'b0,
   // Aligned with SecFixMaiOpSeq: 1 = deterministic (DV), 0 = normal (SCA).
   parameter bit SecFixKmacMasking = 1'b0,
 
@@ -330,6 +333,12 @@ module otbn_core
   logic [ExtWLEN-1:0] ispr_kmac_data_s1_wdata;
   logic [ExtWLEN-1:0] ispr_kmac_data_s1_rdata;
   logic               kmac_state_err;
+
+  // KMAC DOM masking randomness — dedicated 800b Trivium loopback
+  logic                        kmac_dom_rand_valid;
+  logic [KmacDomWidth-1:0]     kmac_dom_rand_data;
+  logic                        kmac_dom_rand_aux;
+  logic                        kmac_dom_rand_advance;
 
   // KMAC trace data — connected to otbn_trace_if via bind (.*)
   logic [ExtWLEN-1:0] kmac_trace_data_s0;
@@ -1176,6 +1185,7 @@ module otbn_core
 
   // KMAC instantiation (always present)
   otbn_kmac #(
+    .EnMasking(EnMaskingOtnb),
     .SecFixKmacMasking(SecFixKmacMasking)
   ) u_otbn_kmac (
     .clk_i,
@@ -1203,6 +1213,10 @@ module otbn_core
     .ispr_kmac_data_s1_rd_i  (ispr_bignum_predec.ispr_rd_en[IsprKmacDataS1]),
     .ispr_kmac_data_s0_rdata_o(ispr_kmac_data_s0_rdata),
     .ispr_kmac_data_s1_rdata_o(ispr_kmac_data_s1_rdata),
+    .kmac_dom_rand_valid_i (kmac_dom_rand_valid),
+    .kmac_dom_rand_data_i  (kmac_dom_rand_data),
+    .kmac_dom_rand_aux_i   (kmac_dom_rand_aux),
+    .kmac_dom_rand_advance_o(kmac_dom_rand_advance),
     .kmac_state_err_o        (kmac_state_err)
   );
 
@@ -1235,7 +1249,12 @@ module otbn_core
     .edn_rnd_err_i,
 
     .edn_urnd_o,
-    .edn_urnd_i
+    .edn_urnd_i,
+
+    .kmac_dom_rand_valid_o (kmac_dom_rand_valid),
+    .kmac_dom_rand_data_o  (kmac_dom_rand_data),
+    .kmac_dom_rand_aux_o   (kmac_dom_rand_aux),
+    .kmac_dom_rand_advance_i(kmac_dom_rand_advance)
   );
 
   // Advance URND either when the start_stop_control commands it or when temporary secure wipe keys

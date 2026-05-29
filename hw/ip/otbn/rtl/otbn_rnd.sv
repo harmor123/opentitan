@@ -58,7 +58,15 @@ module otbn_rnd import otbn_pkg::*;
   input  logic                    edn_rnd_err_i,
 
   output edn_pkg::edn_req_t       edn_urnd_o,
-  input  edn_pkg::edn_rsp_t       edn_urnd_i
+  input  edn_pkg::edn_rsp_t       edn_urnd_i,
+
+  // KMAC DOM masking — dedicated 800b Trivium (production SCA countermeasure)
+  // Seed shared with URND Trivium (same EDN bus, same seed_en moment).
+  // Advanced externally by otbn_kmac when keccak_round consumes randomness.
+  output logic                        kmac_dom_rand_valid_o,
+  output logic [KmacDomWidth-1:0]     kmac_dom_rand_data_o,
+  output logic                        kmac_dom_rand_aux_o,
+  input  logic                        kmac_dom_rand_advance_i
 );
 
   logic rnd_valid_q, rnd_valid_d;
@@ -224,6 +232,67 @@ module otbn_rnd import otbn_pkg::*;
     end
   end
   assign urnd_reseed_ack_o = urnd_reseed_ack_q;
+
+  // =====================================================================
+  // KMAC DOM Masking — Dedicated 800b Trivium (Plan B2)
+  // =====================================================================
+  // Separate PRNG instance for keccak-f χ-step DOM masking.
+  // Shares the EDN seed with the URND Trivium (same seed_en_q moment,
+  // same edn_urnd_i.edn_bus data).  Does NOT initiate independent EDN
+  // requests — seeding is gated by the existing URND seed FSM.
+  //
+  // Output: 800 bits/cycle fresh randomness for keccak_round.rand_data_i.
+  // Advanced by otbn_kmac via kmac_dom_rand_advance_i when keccak_round
+  // signals rand_update_o or rand_consumed_o.
+
+  logic [KmacDomWidth-1:0] kmac_dom_prng_data;
+  logic [KmacDomWidth-1:0] kmac_dom_prng_permuted;
+
+  prim_trivium #(
+    .BiviumVariant         (1'b1),
+    .OutputWidth           (KmacDomWidth),
+    .StrictLockupProtection(1'b1),
+    .SeedType              (prim_trivium_pkg::SeedTypeStatePartial),
+    .PartialSeedWidth      (edn_pkg::ENDPOINT_BUS_WIDTH)
+  ) u_kmac_dom_trivium (
+    .clk_i,
+    .rst_ni,
+    .en_i                (kmac_dom_rand_advance_i),
+    .allow_lockup_i      (1'b0),
+    .seed_en_i           (seed_en_q),                // Same seed moment as URND
+    .seed_done_o         (),                          // Not used
+    .seed_req_o          (),                          // No independent EDN requests
+    .seed_ack_i          (1'b1),
+    .seed_key_i          ('0),
+    .seed_iv_i           ('0),
+    .seed_state_full_i   ('0),
+    .seed_state_partial_i(edn_urnd_i.edn_bus),       // Same EDN data as URND
+    .key_o               (kmac_dom_prng_data),
+    .err_o               ()
+  );
+
+  // Bit-reversal permutation (lightweight obfuscation, same pattern as
+  // kmac_entropy.sv LFSR permutation).
+  for (genvar i = 0; i < KmacDomWidth; i++) begin : gen_kmac_dom_perm
+    assign kmac_dom_prng_permuted[i] =
+        kmac_dom_prng_data[KmacDomWidth - 1 - i];
+  end
+
+  // Buffer register — prevents glitches from the unrolled Trivium
+  // combinatorial cloud from propagating into keccak_round's DOM multipliers.
+  logic [KmacDomWidth-1:0] kmac_dom_rand_data_q;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      kmac_dom_rand_data_q <= '0;
+    end else if (kmac_dom_rand_advance_i) begin
+      kmac_dom_rand_data_q <= kmac_dom_prng_permuted;
+    end
+  end
+
+  // Outputs
+  assign kmac_dom_rand_valid_o = urnd_reseed_ack_q;  // Valid after first seed
+  assign kmac_dom_rand_data_o  = kmac_dom_rand_data_q;
+  assign kmac_dom_rand_aux_o   = kmac_dom_rand_data_q[KmacDomWidth-1];
 
   // Unused signals
   logic unused_trivium;

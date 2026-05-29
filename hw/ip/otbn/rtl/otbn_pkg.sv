@@ -21,6 +21,9 @@ package otbn_pkg;
   // Output width of OTBN's Bivium URND
   parameter int UrndLen = 389;
 
+  // Output width of KMAC DOM masking dedicated Trivium (Width/2 = 800 for SHA3-256)
+  parameter int KmacDomWidth = 800;
+
   // Width of base (32b) data path with added integrity bits
   parameter int BaseIntgWidth = 39;
 
