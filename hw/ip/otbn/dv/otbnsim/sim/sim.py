@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import Dict, Iterator, List, Optional, Tuple
 
 from .constants import ErrBits, LcTx, Status, read_lc_tx_t
@@ -24,7 +25,10 @@ StepRes = Tuple[Optional[OTBNInsn], List[Trace]]
 
 class OTBNSim:
     def __init__(self) -> None:
-        self.state = OTBNState()
+        # SEC_FIX_KMAC_MASKING=1 → deterministic DV (squeeze plaintext)
+        # unset or 0       → normal SCA (2-share URND masking)
+        en_sca_masking = os.environ.get('SEC_FIX_KMAC_MASKING', '0') != '1'
+        self.state = OTBNState(en_sca_masking=en_sca_masking)
         self.program: List[OTBNInsn] = []
         self.loop_warps: LoopWarps = {}
         self.stats: Optional[ExecutionStats] = None

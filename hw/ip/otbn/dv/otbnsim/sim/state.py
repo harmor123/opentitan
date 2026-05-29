@@ -78,14 +78,22 @@ class InitSecWipeState(IntEnum):
 
 
 class OTBNState:
-    def __init__(self) -> None:
+    def __init__(self, en_sca_masking: bool = False) -> None:
+        """Initialize OTBN state.
+
+        Args:
+            en_sca_masking: If True, KMAC squeeze uses URND-based 2-share masking
+                (matches RTL SecFixKmacMasking=0, production SCA mode).
+                If False, squeeze outputs plaintext (matches RTL SecFixKmacMasking=1,
+                deterministic DV mode).  Default False (DV) for dexp test matching.
+        """
         self.gprs = GPRs()
         self.wdrs = RegFile('w', 256, 32)
 
         self.ext_regs = OTBNExtRegs()
         self.wsrs = WSRFile(self.ext_regs)
         self.csrs = CSRFile(self.wsrs)
-        self.kmac = Kmac(self.csrs, self.wsrs, en_sca_masking=False)
+        self.kmac = Kmac(self.csrs, self.wsrs, en_sca_masking=en_sca_masking)
 
         self.pc = 0
         self._pc_next_override: Optional[int] = None
@@ -374,7 +382,6 @@ class OTBNState:
         # Reset CSRs, WSRs, loop stack and call stack. WSRs have special
         # treatment because some of them have values that persist across
         # operations.
-        # TODO: Figure out when and how kmac should be reset.
         self.wsrs.on_start()
         self.csrs = CSRFile(self.wsrs)
         self.kmac.on_start(self.csrs, self.wsrs)

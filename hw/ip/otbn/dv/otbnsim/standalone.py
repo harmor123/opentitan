@@ -47,8 +47,20 @@ def main() -> int:
         help=("after execution, write execution statistics to this file. "
               "Use '-' to write to STDOUT.")
     )
+    parser.add_argument(
+        '--sec_fix_kmac_masking',
+        action='store_true',
+        default=os.environ.get('SEC_FIX_KMAC_MASKING', '0') == '1',
+        help=("Fix KMAC squeeze masking to zero for deterministic DV trace "
+              "comparison.  Matches RTL SecFixKmacMasking=1.  When set, "
+              "squeeze outputs plaintext (share1=0).  When unset, normal "
+              "SCA 2-share URND masking.")
+    )
 
     args = parser.parse_args()
+
+    # Pass SecFixKmacMasking to ISS via env var
+    os.environ['SEC_FIX_KMAC_MASKING'] = '1' if args.sec_fix_kmac_masking else '0'
 
     # Read --bnmulv_version_id given by user and set the os variable BNMULV_VER.
     # Since all of the dependencies depend on isa.py, we need to set

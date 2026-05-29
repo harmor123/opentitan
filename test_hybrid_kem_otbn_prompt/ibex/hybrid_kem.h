@@ -133,6 +133,9 @@ status_t hybrid_keygen(dif_otbn_t *otbn,
 /**
  * Hybrid encapsulation (Alice).
  *
+ * OTBN sequence: p256_ecdh(keygen) → wipe → p256_ecdh(ECDH) → wipe
+ *                → mlkem768_encap → wipe → hkdf_sha3_256 → wipe.
+ *
  * @param otbn         OTBN DIF handle.
  * @param pk_hyb       Bob's hybrid public key (1248B).
  * @param salt         HKDF salt (32B, NULL = all-zero).
@@ -153,6 +156,8 @@ status_t hybrid_encaps(dif_otbn_t *otbn,
 
 /**
  * Hybrid decapsulation (Bob).  Constant-time.
+ *
+ * OTBN sequence: p256_ecdh → wipe → mlkem768_decap → wipe → hkdf_sha3_256 → wipe.
  *
  * @param otbn         OTBN DIF handle.
  * @param sk_hyb       Bob's hybrid secret key (2432B).
