@@ -33,7 +33,7 @@ module otbn
   parameter bit EnMaskingOtnb = 1'b0,
   // Fix KMAC squeeze masking for deterministic DV trace comparison.
   // 1 = deterministic (DV), 0 = normal SCA 2-share masking.
-  parameter bit SecFixKmacMasking = 1'b0,
+  parameter bit SecFixKmacMasking = 1'b1,
 
   // Masking accelerator is not present. Useful for resource-bound targets only.
   parameter bit FeatStubMai = 1'b0,

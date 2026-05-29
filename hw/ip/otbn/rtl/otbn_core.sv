@@ -37,7 +37,7 @@ module otbn_core
   // 0 = unmasked (25 cycles/keccak-f, functional test), 1 = DOM masked (97 cycles, production SCA).
   parameter bit EnMaskingOtnb = 1'b0,
   // Aligned with SecFixMaiOpSeq: 1 = deterministic (DV), 0 = normal (SCA).
-  parameter bit SecFixKmacMasking = 1'b0,
+  parameter bit SecFixKmacMasking = 1'b1,
 
   // Masking accelerator is not present. Useful for resource-bound targets only.
   parameter bit FeatStubMai = 1'b0,

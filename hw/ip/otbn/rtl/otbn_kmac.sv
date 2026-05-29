@@ -20,7 +20,7 @@ module otbn_kmac
   parameter bit    EnMasking          = 1'b0,
   // Fix KMAC squeeze masking to zero for DV trace comparison.
   // Aligned with SecFixMaiOpSeq: 1 = deterministic (DV), 0 = normal (SCA).
-  parameter bit    SecFixKmacMasking  = 1'b0,
+  parameter bit    SecFixKmacMasking  = 1'b1,
   // Keccak state width (fixed at 1600 for SHA3/SHAKE)
   parameter int    Width          = 1600,
   // Derived
