@@ -68,6 +68,22 @@ parameters:
     datatype: bool
     paramtype: vlogdefine
     description: Disconnect the TL data output of rv_core_ibex so that we can attach the simulation SRAM.
+  bnmulv_ver2:
+    datatype: bool
+    paramtype: vlogparam
+    description: "Enable OTBN BNMULV ver2 instructions"
+  TOWARDS_BASE:
+    datatype: bool
+    paramtype: vlogdefine
+    description: "Enable OTBN base modifications for ver2"
+  BNMULV:
+    datatype: bool
+    paramtype: vlogdefine
+    description: "Enable OTBN BNMULV"
+  BNMULV_ACCH:
+    datatype: bool
+    paramtype: vlogdefine
+    description: "Enable OTBN BNMULV ACCH"
 
 targets:
   default: &default_target
@@ -85,6 +101,9 @@ targets:
       - otpinit
       - DMIDirectTAP
       - RV_CORE_IBEX_SIM_SRAM=true
+      - bnmulv_ver2 ? (TOWARDS_BASE=true)
+      - bnmulv_ver2 ? (BNMULV=true)
+      - bnmulv_ver2 ? (BNMULV_ACCH=true)
     default_tool: verilator
     filesets:
       - files_sim_verilator

@@ -103,6 +103,7 @@ fusesoc_build(
     make_options = ":make_options",
     output_groups = opentitan_select_top_attr("top_verilator_binary"),
     systems = opentitan_select_top_attr("top_verilator_core"),
+    bnmulv_version_id = "2",
     tags = [
         "manual",
         "verilator",

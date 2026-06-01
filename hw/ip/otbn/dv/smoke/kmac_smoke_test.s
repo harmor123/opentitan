@@ -1,4 +1,4 @@
-/* KMAC/SHA3 hardware smoke test — 11 test cases
+/* KMAC/SHA3 hardware smoke test -- 11 test cases
  *
  * Uses csr.yml / wsr.yml interface:
  *   0x7D9 = kmac_if_status (read: bit0=msg_rdy, bit3=digest_valid)
@@ -30,8 +30,10 @@ main:
     jal     x1, test_shake128_4096b
     jal     x1, test_shake256_4096b
     jal     x1, test_sha3_256_127b
-/*
-     */
+ /*   jal     x1, test_sha3_256_136b       
+    jal     x1, test_sha3_256_136b_plus1 
+*/
+     
 
 
     bn.xor  w0, w0, w0
@@ -140,7 +142,7 @@ _ensure_digest:
 _ed_ret:
     jalr    x0, x1, 0
 
-/* kmac_squeeze_32B(x10=out_ptr) — reads 4 x 64-bit words, assembles 256-bit digest */
+/* kmac_squeeze_32B(x10=out_ptr) -- reads 4 x 64-bit words, assembles 256-bit digest */
 kmac_squeeze_32B:
     bn.xor  w31, w31, w31        /* w31 = 0 for bn.rshi shifts */
     addi    x6, x0, 8             /* DIGEST_VALID mask */
@@ -410,6 +412,39 @@ test_shake256_4096b:
       jal     x1, kmac_done
       jalr    x0, x31, 0
 
+/* Edge: SHA3-256, 136-byte message (exact SHA3-256 rate = 1088 bits).
+   Last WDR (bytes 128-135) fills all 8 bytes of the last 64-bit word.
+   Requires last_valid_bytes=8, pad starts in NEW block.
+   With the [2:0] bug, last_valid_bytes=0 causes spurious 0x06 at word 0 of pad block. */
+test_sha3_256_136b:
+    addi    x31, x1, 0
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0, STRENGTH=2, EN=1 */
+    jal     x1, kmac_start
+    la      x10, msg_136b
+    addi    x11, x0, 136             /* exact SHA3-256 rate */
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_136b_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
+/* Edge: SHA3-256, 137-byte message (rate+1 byte).
+   Last byte of last 64-bit word is valid, rest are not → last_valid_bytes=1.
+   Verifies partial last word padding works correctly. */
+test_sha3_256_136b_plus1:
+    addi    x31, x1, 0
+    addi    x10, x0, 0x05            /* SHA3-256: MODE=0, STRENGTH=2, EN=1 */
+    jal     x1, kmac_start
+    la      x10, msg_136b_plus1
+    addi    x11, x0, 137
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    la      x10, sha3_256_136b_plus1_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
 /* ========== Data ========== */
 .data
 
@@ -418,7 +453,7 @@ my_message:
     .word 0x74616877    /* "what" little-endian */
     .word 0x206f6420    /* " do " little-endian */
     
-/* 边缘测试专用输入数据 */
+/* edge test specific input data */
 .balign 32
 msg_32b:
     .zero 32
@@ -437,7 +472,7 @@ msg_35b:
 msg_64b:
     .zero 64
 
-/* 基础测试输出缓冲区 */
+/* basic test output buffer */
 .balign 32
 sha3_256_empty_out:   .zero 32
 
@@ -456,7 +491,7 @@ shake128_out:         .zero 32
 .balign 32
 shake256_out:         .zero 32
 
-/* 边缘测试专用输出缓冲区 */
+/* edge test specific output buffer */
 .balign 32
 sha3_256_32b_out:     .zero 32
 
@@ -506,3 +541,29 @@ msg_127b:
 
 .balign 32
 sha3_256_127b_out:    .zero 32
+
+/* 136-byte message = exact SHA3-256 rate (1088 bits).
+   "SHA3-256 rate edge: exactly 136 bytes — pad into new block."
+   Repeating 8-byte pattern "rate136!" x17 */
+.balign 32
+msg_136b:
+    .rept 17
+    .word 0x65746172  /* "rate" little-endian */
+    .word 0x21363331  /* "136!" little-endian */
+    .endr
+
+.balign 32
+sha3_256_136b_out:    .zero 32
+
+/* 137-byte message = SHA3-256 rate + 1 byte.
+   136 bytes same as above, plus 1 extra byte 0xFF */
+.balign 32
+msg_136b_plus1:
+    .rept 17
+    .word 0x65746172
+    .word 0x21363331
+    .endr
+    .word 0x000000FF
+
+.balign 32
+sha3_256_136b_plus1_out: .zero 32

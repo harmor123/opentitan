@@ -77,6 +77,14 @@ def _fusesoc_build_impl(ctx):
         "--setup",
         "--build",
     ])
+
+    bnmulv_version_id = ctx.attr.bnmulv_version_id
+    if bnmulv_version_id != '':
+        args.add(bnmulv_version_id, format = "--flag=bnmulv_ver%s")
+
+    if ctx.attr.bitstream_cw310:
+        args.add("--flag=bitstream_cw310")
+
     args.add(out_dir, format = "--build-root=%s")
 
     args.add_all(ctx.attr.systems)
@@ -128,6 +136,11 @@ fusesoc_build = rule(
                 possible to output both a directory and a file from within that
                 directory.
             """,
+        ),
+        "bnmulv_version_id": attr.string(doc = "This sets --flag bnmulv_ver* for the RTL"),
+        "bitstream_cw310": attr.bool(
+            default = False,
+            doc = "Set prim_generic for CW310 bitstream build"
         ),
         "verilator_options": attr.label(),
         "make_options": attr.label(),
