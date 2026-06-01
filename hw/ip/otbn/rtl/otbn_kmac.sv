@@ -462,14 +462,18 @@ module otbn_kmac
   // absorb_rate_pos tracks position within the current block (0..rate_words-1).
   // For partial last word: first pad word overlaps, so +1.
   assign pad_words_needed = rate_words - absorb_rate_pos +
-                            ((absorb_rate_pos > 0 && last_valid_bytes != 3'd8) ? 1 : 0);
+                            ((absorb_rate_pos > 0 && last_valid_bytes != 3'd0) ? 1 : 0);
   logic [9:0] pad_cnt;  // wide enough for max rate (21 for L128)
 
   // pad10*1 generator: domain suffix varies by mode (SHA3=01, SHAKE=1111)
-  // For partial last word, first pad word shifts to 1st invalid byte position
-  logic [2:0] last_valid_bytes;  // valid bytes in last message word (1..8)
+  //
+  // last_valid_bytes = offset of first invalid byte within its 64-bit word (0..7).
+  //   0 = last word was full (all 8 bytes valid), pad starts at byte 0 of next word.
+  //   1..7 = partial word, first pad byte overlaps this word at this byte position.
+  //   3-bit holds 0..7; full word (8 valid bytes) is encoded as 0.
+  logic [2:0] last_valid_bytes;
   always_comb begin
-    last_valid_bytes = 3'd8;  // default: full word
+    last_valid_bytes = 3'd0;  // default: full last word (pad starts at byte 0 of next word)
     for (int b = 0; b < 32; b++)
       if (!kmac_byte_strobe_q[b]) begin
         last_valid_bytes = 3'(b % 8);
@@ -504,7 +508,7 @@ module otbn_kmac
   assign keccak_feed_valid_mux = keccak_feed_valid || keccak_pad_valid;
   // Pad base address: partial last word → pad starts at same lane (overlap)
   logic [9:0] pad_base;
-  assign pad_base = (absorb_rate_pos > 0 && last_valid_bytes != 3'd8)
+  assign pad_base = (absorb_rate_pos > 0 && last_valid_bytes != 3'd0)
                     ? (absorb_rate_pos - 1) : absorb_rate_pos;
   assign keccak_feed_addr_mux  = keccak_feed_valid ? keccak_feed_addr :
                                  DInAddr'(pad_base + pad_cnt);

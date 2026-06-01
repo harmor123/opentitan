@@ -25,9 +25,9 @@ StepRes = Tuple[Optional[OTBNInsn], List[Trace]]
 
 class OTBNSim:
     def __init__(self) -> None:
-        # SEC_FIX_KMAC_MASKING=1 → deterministic DV (squeeze plaintext)
-        # unset or 0       → normal SCA (2-share URND masking)
-        en_sca_masking = os.environ.get('SEC_FIX_KMAC_MASKING', '0') != '1'
+        # SEC_FIX_KMAC_MASKING=1 → SCA mode (2-share URND masking)
+        # unset/empty/"0" → DV deterministic (matches RTL EnMasking=0)
+        en_sca_masking = os.environ.get('SEC_FIX_KMAC_MASKING', '') == '1'
         self.state = OTBNState(en_sca_masking=en_sca_masking)
         self.program: List[OTBNInsn] = []
         self.loop_warps: LoopWarps = {}
