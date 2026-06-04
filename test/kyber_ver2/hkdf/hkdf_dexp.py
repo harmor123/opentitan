@@ -9,23 +9,24 @@ import sys
 
 # ============ Test vectors (edit here, re-run script) ============
 
-salt = bytes.fromhex(
-    "000102030405060708090a0b0c0d0e0f"
-    "101112131415161718191a1b1c1d1e1f")
+# Hybrid KEM test vectors (from ML-KEM + P-256 KATs)
+salt = bytes(32)  # all zeros
 
+# P-256 pk_e X coordinate (x XOR y from p256_ecdh_shared_key_test.dexp)
 ss_e = bytes.fromhex(
-    "6b17d1f2e12c4247f8bce6e563a440f2"
-    "77037d812deb33a0f4a13945d898c296")
+    "5f33d746a326640a739a9490ec15c103"
+    "72869f3de675b2e85742271d18c9eb82")
 
+# ML-KEM ss_m (from assets/output/mlkem768/test_000/encap.dexp, DMEM order)
 ss_m = bytes.fromhex(
-    "a1b2c3d4e5f60718f908293a7e6d4b5c"
-    "112233445566778899aabbccddeeff00")
+    "3750ac4a8e656327c3d181fab002554b"
+    "f6d2be0475dd28d5f31bef9f835f86ac")
 
-ctx  = b"test-ctx"
-sid  = b"session-001"
-role = b"initiator"
+ctx  = b""
+sid  = b""
+role = sys.argv[2].encode() if len(sys.argv) > 2 else b"initiator"
 
-okm_len = int(sys.argv[1]) if len(sys.argv) > 1 else 64
+okm_len = int(sys.argv[1]) if len(sys.argv) > 1 else 32
 
 # ============ IKM construction (matches hkdf_sha3_256.s expectation) ============
 

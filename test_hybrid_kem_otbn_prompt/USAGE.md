@@ -77,56 +77,84 @@ bazel build //test_hybrid_kem_otbn_prompt/otbn/p256_ecdh:p256_ecdh
 bazel build //test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256
 ```
 
-### 2.4 OTBN 仿真测试 — 全部 6 个通过
+### 2.4 OTBN 仿真测试 — 全部 8 个通过
 
 ```bash
+# 一键全部测试（推荐）
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:all --cache_test_results=no
+
+# 逐个测试
 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_keypair_test
 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_encap_test
 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_decap_test
 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_test
 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:kmac_sha3_test
 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:hkdf_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:hmac_test
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:kmac_sha3_test
 ```
 
-### 2.5 OTBN RTL+ISS 联调 (硬件正确性验证)
+### 2.5 KMAC 掩码模式测试
 
-构建 OTBN 独立 Verilator 模型 (一次性):
+OTBN 内部 KMAC 支持两种 squeeze 输出模式，通过 `SEC_FIX_KMAC_MASKING` 环境变量控制：
+
+| 模式 | 环境变量 | WSR 8 (share0) | WSR 9 (share1) | 对应 RTL 参数 |
+|------|---------|---------------|---------------|-------------|
+| 确定性 (DV) | `SEC_FIX_KMAC_MASKING=1` (默认) | plain | **0** | `SecFixKmacMasking=1` |
+| 掩码 (SCA) | `SEC_FIX_KMAC_MASKING=0` | plain ⊕ URND | **URND** (非零) | `SecFixKmacMasking=0` |
 
 ```bash
-fusesoc --cores-root=. run --target=sim --setup --build \
-  --flag=bnmulv_ver2 \
-  --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
-  --make_options="-j$(nproc)"
+# 确定性模式（默认 — dexp 期望值直接比对）
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:all --cache_test_results=no
+
+# 掩码模式（2-share URND 掩码 — OTBN asm 内部 XOR 解掩码后结果一致）
+SEC_FIX_KMAC_MASKING=0 bazel test //test_hybrid_kem_otbn_prompt/otbn/test:all --cache_test_results=no
 ```
 
-BUILD 规则运行联调 (RTL 与 ISS 逐指令比对):
+两种模式都 PASS → 掩码+解掩码正确。
+
+**直观验证掩码生效**（standalone verbose trace）：
 
 ```bash
-# 全部 5 个 app
-bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:all_co_sim --test_output=all
+# 掩码模式 — s1 应为非零随机数
+SEC_FIX_KMAC_MASKING=0 hw/ip/otbn/dv/otbnsim/standalone.py --verbose \
+    /path/to/sha3_test_bin.elf 2>&1 | grep 'kmac_data_s1' | head -3
+# w10 = 0x...23ccf4f87016af27  ← 非零掩码
 
-# 单个 app
-bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:hkdf_co_sim    --test_output=all
-bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:p256_ecdh_co_sim --test_output=all
-bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:mlkem_keypair_co_sim
-bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:mlkem_encap_co_sim
-bazel test //hw/ip/otbn/dv/smoke/hybrid_kem:mlkem_decap_co_sim
+# 确定性模式 — s1 应为全零
+SEC_FIX_KMAC_MASKING=1 hw/ip/otbn/dv/otbnsim/standalone.py --verbose \
+    /path/to/sha3_test_bin.elf 2>&1 | grep 'kmac_data_s1' | head -3
+# w10 = 0x0000000000000000  ← 全零
 ```
 
-KMAC DEBUG 输出已受 `ifdef KMAC_DEBUG` 控制，默认关闭。
-
-### 2.6 Ibex 集成测试
-
-Ibex C 代码编译通过, Verilator 仿真待 ccache sandbox 权限修复后运行:
+### 2.5 OTBN RTL smoke 测试 — KMAC + Bigint
 
 ```bash
-# 添加 sandbox writable path 解决 ccache 只读文件系统错误
-bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_test \
-  --sandbox_writable_path=/run/user/1000/ccache-tmp
+# KMAC smoke (SHA3/SHAKE 确定性测试)
+hw/ip/otbn/dv/smoke/run_kmac_smoke.sh
+hw/ip/otbn/dv/smoke/run_kmac_shake128_run.sh
+hw/ip/otbn/dv/smoke/run_kmac_pad_edge.sh
 
-# 或设环境变量禁用 ccache
-CCACHE_DISABLE=1 bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_test
+# OTBN full smoke
+hw/ip/otbn/dv/smoke/run_smoke.sh
+hw/ip/otbn/dv/smoke/run_smoke.sh vectorized
+
+# Bigint (bnmulv_ver2)
+hw/ip/otbn/dv/smoke/bnmulv_ver2/run_bnminimal_lid.sh
+hw/ip/otbn/dv/smoke/bnmulv_ver2/run_bnaddsubv.sh
+# ... 全部 9 个 bnmulv test
+
+# 一键全部
+for t in hw/ip/otbn/dv/smoke/run_kmac_smoke.sh \
+         hw/ip/otbn/dv/smoke/run_kmac_shake128_run.sh \
+         hw/ip/otbn/dv/smoke/run_kmac_pad_edge.sh \
+         hw/ip/otbn/dv/smoke/run_smoke.sh; do
+    printf "%-50s" "$t"
+    timeout 360s bash $t 2>&1 | grep -q "PASS" && echo "PASS" || echo "FAIL"
+done
 ```
+
+### 2.6 KMAC 掩码模式测试
 
 ---
 
@@ -149,7 +177,70 @@ CCACHE_DISABLE=1 bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_test
 
 ---
 
-## 五、生产部署注意事项
+## 五、合并上游 OpenTitan 官方改动
+
+### 5.1 首次设置（仅一次）
+
+```bash
+cd ~/pqc/opentitan
+git remote add upstream https://github.com/lowRISC/opentitan.git
+git remote -v  # 确认: origin=你的fork, upstream=官方
+```
+
+### 5.2 定期合并流程
+
+```bash
+# 1. 确保本地无未提交改动
+git status
+
+# 2. 拉取上游最新
+git fetch upstream master
+
+# 3. 合并（--no-commit 可先预览，--no-ff 保留合并记录）
+git merge upstream/master --no-commit --no-ff
+
+# 4. 检查冲突（通常很少）
+git diff --name-only --diff-filter=U
+```
+
+### 5.3 处理冲突
+
+| 文件类型 | 处理方式 |
+|---------|---------|
+| `test_hybrid_kem_otbn_prompt/**` | 你的专属文件 → `git checkout --ours <file>` |
+| `hw/ip/otbn/rtl/otbn_${kmac,rnd,pkg,core}.sv`, `otbn.sv` | 你的 B2 实现 → `git checkout --ours <file>` |
+| 官方 bugfix / 你没改过的文件 | `git checkout --theirs <file>` |
+| 两边改过同一行（罕见） | 手动编辑，删 `<<<<<<`/`====`/`>>>>>>` 标记 |
+
+### 5.4 验证合并正确性
+
+```bash
+# 确认 B2 改动完整保留
+grep "KmacDomWidth\|kmac_dom_rand\|EnMaskingOtnb\|SecFixKmacMasking" \
+    hw/ip/otbn/rtl/otbn_pkg.sv \
+    hw/ip/otbn/rtl/otbn_kmac.sv \
+    hw/ip/otbn/rtl/otbn_rnd.sv \
+    hw/ip/otbn/rtl/otbn_core.sv \
+    hw/ip/otbn/rtl/otbn.sv | wc -l
+# 应输出 47+（合并前基准）
+
+# 确认 test 目录完整
+ls test_hybrid_kem_otbn_prompt/ibex/ test_hybrid_kem_otbn_prompt/otbn/
+
+# 跑测试验证
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:all --cache_test_results=no
+```
+
+### 5.5 提交并推送
+
+```bash
+git commit -m "merge upstream/master"
+git push origin master
+```
+
+---
+
+## 六、生产部署注意事项
 
 1. 随机数: 切换 BUILD `defines` 去掉 `HYBRID_KEM_TEST_MODE` 启用 TRNG
 2. DMEM 地址: 构建流水线自动生成, 不要硬编码

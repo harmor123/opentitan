@@ -40,7 +40,7 @@ bool test_main(void) {
   uint32_t hw_cs;
   CHECK_DIF_OK(dif_otbn_get_load_checksum(&otbn, &hw_cs));
   CHECK(hw_cs == kChecksum, "Checksum mismatch! hw=0x%08x exp=0x%08x", hw_cs, kChecksum);
-  LOG_INFO("Load PASS");
+  LOG_INFO("Load OK");
 
   LOG_INFO("Step 2: write salt[32], ikm, lengths...");
   uint8_t salt[32] = {0};
@@ -54,7 +54,7 @@ bool test_main(void) {
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(lens), lens, kLengths));
   /* Write role string at lengths+16 */
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 12, "initiator\0\0", kLengths + 16));
-  LOG_INFO("Write PASS");
+  LOG_INFO("Write OK");
 
   LOG_INFO("Step 3: EXECUTE...");
   CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
@@ -73,7 +73,7 @@ bool test_main(void) {
     return false;
   }
   CHECK(st == kDifOtbnStatusIdle, "OTBN not idle");
-  LOG_INFO("Execute PASS");
+  LOG_INFO("Execute OK");
 
   uint8_t okm[32];
   CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, sizeof(okm), kOutput, okm));

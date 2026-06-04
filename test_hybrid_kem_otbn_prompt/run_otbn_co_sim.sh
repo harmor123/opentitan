@@ -1,22 +1,22 @@
 #!/bin/bash
 # ================================================================
-# run_otbn_co_sim.sh — Hybrid KEM OTBN RTL+ISS co-simulation
+# run_otbn_co_sim.sh -- Hybrid KEM OTBN RTL+ISS co-simulation
 #
-# 用法 (在 OpenTitan repo 根目录执行):
-#   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh              # 全部 5 个
-#   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh hkdf         # 单个
+# Usage (execute in OpenTitan repo root directory):
+#   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh              # All 5
+#   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh hkdf         # Single
 #   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh p256_ecdh
 #   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh mlkem_keypair
 #   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh mlkem_encap
 #   ./test_hybrid_kem_otbn_prompt/run_otbn_co_sim.sh mlkem_decap
 #
-# 前置: FuseSoc 构建 OTBN Verilator 模型 (带 BNMULV v2, ML-KEM 依赖)
+# Prerequisite: FuseSoc builds OTBN Verilator model (with BNMULV v2, ML-KEM dependency)
 #   fusesoc --cores-root=. run --target=sim --setup --build \
 #     --flag=bnmulv_ver2 \
 #     --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
 #     --make_options="-j$(nproc)"
 #
-# P-256 + HKDF 仅用基线指令, 在 BNMULV v2 硬件上兼容运行.
+# P-256 + HKDF uses only baseline instructions, runs compatibly on BNMULV v2 hardware.
 # ================================================================
 
 set -euo pipefail
@@ -24,7 +24,7 @@ set -euo pipefail
 REPO_TOP="$(pwd)"
 VTOP="${REPO_TOP}/build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim"
 
-# ---- 测试目标: 短名 → bazel label ----
+# ---- Test target: short name -> bazel label ----
 declare -A TARGETS
 TARGETS=(
   [p256_ecdh]="//test_hybrid_kem_otbn_prompt/otbn/p256_ecdh:p256_ecdh"
@@ -45,7 +45,7 @@ SELECTED="${1:-}"
 
 fail() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-# ---- 检查 Verilator 模型 ----
+# ---- Check Verilator model ----
 if [[ ! -x "${VTOP}" ]]; then
   fail "Votbn_top_sim not found at ${VTOP}"
   echo "Build: fusesoc --cores-root=. run --target=sim --setup --build \\"
@@ -53,12 +53,12 @@ if [[ ! -x "${VTOP}" ]]; then
   exit 1
 fi
 
-# ---- 单个测试 ----
+# ---- Single test ----
 run_one() {
   local name="$1"
   local bazel_target="${TARGETS[$name]}"
 
-  # //pkg/sub:target → bazel-bin/pkg/sub/target.elf
+  # //pkg/sub:target -> bazel-bin/pkg/sub/target.elf
   local tmp="${bazel_target#//}"
   local pkg="${tmp%:*}"
   local tgt="${tmp#*:}"
@@ -74,7 +74,7 @@ run_one() {
   fi
 
   if timeout 120s "${VTOP}" --load-elf="${elf}" 2>&1; then
-    echo -e "${GREEN}PASS: ${name} — RTL matches ISS${NC}"
+    echo -e "${GREEN}PASS: ${name} -- RTL matches ISS${NC}"
     return 0
   else
     local rc=$?
@@ -87,7 +87,7 @@ run_one() {
   fi
 }
 
-# ---- 主流程 ----
+# ---- Main flow ----
 PASS=0
 FAIL=0
 

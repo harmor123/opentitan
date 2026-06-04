@@ -57,19 +57,19 @@ bool test_main(void) {
   uint32_t hw_cs;
   CHECK_DIF_OK(dif_otbn_get_load_checksum(&otbn, &hw_cs));
   CHECK(hw_cs == kChecksum, "Checksum mismatch! hw=0x%08x exp=0x%08x", hw_cs, kChecksum);
-  LOG_INFO("Load PASS");
+  LOG_INFO("Load OK");
 
   LOG_INFO("Step 2: write d0[64], d1[64], x[32], y[32]...");
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kTestD0), kTestD0, kD0));
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kTestD1), kTestD1, kD1));
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kTestGenX), kTestGenX, kX));
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kTestGenY), kTestGenY, kY));
-  LOG_INFO("Write PASS");
+  LOG_INFO("Write OK");
 
   LOG_INFO("Step 3: EXECUTE...");
   CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
   CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));
-  LOG_INFO("Execute PASS");
+  LOG_INFO("Execute OK");
 
   uint32_t share0[8], share1[8];
   CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, 32, kX, share0));

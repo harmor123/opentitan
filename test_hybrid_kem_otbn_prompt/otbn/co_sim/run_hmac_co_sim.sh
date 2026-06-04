@@ -20,6 +20,7 @@ if [ ! -x "$VOTBN" ]; then
   echo "Building Verilator..."
   (cd "$ROOT_DIR" &&
    fusesoc --cores-root=. run --target=sim --setup --build \
+     --flag=bnmulv_ver2 \
      --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
      --make_options="-j$(nproc)") || fail "Verilator build"
 fi

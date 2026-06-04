@@ -632,6 +632,40 @@ module otbn_controller
                                         bad_data_addr_err,
                                         mai_software_error_i};
 
+  // DEBUG: log every software error with full context
+  `ifndef SYNTHESIS
+  always_ff @(posedge clk_i) begin
+    if (non_insn_addr_software_err) begin
+      $display("[%0t] ===== OTBN SW ERROR =====", $time);
+      $display("[%0t]   PC=0x%04x  err_bits=0x%08x", $time, insn_addr_i, err_bits_d);
+      $display("[%0t]   illegal_insn=%b call_stack=%b bad_data=%b loop=%b",
+               $time, illegal_insn_err, call_stack_sw_err, bad_data_addr_err, loop_sw_err);
+      $display("[%0t]   rf_indirect_err=%b (a=%b b=%b d=%b)  key_invalid=%b",
+               $time, rf_indirect_err, rf_a_indirect_err, rf_b_indirect_err,
+               rf_d_indirect_err, key_invalid_err);
+      $display("[%0t]   lsu_addr=0x%04x  dmem_addr_err=%b",
+               $time, lsu_addr, dmem_addr_err);
+      $display("[%0t] =========================", $time);
+    end
+    // Extra: trace every bn.lid with indirect addressing to catch pre-error state
+    if (insn_valid_i && insn_dec_bignum_i.rf_a_indirect) begin
+      if (rf_a_indirect_err) begin
+        $display("[RF_IND_A_ERR] t=%0t PC=0x%04x  rd_a=%0d  base_a=0x%08x  indirect_en=%b",
+                 $time, insn_addr_i, rf_base_rd_addr_a_o[4:0], rf_base_rd_data_a_no_intg,
+                 insn_dec_bignum_i.rf_a_indirect);
+      end
+    end
+    if (insn_valid_i && insn_dec_bignum_i.rf_d_indirect) begin
+      if (rf_d_indirect_err) begin
+        $display("[RF_IND_D_ERR] t=%0t PC=0x%04x  rd_b=%0d  base_b=0x%08x  indirect_en=%b",
+                 $time, insn_addr_i, rf_base_rd_addr_b_o[4:0], rf_base_rd_data_b_no_intg,
+                 insn_dec_bignum_i.rf_d_indirect);
+      end
+    end
+  end
+  `endif
+
+
   assign bad_insn_addr_err = imem_addr_err & ~non_insn_addr_software_err;
 
   assign err_bits_d = '{

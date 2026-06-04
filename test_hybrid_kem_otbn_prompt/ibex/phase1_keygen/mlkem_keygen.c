@@ -50,13 +50,13 @@ bool test_main(void) {
   CHECK_DIF_OK(dif_otbn_get_load_checksum(&otbn, &hw_cs));
   CHECK(hw_cs == kChecksum, "Checksum mismatch! hw=0x%08x exp=0x%08x", hw_cs,
         kChecksum);
-  LOG_INFO("Load PASS");
+  LOG_INFO("Load OK");
 
   /* ===== Write coins ===== */
   LOG_INFO("Step 2: write coins[64]...");
   CHECK_STATUS_OK(
       otbn_testutils_write_data(&otbn, sizeof(kTestCoins), kTestCoins, kCoins));
-  LOG_INFO("Write PASS");
+  LOG_INFO("Write OK");
 
   /* ===== Execute ===== */
   LOG_INFO("Step 3: EXECUTE...");
@@ -76,7 +76,7 @@ bool test_main(void) {
     return false;
   }
   CHECK(st == kDifOtbnStatusIdle, "OTBN not idle");
-  LOG_INFO("Execute PASS");
+  LOG_INFO("Execute OK");
 
   /* ===== Read outputs ===== */
   uint8_t pk[1184], sk[2400];
