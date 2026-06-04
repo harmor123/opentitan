@@ -442,11 +442,18 @@ class Kmac():
         # Track absorbed words.  When rate is full, start keccak counter.
         # The counter blocks decrement in step() (_skip_absorb_decrement)
         # so the value set here is preserved for one cycle.
+        # Auto-trigger only when the word at the last rate position has
+        # all 8 bytes valid.  A partial word (num_bytes < 8) at the block
+        # boundary means the rate block is not truly full — padding fills
+        # the gap without an extra keccak permutation.
         if self._keccak_absorbed_cnt.increment() >= self._keccak_rate_words:
-            self._keccak_round_ctr.set_next(self._keccak_absorb_cycles)
-            self._keccak_round_ctr.end_cycle()  # commit immediately
-            self._keccak_absorbed_cnt.set_next(0)
-            self._skip_absorb_decrement = True
+            if num_bytes == KMAC_WORD_BYTES:
+                self._keccak_round_ctr.set_next(self._keccak_absorb_cycles)
+                self._keccak_round_ctr.end_cycle()  # commit immediately
+                self._keccak_absorbed_cnt.set_next(0)
+                self._skip_absorb_decrement = True
+            # else: partial word at last position; leave absorbed_cnt
+            # at rate_words so _calc_pad_cycles detects the partial fill
 
     def _squeeze(self) -> None:
         """Squeeze one 64-bit word of digest into KMAC_DATA[63:0] per YAML wsr.yml.
