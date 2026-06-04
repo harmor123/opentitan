@@ -70,10 +70,10 @@ otbn_sim_test(
     name = "p256_ecdh_test",
     srcs = ["p256_ecdh_shared_key_test.s"],
     deps = [
-        "//sw/otbn/crypto:p256_base",
-        "//sw/otbn/crypto:p256_isoncurve",
-        "//sw/otbn/crypto:p256_isoncurve_proj",
-        "//sw/otbn/crypto:p256_shared_key",
+        "//test_hybrid_kem_paper/otbn/p256:p256_base_lib",
+        "//test_hybrid_kem_paper/otbn/p256:p256_isoncurve_lib",
+        "//test_hybrid_kem_paper/otbn/p256:p256_isoncurve_proj_lib",
+        "//test_hybrid_kem_paper/otbn/p256:p256_shared_key_lib",
     ],
     dexp = "p256.dexp",
 )
