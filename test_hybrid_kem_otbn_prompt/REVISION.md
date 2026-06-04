@@ -4,53 +4,61 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v1.0 | 2026-05-23 | hkdf_sha3_256.s 初版: construct_ikm + hmac_sha3_256 + hkdf_sha3_256 |
-| v1.1 | 2026-05-23 | DMEM 对齐修复: balign32→balign4(ctx/sid/role), ipad/opad 160B 对齐 |
-| v2.0 | 2026-05-23 | 测试/生产双模式 (BUILD defines), checksum+指令计数验证 |
-| v2.1 | 2026-05-23 | mlkem768 三目录合并, pack_ciphertext 统一使用 encap SIMD 版 |
-| v2.2 | 2026-05-23 | 子目录独立 BUILD + otbn/test/ 仿真测试目录 |
-| v2.3 | 2026-05-23 | otbn_as.py: --bnmulv_version_id CLI; rules/otbn.bzl: copts + BNMULV_VER |
-| v2.4 | 2026-05-23 | reg_dump.py: {line:!r}→{line!r}; hkdf_sha3_256.s: blt/bge/not/mv 替换 |
-| v2.5 | 2026-05-23 | P-256 回归 kyber_ver1 官方 (移除 MAI), 5 test 全部通过 |
-| v3.0 | 2026-05-24 | HMAC-SHA3-256 独立库 + 合并优化 (bn.lid/bn.sid, 合并 ipad/opad 循环) |
-| v3.1 | 2026-05-24 | HKDF 重构: hkdf_extract + hkdf_expand 分离, PRK 存 hmac_key_hashed |
-| v3.2 | 2026-05-24 | IKM 预拼接 96B (移除 \x00), input_lengths 32B 结构体, tests/dexp 自动生成 |
-| v3.3 | 2026-05-24 | Ibex 集成: OTTF test_main 入口, 5 个 OTBN app 符号声明, checksum 验证, 编译通过 |
-| v3.4 | 2026-05-24 | RTL+ISS 联调: run_otbn_co_sim.sh, otbn_kmac.sv KMAC_DEBUG ifdef 化, IKM 4B 对齐修复 |
-| v4.0 | 2026-06-02 | Combined 二进制: hybrid_entry.s 5-mode 分发, otbn/combined/BUILD, DMEM 瘦身 |
-| v4.1 | 2026-06-02 | TOWARDS_BASE RTL 修复: otbn_alu_bignum.sv is_modulo_i 标量 bn.addm/subm 回退 |
-| v4.2 | 2026-06-02 | hybrid_entry.s MOD 初始化 + 函数参数; Mode 1 KeyGen chip sim 通过 |
-| v4.3 | 2026-06-02 | otbn_controller.sv $display DEBUG; combined mode 0 待定位 err_bit |
+| v1.0 | 2026-06-02 | 初始搭建: test_hybrid_kem_paper 目录, 5 个 standalone chip sim 测试 |
+| v1.1 | 2026-06-03 | LOG_INFO "PASS" → "OK" 修复假阳性 |
+| v1.2 | 2026-06-03 | ML-KEM keypair/encap/decap chip sim 通过 |
+| v2.0 | 2026-06-04 | P-256 深度调试: 定位官方 vs 我们的差异 |
+| v2.1 | 2026-06-04 | 测试向量从示例点 P 切换为基点 G → p256_shared_key chip sim 通过 |
+| v2.2 | 2026-06-04 | ISS test wrapper 统一到 otbn/test/, 删除 otbn/p256/ 重复副本 |
+| v2.3 | 2026-06-04 | IKM 去掉 role, HKDF info 支持角色绑定 |
+| v2.4 | 2026-06-04 | hkdf_sha3_256.s: hkdf_expand 添加 info 支持 |
+| v2.5 | 2026-06-04 | hkdf_test.s/hkdf_test.dexp/test_hkdf_only.c 同步更新 |
+| v2.6 | 2026-06-04 | hkdf_kat.py/hkdf_dexp.py: Alice/Bob 双份 OKM 生成 |
+| v2.7 | 2026-06-04 | ref/ 目录: 新增 p256_kat.py, hkdf_dexp.py |
+| v2.8 | 2026-06-04 | Phase 1/2 拆分: phase1_keygen, phase2_alice_encap, phase2_bob_decap |
+| v2.9 | 2026-06-04 | MAI 硬件加速器集成尝试 (保留, A2B 语义不兼容) |
+| v3.0 | 2026-06-04 | 文档完善: API/USAGE/REVISION/SECURITY_AND_TEST/IMPLEMENTATION/FLOW/README/PHASE_FLOW_DETAIL |
+| v3.1 | 2026-06-04 | HKDF info 支持: hkdf_extract 不再将 info_len 误加入 IKM (68+32+32+16→68+32+32=132B) |
+| v3.2 | 2026-06-04 | IKM 统一: ctx=32B, sid=32B, info=16B; HKDF ISS 测试通过 |
 
----
+## 当前测试状态 (2026-06-04)
 
-## 当前测试状态 (2026-06-02)
+| 测试 | ISS | Chip Sim | 验证 |
+|------|-----|------|------|
+| P-256 ECDH (test_p256_only) | ✅ | ✅ | x0 ^ x1 == ss_e |
+| P-256 KeyGen (test_p256_official) | ✅ | ✅ | pk_x, pk_y |
+| ML-KEM keypair | ✅ | ✅ | pk_m[1184], sk_m[2400] |
+| ML-KEM encap | ✅ | ✅ | ct_m[1088], ss_m[32] |
+| ML-KEM decap | ✅ | ✅ | ss_m[32] |
+| HKDF | ✅ | ⬜ | OKM[32] (info=16B 支持已修复) |
+| Phase 1 KeyGen | ⬜ | ⬜ | P-256 + ML-KEM |
+| Phase 2 Alice | ⬜ | ⬜ | ECDH + Encap + HKDF |
+| Phase 2 Bob | ⬜ | ⬜ | Decap + ECDH + HKDF |
 
-| 测试 | 级别 | 结果 |
-|------|------|------|
-| standalone P-256 (`p256_only`) | chip sim | **PASS** |
-| standalone ML-KEM (`mlkem_only`) | chip sim | **PASS** |
-| standalone KeyGen 2-app | chip sim | **PASS** |
-| combined Mode 1 (KeyGen) | chip sim | **PASS** — 输出匹配 dexp |
-| combined Mode 0 (P-256) | co-sim `--flag=bnmulv_ver2` | **PASS** — w18==w19 |
-| **combined Mode 0 (P-256)** | chip sim | **FAIL — Alert 48** |
+### v3.1 HKDF info 支持修复 (2026-06-04)
 
-### Mode 0 问题排查
+**根因**: `hkdf_extract` 中仍将 `input_lengths[+8]`（原 `role_len`，改为 `info_len` 后忘删）加入 IKM:
+```
+旧: ikm_len = 68 + ctx_len + sid_len + info_len = 68 + 32 + 32 + 16 = 148B ❌
+新: ikm_len = 68 + ctx_len + sid_len           = 68 + 32 + 32      = 132B ✅
+```
+info 仅在 `hkdf_expand` 的 HMAC 消息中使用，不应参与 Extract。
 
-已验证非根因：
-- RTL `is_modulo_i` 修复 ✅
-- DMEM 地址 ✅（读回验证）
-- Call stack ✅（最深 4 级）
-- 入口路径 ✅（等价于 standalone）
-- MOD 初始化 ✅（p256 `setup_modp` 自初始化）
-- p256_p DMEM 完整性 ✅（读回验证）
+## 关键发现
 
-待定位：OTBN err_bits 具体值（illegal_insn / call_stack / bad_data / loop）
+### P-256 Alert 48 (2026-06-04)
 
-### Debug 方法
+- 汇编与官方 MD5 一致，测试向量相同
+- 示例点 P 触发 RTL `scalar_mult_int` z=0 bug
+- 切换为基点 G 后通过
+- RTL bug 为点坐标依赖的计算偏差
+- GitHub issue 已提交
 
-`hw/ip/otbn/rtl/otbn_controller.sv:633` — 当 software error 触发时 $display：
-- PC、err_bits、具体错误位、DMEM 地址
+### HKDF 角色绑定 (2026-06-04)
+
+- role 从 IKM 移至 `info` (HKDF-Expand)
+- PRK 相同 → KEM 正确性
+- OKM 不同 → 角色绑定在 info 层
 
 ## 修改的系统文件
 
@@ -59,28 +67,6 @@
 | `rules/otbn.bzl` | copts + BNMULV_VER |
 | `hw/ip/otbn/util/otbn_as.py` | --bnmulv_version_id CLI |
 | `hw/ip/otbn/util/shared/reg_dump.py` | f-string 语法修复 |
-| `hw/ip/otbn/rtl/otbn_alu_bignum.sv` | TOWARDS_BASE is_modulo_i 修复 |
-| `hw/ip/otbn/rtl/otbn_controller.sv` | $display DEBUG (v4.3) |
-
-## 测试命令速查
-
-```bash
-# === 独立测试 (已验证全部 PASS) ===
-bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_p256_only_sim_verilator --test_timeout=2000
-bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_mlkem_only_sim_verilator --test_timeout=2000
-bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_keygen_sim_verilator --test_timeout=2000
-
-# === Combined KeyGen chip sim (带 debug 输出) ===
-bazel clean --expunge
-bazel test //test_hybrid_kem_otbn_prompt:hybrid_kem_combined_sim_verilator \
-    --test_timeout=2000 --cache_test_results=no \
-    --sandbox_writable_path=/run/user/1000/ccache-tmp --test_output=all \
-    2>&1 | grep -A10 "OTBN SW ERROR"
-
-# === Combined co-sim (OTBN level) ===
-fusesoc --cores-root=. run --target=sim --setup --build \
-    --flag=bnmulv_ver2 lowrisc:ip:otbn_top_sim --make_options="-j$(nproc)"
-bazel build //test_hybrid_kem_otbn_prompt/otbn/combined:hybrid_kem_all
-./build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim \
-    --load-elf=bazel-bin/test_hybrid_kem_otbn_prompt/otbn/combined/hybrid_kem_all.elf
-```
+| `hw/ip/otbn/rtl/otbn_controller.sv` | $display DEBUG |
+| `hw/ip/otbn/rtl/otbn_predecode.sv` | BignumArith 译码追踪 |
+| `hw/ip/otbn/rtl/otbn_alu_bignum.sv` | adder flags 追踪 + 修复 |

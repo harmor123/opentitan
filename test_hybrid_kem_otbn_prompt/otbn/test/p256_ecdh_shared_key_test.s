@@ -24,8 +24,8 @@ p256_ecdh_shared_key_test:
 
   /* Call P-256 shared key generation to get a boolean-masked key.
        dmem[x] <= x0
-       dmem[y] <= x1 
-       调用密钥生成函数，输出 x0, x1 布尔共享 */
+       dmem[y] <= x1
+       (MOD is set up internally by scalar_mult_int → setup_modp) */
   jal      x1, p256_shared_key 
 
   /* Load the two shares.
@@ -38,8 +38,7 @@ p256_ecdh_shared_key_test:
   bn.lid    x3, 0(x4)
 
   /* Unmask the shared key, x.
-       w11 <= x0 ^ x1 = x 
-       代码将它们异或还原出明文 x，存于 w11。在实际安全产品中绝不会这样做，这里仅为测试验证。*/
+       w11 <= x0 ^ x1 = x */
   bn.xor    w11, w11, w12
 
   ecall
@@ -72,31 +71,31 @@ d0:  /* 标量 d 的第一个算术份额 */
 d1: /* 标量 d 的第二个算术份额（全零，即 d 本身是 d0） */
   .zero 64
 
-/* example curve point x-coordinate */
-.globl x 
+/* P-256 base point G x-coordinate */
+.globl x
 .balign 32
-x: /* 基点 P 的 x 坐标 */
-  .word 0xbfa8c334
-  .word 0x9773b7b3
-  .word 0xf36b0689
-  .word 0x6ec0c0b2
-  .word 0xdb6c8bf3
-  .word 0x1628ce58
-  .word 0xfacdc546
-  .word 0xb5511a6a
+x:
+  .word 0xd898c296
+  .word 0xf4a13945
+  .word 0x2deb33a0
+  .word 0x77037d81
+  .word 0x63a440f2
+  .word 0xf8bce6e5
+  .word 0xe12c4247
+  .word 0x6b17d1f2
 
-/* example curve point y-coordinate */
+/* P-256 base point G y-coordinate */
 .globl y
 .balign 32
-y: /*  基点 P 的 y 坐标 */
-  .word 0x9e008c2e
-  .word 0xa8707058
-  .word 0xab9c6924
-  .word 0x7f7a11d0
-  .word 0xb53a17fa
-  .word 0x43dd09ea
-  .word 0x1f31c143
-  .word 0x42a1c697
+y:
+  .word 0x37bf51f5
+  .word 0xcbb64068
+  .word 0x6b315ece
+  .word 0x2bce3357
+  .word 0x7c0f9e16
+  .word 0x8ee7eb4a
+  .word 0xfe1a7f9b
+  .word 0x4fe342e2
 
 /* Public key z-coordinate. */
 .globl z

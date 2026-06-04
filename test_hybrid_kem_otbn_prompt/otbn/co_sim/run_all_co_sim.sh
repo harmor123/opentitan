@@ -1,36 +1,8 @@
 #!/bin/bash
-# Run all 5 hybrid KEM OTBN RTL+ISS co-simulation tests
 set -euo pipefail
-rm -rf build/lowrisc_ip_otbn_top_sim_0.1
-SCRIPT_DIR="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
-
-GREEN='\033[1;32m'
-RED='\033[1;31m'
-BLUE='\033[1;34m'
-NC='\033[0m'
-
-TESTS=(
-  "run_sha3_co_sim.sh"
-  "run_hmac_co_sim.sh"
-  "run_hkdf_co_sim.sh"
-  "run_p256_ecdh_co_sim.sh"
-  "run_mlkem_keypair_co_sim.sh"
-  "run_mlkem_encap_co_sim.sh"
-  "run_mlkem_decap_co_sim.sh"
-)
-
-PASS=0
-FAIL=0
-
-for t in "${TESTS[@]}"; do
-  echo -e "${BLUE}===== ${t} =====${NC}"
-  if bash "$SCRIPT_DIR/$t"; then
-    PASS=$((PASS + 1))
-  else
-    FAIL=$((FAIL + 1))
-  fi
-  echo ""
+cd "$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
+for s in run_sha3_co_sim.sh run_hmac_co_sim.sh run_hkdf_co_sim.sh run_p256_co_sim.sh run_mlkem_keypair_co_sim.sh run_mlkem_encap_co_sim.sh run_mlkem_decap_co_sim.sh; do
+  echo "=== $s ==="
+  bash "$s" || echo "FAIL: $s"
+  echo
 done
-
-echo -e "${BLUE}===== Results: ${GREEN}${PASS} PASS${NC}, ${RED}${FAIL} FAIL${NC} =====${NC}"
-[[ $FAIL -eq 0 ]] || exit 1

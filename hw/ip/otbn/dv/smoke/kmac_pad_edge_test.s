@@ -31,8 +31,8 @@ main:
     jal     x1, test_sha3_256_multi_p1 /* 264B=136+128, 末 block pad=1 */
 
     /* ── 满 rate block (pos=0, 会触发 auto keccak) ── */
-    /* TODO: re-enable after PROCESS counter 1-cycle fix
-    jal     x1, test_shake128_full      168B=21w=rate */
+    /* TODO: re-enable after PROCESS counter 1-cycle fix 168B=21w=rate*/
+    jal     x1, test_shake128_full       
 
     ecall
 

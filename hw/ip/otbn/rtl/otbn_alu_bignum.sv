@@ -1791,27 +1791,5 @@ module otbn_alu_bignum
           !(|ispr_acc_wr_en_o) |-> ispr_acc_bignum_wdata_intg_blanked == '0,
           clk_i, !rst_ni || ispr_predec_error_o || alu_predec_error_o || !operation_commit_i)
 
-  // ================================================================
-  // DEBUG: trace bn.cmp / BignumArith flag computation
-  // ================================================================
-  `ifndef SYNTHESIS
-  always_ff @(posedge clk_i) begin
-    if (operation_commit_i) begin
-      // Print adder-based flag updates (bn.add/sub/addc/subb/cmp)
-      if (alu_bignum_predec_i.flags_adder_update[0] ||
-          alu_bignum_predec_i.flags_adder_update[1]) begin
-        $display("[ALU_FLAGS] t=%0t  op=%s  adder_y_res=0x%064x  Z=%b M=%b L=%b C=%b  flag_grp=%0d",
-                 $time, operation_i.op.name(),
-                 adder_y_res,
-                 adder_update_flags.Z, adder_update_flags.M,
-                 adder_update_flags.L, adder_update_flags.C,
-                 operation_i.flag_group);
-        $display("[ALU_FLAGS]           operand_a=0x%064x  operand_b=0x%064x  shift_right=%b  shift_amt=%0d",
-                 operation_i.operand_a, operation_i.operand_b,
-                 operation_i.shift_right, operation_i.shift_amt);
-      end
-    end
-  end
-  `endif
 
 endmodule

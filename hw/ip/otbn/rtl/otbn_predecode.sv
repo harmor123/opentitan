@@ -1138,28 +1138,6 @@ module otbn_predecode
   assign unused_clk = clk_i;
   assign unused_rst = rst_ni;
 
-  // ================================================================
-  // DEBUG: trace TOWARDS_BASE BignumArith decode decisions
-  // ================================================================
-  `ifndef SYNTHESIS
-  localparam logic [6:0] OpBignumArith = 7'b010_1011;  // InsnOpcodeBignumArith
-  always_ff @(posedge clk_i) begin
-    if (imem_rvalid_i && (imem_rdata_i[6:0] == OpBignumArith)) begin
-      logic [2:0] func3;
-      logic       is_vec;
-      func3  = imem_rdata_i[14:12];
-      is_vec = imem_rdata_i[25];
-`ifdef TOWARDS_BASE
-      $display("[PREDEC] t=%0t IMEM[0x%04x]=0x%08h  func3=%3b  %s  TOWARDS_BASE=1",
-               $time, imem_raddr_i, imem_rdata_i, func3,
-               is_vec ? "VECTOR  (bit25=1)" : "SCALAR  (bit25=0)");
-`else
-      $display("[PREDEC] t=%0t IMEM[0x%04x]=0x%08h  func3=%3b  TOWARDS_BASE=0",
-               $time, imem_raddr_i, imem_rdata_i, func3);
-`endif
-    end
-  end
-  `endif
 
   `ASSERT(RFRenABignumOnehot, $onehot0(rf_bignum_predec_o.rf_ren_a))
   `ASSERT(RFRenBBignumOnehot, $onehot0(rf_bignum_predec_o.rf_ren_b))

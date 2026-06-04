@@ -4,9 +4,9 @@ rm -rf build/lowrisc_ip_otbn_top_sim_0.1
 SCRIPT_DIR="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(readlink -e "$SCRIPT_DIR/../../..")"
 fail() { echo >&2 "FAIL: $*"; exit 1; }
-echo "=== ML-KEM KeyGen OTBN co-sim ==="
-BAZEL_TARGET="//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_keypair"
-ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_paper/otbn/mlkem768/mlkem768_keypair.elf"
+echo "=== P-256 ECDH OTBN co-sim ==="
+BAZEL_TARGET="//test_hybrid_kem_paper/otbn/p256:p256_ecdh_shared_key"
+ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_paper/otbn/p256/p256_ecdh_shared_key.elf"
 VOTBN="$ROOT_DIR/build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim"
 (cd "$ROOT_DIR" && ./bazelisk.sh build "$BAZEL_TARGET") || fail "bazel build"
 if [ ! -x "$VOTBN" ]; then
@@ -19,6 +19,6 @@ trap "rm -f $RUN_LOG" EXIT
 timeout 300s "$VOTBN" --load-elf="$ELF" 2>&1 | tee "$RUN_LOG" || true
 if grep -q "Mismatch\|%Error" "$RUN_LOG"; then
   grep "Mismatch\|RTL wrote\|ISS wrote" "$RUN_LOG" | head -20
-  fail "ML-KEM KeyGen RTL-ISS mismatch"
+  fail "P-256 RTL-ISS mismatch"
 fi
 echo "PASS"

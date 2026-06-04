@@ -10,17 +10,18 @@
  *
  * 公开子程序:
  *   hkdf_extract — HKDF-Extract: PRK = HMAC-SHA3-256(salt, IKM)
- *   hkdf_expand  — HKDF-Expand:  OKM = HKDF-Expand(PRK, L), info 为空
+ *   hkdf_expand  — HKDF-Expand:  OKM = HKDF-Expand(PRK, info, L)
  *
  * 调用者需提供的 .globl 标签:
  *   input_salt     (32B, 32B对齐) — HKDF salt
- *   ikm_prebuilt   (可变, 32B对齐) — 预拼接的 IKM (len_cls||ss_e||len_pqc||ss_m||ctx||sid||role)
- *   input_lengths  (32B, 32B对齐) — 长度字段结构体:
+ *   ikm_prebuilt   (可变, 32B对齐) — 预拼接的 IKM (len_cls||ss_e||len_pqc||ss_m||ctx||sid)
+ *   input_info     (可变, 32B对齐) — HKDF-Expand info 字节序列
+ *   input_info_len (4B)           — info 字节长度 (独立于 input_lengths)
+ *   input_lengths  (32B, 32B对齐) — IKM 长度字段结构体:
  *       +0: ctx_len  (4B)
  *       +4: sid_len  (4B)
- *       +8: role_len (4B)
- *      +12: okm_len  (4B)
- *      +16: padding  (16B, 共 32B)
+ *       +8: okm_len  (4B)
+ *      +12: padding  (16B, 共 32B)
  *   output_okm     (256B, 32B对齐) — OKM 输出缓冲区
  *   t_buf          (32B, 32B对齐)  — T(i) 暂存 (Expand 循环用)
  *   hmac_key_hashed(32B, 32B对齐)  — PRK 暂存 (Extract 输出, Expand 输入)
@@ -33,10 +34,11 @@
  *
  * 算法 (RFC 5869):
  *   Extract:  PRK = HMAC-SHA3-256(salt, IKM)
- *   Expand:   T(1) = HMAC-SHA3-256(PRK, 0x01)
- *             T(i) = HMAC-SHA3-256(PRK, T(i-1) || i)
+ *             IKM = be16(32)||ss_e||be16(32)||ss_m||ctx||sid  (role 不放入)
+ *   Expand:   T(1) = HMAC-SHA3-256(PRK, info || 0x01)
+ *             T(i) = HMAC-SHA3-256(PRK, T(i-1) || info || i)
  *             OKM = T(1) || T(2) || ... || T(N), N = ceil(L/32)
- *   (info 为空字符串, 绑定信息已编码在 IKM 中)
+ *   KEM 层 info="" (统一 OKM), 角色绑定由上层实现
  *
  * 关键设计:
  *   - PRK 存储在 hmac_key_hashed (32B < 136B, hmac_sha3_256 不会覆盖)
@@ -55,7 +57,7 @@
  * 输入: 从 DMEM label 读取 (无寄存器参数)
  *       - input_salt (32B): HKDF salt
  *       - ikm_prebuilt: 预拼接的 IKM 字节序列
- *       - input_lengths: 长度字段结构体 (ctx_len, sid_len, role_len)
+ *       - input_lengths: 长度字段 (ctx_len, sid_len)
  * 输出: PRK → hmac_key_hashed (32B)
  *
  * 破坏寄存器: x5-x8, x10-x14, ra
@@ -67,15 +69,13 @@ hkdf_extract:
 
     /* ---- 计算 IKM 总长度 ----
      * IKM = be16(32) || ss_e(32) || be16(32) || ss_m(32)  (= 68B 固定)
-     *       || ctx || sid || role                           (= 可变)
-     * 长度字段从 input_lengths 结构体读取 (32B 对齐, 省 la 指令) */
-    la      x8, input_lengths
-    lw      x5, 0(x8)             /* ctx_len  at +0 */
-    lw      x6, 4(x8)             /* sid_len  at +4 */
-    lw      x7, 8(x8)             /* role_len at +8 */
-    addi    x13, x5, 68            /* 68 = 2+32+2+32 (固定头长度) */
-    add     x13, x13, x6
-    add     x13, x13, x7           /* x13 = ikm_len */
+     *       || ctx || sid
+     * (info 不在 IKM 中, 仅在 Expand 阶段使用) */
+    la      x8, input_lengths     /* layout: +0=ctx_len, +4=sid_len, +8=okm_len */
+    lw      x5, 0(x8)             /* ctx_len */
+    lw      x6, 4(x8)             /* sid_len */
+    addi    x13, x5, 68
+    add     x13, x13, x6           /* ikm_len = 68 + ctx + sid */
 
     /* ---- HMAC(salt, IKM) → PRK ----
      * PRK 存到 hmac_key_hashed (独立缓冲区, 不与 Expand 的 t_buf 冲突) */
@@ -93,14 +93,16 @@ hkdf_extract:
 /* ================================================================
  * hkdf_expand — HKDF-Expand 阶段
  *
- * OKM = HKDF-Expand(PRK, L), info 为空字符串.
- * T(1) = HMAC-SHA3-256(PRK, 0x01)
- * T(i) = HMAC-SHA3-256(PRK, T(i-1) || i)
+ * OKM = HKDF-Expand(PRK, info, L).
+ * T(1) = HMAC-SHA3-256(PRK, info || 0x01)
+ * T(i) = HMAC-SHA3-256(PRK, T(i-1) || info || i)
  * OKM = T(1) || T(2) || ... || T(N)
  *
  * 输入: 从 DMEM label 读取 (无寄存器参数)
  *       - hmac_key_hashed (32B): PRK (由 hkdf_extract 写入)
- *       - input_lengths[+12]: okm_len (L)
+ *       - input_lengths[+8]:  okm_len (L)
+ *       - input_info_len:     info 字节长度
+ *       - input_info:         info 字节序列
  * 输出: OKM → output_okm
  *
  * 破坏寄存器: x8, x10-x29, x30
@@ -109,27 +111,26 @@ hkdf_extract:
 hkdf_expand:
     /* ---- 读取 OKM 长度 L ----
      * L == 0 时直接返回 (空输出) */
-    la      x8, input_lengths
-    lw      x15, 12(x8)            /* okm_len at +12 */
+    la      x8, input_lengths     /* layout: +0=ctx, +4=sid, +8=okm */
+    lw      x15, 8(x8)             /* okm_len at +8 */
     beq     x15, x0, expand_ret
 
     addi    x16, x15, 31
-    srli    x16, x16, 5            /* N = ceil(L/32), 迭代次数 */
-    li      x17, 1                 /* 计数器 i (从 1 开始) */
-    li      x18, 0                 /* okm 当前写入偏移 (字节) */
-    li      x19, 0                 /* T_prev 长度 (i=1 时为 0, 不拷贝 T_prev) */
+    srli    x16, x16, 5            /* N = ceil(L/32) */
+    la      x30, input_info_len
+    lw      x29, 0(x30)            /* info_len (separate symbol) */
+    li      x17, 1                 /* counter i */
+    li      x18, 0                 /* okm offset */
+    li      x19, 0                 /* T_prev length */
 
 expand_loop:
-    /* ---- 构造 HMAC 消息: [T_prev (i>1)] || [counter_byte] ----
-     * 临时缓冲区用 ikm_buf (Extract 后空闲, 不与 hmac_opad 冲突).
-     * sw 写入 counter_byte 时会多写 3 字节 0x00, 但 msg_len 只取前 n 字节,
-     * 多余字节不会被 keccak 吸收, 无影响. */
+    /* ---- 构造 HMAC 消息: [T_prev (i>1)] || info || [counter_byte] ---- */
     la      x20, ikm_buf
 
-    /* i > 1: 先拷贝 T_prev (32B) 到消息缓冲区 */
+    /* i > 1: copy T_prev (32B) to msg buffer */
     beq     x19, x0, 1f
-    la      x21, t_buf             /* T_prev 来源: t_buf (上一轮 T(i-1)) */
-    li      x22, 8                 /* 32B / 4 = 8 words */
+    la      x21, t_buf
+    li      x22, 8
 2:  lw      x23, 0(x21)
     sw      x23, 0(x20)
     addi    x21, x21, 4
@@ -137,10 +138,24 @@ expand_loop:
     addi    x22, x22, -1
     bne     x22, x0, 2b
 
-    /* 追加单字节计数器 (sw 写 4B, 但 msg_len 控制只读有效字节) */
-1:  andi    x21, x17, 0xFF        /* counter byte = i (1..N) */
+    /* Copy info (x29=info_len from expand entry, no la in loop) */
+1:
+    beq     x29, x0, 4f             /* info_len == 0 → skip */
+    addi    x30, x29, 3
+    srli    x30, x30, 2            /* info_words */
+    la      x21, input_info
+3:  lw      x22, 0(x21)
+    sw      x22, 0(x20)
+    addi    x21, x21, 4
+    addi    x20, x20, 4
+    addi    x30, x30, -1
+    bne     x30, x0, 3b
+4:
+    /* 追加单字节计数器 */
+    andi    x21, x17, 0xFF
     sw      x21, 0(x20)
-    addi    x13, x19, 1            /* msg_len = T_prev_len + 1 */
+    add     x13, x19, x29          /* msg_len = T_prev_len + info_len */
+    addi    x13, x13, 1            /* msg_len += 1 (counter) */
 
     /* ---- 保存 Expand 循环状态到栈 ----
      * 注意: hmac_sha3_256 会使用 sp[-24..0], 与本栈帧 (sp+16..sp+36) 不重叠 */
