@@ -7,14 +7,13 @@ import subprocess
 from collections import defaultdict
 from pathlib import Path
 
-# ── standalone.py --verbose trace ──
-# 每条 trace 格式: PC | instruction | [regs]
-# 最终 ecall 行:  | ecall | [otbn.INSN_CNT = 0xXXXX]
-RE_INSN_CNT = re.compile(r"otbn\.INSN_CNT\s*=\s*(0x[0-9a-fA-F]+)")
-RE_STALL = re.compile(r"^\S+\s+\|\s+\(stall\)")
+# ── otbn_sim_test.py --verbose 输出 ──
+RE_INST_CYC = re.compile(r"OTBN executed ([\d,]+) instructions in ([\d,]+) cycles")
+RE_STALL_SUMMARY = re.compile(r"stalled for ([\d,]+) cycles \(([0-9.]+) percent\)")
 
 # ── 指令频次 ──
-RE_INSTR = re.compile(r"\|\s+(\S+)")
+RE_INSTR_FREQ_HDR = re.compile(r"Instruction\s+frequencies", re.IGNORECASE)
+RE_INSTR_FREQ_LINE = re.compile(r"^(\S+)\s+([\d,]+)\s*$")
 # 完整 OTBN 指令分类（来自 hw/ip/otbn/data/*-insns.yml）
 INSTR_CATEGORIES = {
     "BN MAC":      ("bn.mulqacc", "bn.mulqacc.so", "bn.mulqacc.wo",
@@ -42,8 +41,9 @@ INSTR_CATEGORIES = {
 }
 
 
+
 def parse_iss_output(text: str, test_name: str = "") -> dict:
-    """从 standalone.py --verbose trace 提取指标。"""
+    """从 otbn_sim_test.py --verbose 输出提取指标。"""
     entry: dict = {
         "operation": test_name,
         "cycles": None,
@@ -54,35 +54,37 @@ def parse_iss_output(text: str, test_name: str = "") -> dict:
         "instr_categories": {},
     }
 
-    # 指令数: 取最后一个 ecall 前的 INSN_CNT
-    insn_cnts = RE_INSN_CNT.findall(text)
-    if insn_cnts:
-        entry["instructions"] = int(insn_cnts[-1], 16)
+    m = RE_INST_CYC.search(text)
+    if m:
+        entry["instructions"] = int(m.group(1).replace(",", ""))
+        entry["cycles"] = int(m.group(2).replace(",", ""))
+    m = RE_STALL_SUMMARY.search(text)
+    if m:
+        entry["stalls"] = int(m.group(1).replace(",", ""))
+        entry["stall_pct"] = float(m.group(2))
 
-    # Stall 数: 统计 (stall) 行
-    stalls = len(RE_STALL.findall(text))
-    entry["stalls"] = stalls
-
-    # 周期 = 指令 + stall
-    if entry["instructions"] is not None:
-        entry["cycles"] = entry["instructions"] + stalls
-    if entry["cycles"] and entry["cycles"] > 0:
-        entry["stall_pct"] = round(stalls / entry["cycles"] * 100, 1)
-
-    # ── 指令频次 ──
-    freqs: dict[str, int] = defaultdict(int)
-    for line in text.splitlines():
-        if "(stall)" in line:
-            continue
-        m = RE_INSTR.search(line)
-        if m:
-            name = m.group(1)
-            if name and not name.startswith("0x") and not name.startswith("["):
-                freqs[name] += 1
-    entry["instr_freqs"] = dict(freqs)
+    # ── 指令频次（otbn_sim_test --verbose 输出 "Instruction frequencies" 表格） ──
+    freq_start = RE_INSTR_FREQ_HDR.search(text)
+    if freq_start:
+        freq_text = text[freq_start.end():]
+        freqs: dict[str, int] = {}
+        for line in freq_text.splitlines():
+            s = line.strip()
+            if not s:
+                if freqs: break
+                continue
+            if s.startswith("-") or s.lower().startswith("instruction"):
+                continue
+            if s.startswith("Basic") or s.startswith("Number") or s.startswith("Function"):
+                break
+            fm = RE_INSTR_FREQ_LINE.match(s)
+            if fm:
+                freqs[fm.group(1)] = int(fm.group(2).replace(",", ""))
+        entry["instr_freqs"] = dict(freqs)
 
     # 归类
     cats: dict[str, int] = defaultdict(int)
+    freqs = entry.get("instr_freqs", {})
     unmapped = set(freqs.keys())
     for cat, members in INSTR_CATEGORIES.items():
         for mbr in members:

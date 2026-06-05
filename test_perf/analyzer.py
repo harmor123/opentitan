@@ -11,10 +11,10 @@ C_FAIL = "\033[91m"
 C_BOLD = "\033[1m"
 C_DIM  = "\033[2m"
 C_END  = "\033[0m"
-SEP    = "─" * 100
-
-LABEL_W = 28   # 操作名列宽（终端显示宽度）
+LABEL_W = 26   # 操作名列宽（终端显示宽度）
 VAL_W   = 12   # 数值列宽
+SEP_W   = 2 + LABEL_W + 2 * VAL_W * 3  # 2 缩进 + 标签 + 2列×3版本
+SEP     = "─" * SEP_W
 
 OP_LABELS = {
     "sha3": "SHA3/SHAKE Hash",  "hmac": "HMAC-SHA3-256",
@@ -205,6 +205,22 @@ def report_latest(db: DBManager) -> str:
             pct = cnt / total * 100 if total else 0
             bar = "█" * int(pct / 5) + "░" * (20 - int(pct / 5))
             lines.append(f"    {_pad(cat, 16)} {cnt:>10,} {pct:>5.1f}%  {bar}")
+
+    # ── [9] 函数调用热点 ──
+    for ver in vers:
+        lines.append(f"\n{C_BOLD}[9] 函数调用热点 — {ver}{C_END}\n" + SEP)
+        for op in all_ops:
+            m = data[ver].get(op, {})
+            funcs_str = m.get("func_calls", "{}")
+            funcs = json.loads(funcs_str) if isinstance(funcs_str, str) else (funcs_str or {})
+            if not funcs:
+                continue
+            lines.append(f"  {C_HEAD}▸ {_label(op)}{C_END}")
+            max_n = max(funcs.values()) if funcs else 1
+            for name, cnt in funcs.items():
+                short = name if len(name) <= 50 else name[:47] + "..."
+                bar = "█" * int(cnt / max_n * 20) + "░" * (20 - int(cnt / max_n * 20))
+                lines.append(f"    {_pad(short, 52)} {cnt:>6}×  {bar}")
 
     return "\n".join(lines)
 

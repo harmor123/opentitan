@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""Hybrid KEM 性能测试主入口：多版本 ISS 基准测试 & 分析。
-
-用法:
-  python main.py run                         一键运行所有版本
-  python main.py run --tests sha3            只跑指定模块
-  python main.py report                      最新横向对比报告
-  python main.py history --version ver0
-  python main.py delete --id 5
-  python main.py plot
-"""
+"""Hybrid KEM 性能测试。使用 StandaloneSim API 直接获取全量指标。"""
 
 import argparse
 import logging
 import os
-import subprocess
+import re
 import sys
+import json
 from datetime import datetime
 from pathlib import Path
 
 import yaml
 
-from collector import parse_iss_output, add_sizes_to_entry
+OT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(OT_ROOT))
+
+# 自动补全 __init__.py
+for _d in [
+    "hw", "hw/ip", "hw/ip/otbn", "hw/ip/otbn/dv",
+    "hw/ip/otbn/dv/otbnsim", "hw/ip/otbn/dv/otbnsim/sim",
+]:
+    init = OT_ROOT / _d / "__init__.py"
+    if not init.exists():
+        init.touch()
+
+
 from db_manager import DBManager
 from analyzer import report_latest, report_history
 
@@ -33,8 +37,37 @@ logger = logging.getLogger(__name__)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = SCRIPT_DIR / "config.yaml"
-OT_ROOT = SCRIPT_DIR.parent
-OTBN_SIM = OT_ROOT / "hw" / "ip" / "otbn" / "dv" / "otbnsim" / "standalone.py"
+# ver2 指令集 YAML
+BNMULV_VER2_YAML = OT_ROOT / "hw/ip/otbn/data/bignum-insns-ver2.yml"
+
+_RE_INST_CYC = re.compile(r"OTBN executed ([\d,]+) instructions in ([\d,]+) cycles")
+_RE_STALL = re.compile(r"stalled for ([\d,]+) cycles \(([0-9.]+) percent\)")
+_RE_INSTR_SEC = re.compile(
+    r"Instruction frequencies\s*\n[- ]+\ninstruction\s+count\n[- ]+\n(.*?)(?=\n\n|\n\S|\Z)",
+    re.DOTALL,
+)
+_RE_FUNC = re.compile(r"^Function\s+0x[0-9a-f]+\s+\(([^)]+)\)", re.MULTILINE)
+_RE_FUNC_COUNT = re.compile(r"\*\s*(\d+)\s+times")
+
+INSTR_CATEGORIES = {
+    "BN MAC": ("bn.mulqacc", "bn.mulqacc.so", "bn.mulqacc.wo",
+               "bn.mulqacc.z", "bn.mulqacc.so.z", "bn.mulqacc.wo.z",
+               "bn.mulqacc.so.wo", "bn.mulqacc.so.wo.z"),
+    "BN ALU": ("bn.add", "bn.addc", "bn.addi", "bn.addm",
+               "bn.sub", "bn.subb", "bn.subi", "bn.subm",
+               "bn.and", "bn.or", "bn.xor", "bn.not", "bn.cmp", "bn.cmpb"),
+    "BN Shift": ("bn.rshi", "bn.sel", "bn.shv", "bn.pack", "bn.unpk",
+                 "bn.trn", "bn.trn1", "bn.trn2"),
+    "BN Vector": ("bn.addv", "bn.addvm", "bn.subv", "bn.subvm",
+                  "bn.mulv", "bn.mulv.l", "bn.mulvl", "bn.mulvm", "bn.mulvml"),
+    "BN Mem": ("bn.lid", "bn.sid", "bn.mov", "bn.movr", "bn.wsrr", "bn.wsrw"),
+    "RISC-V ALU": ("add", "addi", "sub", "and", "andi", "or", "ori",
+                   "xor", "xori", "sll", "slli", "srl", "srli", "sra", "srai", "lui"),
+    "RISC-V Ctrl": ("beq", "bne", "jal", "jalr", "loop", "loopi", "ecall"),
+    "RISC-V CSR": ("csrrs", "csrrw"),
+    "RISC-V Mem": ("lw", "sw"),
+    "RISC-V Other": ("li", "la", "mv", "ret", "nop", "unimp"),
+}
 
 
 def _resolve_db(config: dict, db_arg: str = "") -> str:
@@ -56,64 +89,166 @@ def load_config(path: str = "") -> dict:
 
 
 def bazel_build(target: str) -> Path | None:
-    result = subprocess.run(
+    result = subprocess = __import__("subprocess")
+    r = subprocess.run(
         ["./bazelisk.sh", "build", "--cache_test_results=no", target],
         cwd=str(OT_ROOT), capture_output=True, text=True, timeout=300,
     )
-    if result.returncode != 0:
+    if r.returncode != 0:
         logger.error("bazel build 失败: %s", target)
-        if result.stderr:
-            logger.error(result.stderr[-500:])
         return None
     t = target.lstrip("/")
     pkg, _, name = t.partition(":")
     elf = OT_ROOT / "bazel-bin" / pkg / (name + ".elf")
-    if elf.exists():
-        return elf
-    logger.error("ELF 不存在: %s", elf)
-    return None
+    return elf if elf.exists() else None
 
 
-def run_iss_sim(elf: Path, test_name: str, timeout: int = 120,
-                bnmulv_ver: str = "") -> dict | None:
-    """运行 standalone.py --verbose 一次，返回 metrics。"""
-    if not OTBN_SIM.exists():
-        logger.warning("standalone.py 不存在: %s", OTBN_SIM)
-        return None
-    env = os.environ.copy()
-    env.setdefault("PYTHONPATH", str(OT_ROOT))
-    cmd = ["python3", str(OTBN_SIM), "--verbose"]
-    if bnmulv_ver:
-        cmd += ["--bnmulv_version_id", bnmulv_ver]
-    cmd.append(str(elf))
+def _get_elf_sizes(elf_path: str) -> dict:
+    import subprocess, shutil
+    sizes = {"imem": 0, "dmem": 0}
+    tool = None
+    for name in ["riscv32-unknown-elf-readelf", "readelf"]:
+        if shutil.which(name):
+            tool = name; break
+    if not tool:
+        return sizes
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=str(OT_ROOT), capture_output=True, text=True, timeout=timeout,
-            env=env,
-        )
-        output = result.stdout + "\n" + result.stderr
-        metrics = parse_iss_output(output, test_name)
-        add_sizes_to_entry(metrics, str(elf))
-        passed = result.returncode == 0
-        if passed:
-            logger.info("[%s] cycles=%s  ins=%s  imem=%s  dmem=%s",
-                        test_name, metrics.get("cycles", "?"),
-                        metrics.get("instructions", "?"),
-                        metrics.get("imem", "?"), metrics.get("dmem", "?"))
-        else:
-            logger.warning("[%s] 非零退出", test_name)
-        metrics["passed"] = passed
-        metrics["raw_output"] = output
-        return metrics
-    except subprocess.TimeoutExpired:
-        logger.error("[%s] 超时", test_name)
+        out = subprocess.check_output([tool, "-S", elf_path], text=True, stderr=subprocess.DEVNULL)
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) < 7 or not parts[1].rstrip("]").isdigit():
+                continue
+            name = parts[2]
+            try:
+                size = int(parts[6], 16)
+            except ValueError:
+                continue
+            if name == ".text":
+                sizes["imem"] = size
+            elif name in (".data", ".bss"):
+                sizes["dmem"] += size
+    except Exception:
+        pass
+    return sizes
+
+
+def run_iss(elf_path: str, test_name: str, bnmulv: str = "") -> dict | None:
+    """直接调用 StandaloneSim API，获取 ExecutionStatAnalyzer 全量指标。"""
+    import importlib, sys
+    if bnmulv:
+        os.environ["BNMULV_VER"] = bnmulv
+    else:
+        os.environ.pop("BNMULV_VER", None)
+    # 清除缓存，否则切换版本时 decode 模块不变
+    for mod in list(sys.modules):
+        if "otbn" in mod or "otbnsim" in mod:
+            sys.modules.pop(mod, None)
+    from hw.ip.otbn.dv.otbnsim.sim.standalonesim import StandaloneSim
+    from hw.ip.otbn.dv.otbnsim.sim.load_elf import load_elf
+    from hw.ip.otbn.dv.otbnsim.sim.stats import ExecutionStatAnalyzer
+    sim = StandaloneSim()
+
+    try:
+        exp_end = load_elf(sim, elf_path)
     except Exception as e:
-        logger.error("[%s] 异常: %s", test_name, e)
-    return None
+        logger.error("[%s] ELF 加载失败: %s", test_name, e)
+        return None
+
+    sim.start(True)
+    sim.run(False, None)
 
 
-def run_single_test(ver: dict, test_name: str, timeout: int) -> dict | None:
+    raw = {"operation": test_name, "imem": 0, "dmem": 0,
+           "instr_freqs": {}, "instr_categories": {}, "func_calls": {}}
+    raw.update(_get_elf_sizes(elf_path))
+
+    dump_text = ""
+    try:
+        analyzer = ExecutionStatAnalyzer(sim.stats, elf_path)
+        dump_text = analyzer.dump() or ""
+        if dump_text:
+            _parse_dump(dump_text, raw)
+    except Exception as e:
+        logger.warning("[%s] stat analyzer 失败: %s", test_name, e)
+        if sim.stats:
+            raw["instructions"] = getattr(sim.stats, "insn_count", 0)
+            raw["stalls"] = getattr(sim.stats, "stall_count", 0)
+            raw["cycles"] = raw["instructions"] + raw["stalls"]
+
+    raw["dump_text"] = dump_text
+    logger.info("[%s] cycles=%s  ins=%s  stalls=%s  imem=%s  dmem=%s",
+                test_name, raw.get("cycles", "?"), raw.get("instructions", "?"),
+                raw.get("stalls", "?"), raw.get("imem", "?"), raw.get("dmem", "?"))
+    return raw
+
+
+def _parse_dump(text: str, entry: dict):
+    m = _RE_INST_CYC.search(text)
+    if m:
+        entry["instructions"] = int(m.group(1).replace(",", ""))
+        entry["cycles"] = int(m.group(2).replace(",", ""))
+    m = _RE_STALL.search(text)
+    if m:
+        entry["stalls"] = int(m.group(1).replace(",", ""))
+        entry["stall_pct"] = float(m.group(2))
+
+    # 指令频次——从 "Instruction frequencies" 到下一个空行
+    idx = text.find("Instruction frequencies")
+    if idx >= 0:
+        block = text[idx:]
+        lines_iter = iter(block.split("\n"))
+        freqs = {}
+        in_table = False
+        for line in lines_iter:
+            s = line.strip()
+            if "instruction" in s.lower() and "count" in s.lower():
+                in_table = True
+                # skip dashes line
+                try: next(lines_iter)
+                except StopIteration: break
+                continue
+            if in_table:
+                if not s:  # blank line = end
+                    break
+                parts = s.split()
+                if len(parts) >= 2:
+                    try:
+                        freqs[parts[0]] = int(parts[-1].replace(",", ""))
+                    except ValueError:
+                        pass
+        if freqs:
+            entry["instr_freqs"] = freqs
+        # 归类
+        cats = {}
+        unmapped = set(freqs.keys())
+        for cat, members in INSTR_CATEGORIES.items():
+            total = sum(freqs.get(m, 0) for m in members)
+            if total:
+                cats[cat] = total
+                unmapped -= set(members)
+        if unmapped:
+            cats["Other"] = sum(freqs[k] for k in unmapped)
+        entry["instr_categories"] = cats
+
+    # 函数调用热点
+    func_start = text.find("Function call statistics")
+    if func_start > 0:
+        func_text = text[func_start:]
+        funcs = {}
+        for fm in re.finditer(
+            r"^Function 0x[0-9a-f]+ \(([^)]+)\)", func_text, re.MULTILINE
+        ):
+            fname = fm.group(1).strip()
+            if "\n" in fname or len(fname) > 80:
+                continue
+            after = func_text[fm.end():fm.end() + 800]
+            total = sum(int(m.group(1)) for m in re.finditer(r"\*\s*(\d+)\s+times", after))
+            if total > 0:
+                funcs[fname] = total
+        entry["func_calls"] = dict(sorted(funcs.items(), key=lambda x: -x[1])[:10])
+
+
+def run_single_test(ver: dict, test_name: str, timeout: int = 120) -> dict | None:
     targets = ver.get("targets", {})
     target = targets.get(test_name, "")
     if not target:
@@ -122,18 +257,15 @@ def run_single_test(ver: dict, test_name: str, timeout: int) -> dict | None:
     elf = bazel_build(target)
     if elf is None:
         return None
-    # ver2 需要 BNMULV_VER2
     bnv = "2" if ver["name"] == "ver2" else ""
-    return run_iss_sim(elf, test_name, timeout, bnmulv_ver=bnv)
+    return run_iss(str(elf), test_name, bnmulv=bnv)
 
 
-def cmd_run(config: dict, version_filter: str = "", test_filter: str = "",
-           db_path: str = ""):
+def cmd_run(config, version_filter="", test_filter="", db_path=""):
     timeout = config.get("timeout", 120)
     db = DBManager(_resolve_db(config, db_path))
     log_dir = SCRIPT_DIR / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-
     v_allow = set(v.strip() for v in version_filter.split(",") if v.strip()) if version_filter else None
     t_allow = set(t.strip() for t in test_filter.split(",") if t.strip()) if test_filter else None
 
@@ -141,12 +273,12 @@ def cmd_run(config: dict, version_filter: str = "", test_filter: str = "",
         ver_name = ver["name"]
         if v_allow and ver_name not in v_allow:
             continue
-
         print(f"\n{C_BOLD}═══ {ver_name} ({ver['label']}) ═══{C_END}")
+        run_id = db.insert_run(ver_name, "")
+
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = log_dir / f"bench_{ver_name}_{ts}.log"
-        run_id = db.insert_run(ver_name, str(log_file))
-        all_logs: list[str] = []
+        all_dumps: list[str] = []
 
         for test_name in ver.get("tests", []):
             if t_allow and test_name not in t_allow:
@@ -155,8 +287,7 @@ def cmd_run(config: dict, version_filter: str = "", test_filter: str = "",
             if metrics is None:
                 logger.warning("[%s] %s: 无结果，跳过", ver_name, test_name)
                 continue
-            all_logs.append(f"\n>>> [{test_name}] {ver_name}\n{metrics.get('raw_output', '')}")
-
+            all_dumps.append(f">>> [{test_name}] {ver_name}\n{metrics.get('dump_text', '')}")
             db.insert_metric(
                 run_id, test_name,
                 cycles=metrics.get("cycles") or 0,
@@ -167,19 +298,18 @@ def cmd_run(config: dict, version_filter: str = "", test_filter: str = "",
                 dmem=metrics.get("dmem") or 0,
                 instr_categories=metrics.get("instr_categories", {}),
                 instr_freqs=metrics.get("instr_freqs", {}),
+                func_calls=metrics.get("func_calls", {}),
             )
-
         with open(log_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(all_logs))
+            f.write("\n".join(all_dumps))
         print(f"  {ver_name}: {C_OK}DONE{C_END}  (log: {log_file})")
 
     print(f"\n{C_BOLD}═══ 报告 ═══{C_END}")
     print(report_latest(db))
 
 
-def cmd_report(config: dict, output: str = "", db_path: str = ""):
-    import re
-    import re
+def cmd_report(config, output="", db_path=""):
+    import re as _re
     db = DBManager(_resolve_db(config, db_path))
     report = report_latest(db)
     print(report)
@@ -188,74 +318,53 @@ def cmd_report(config: dict, output: str = "", db_path: str = ""):
     if output:
         out_path = out_dir / Path(output).name
     else:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = out_dir / f"report_{ts}.txt"
+        out_path = out_dir / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(re.sub(r"\033\[[0-9;]*m", "", report))
+        f.write(_re.sub(r"\033\[[0-9;]*m", "", report))
     logger.info("报告已保存: %s", out_path)
 
 
-def cmd_history(config: dict, version: str, db_path: str = ""):
+def cmd_history(config, version, db_path=""):
     db = DBManager(_resolve_db(config, db_path))
     print(report_history(db, version))
 
 
-def cmd_delete(config: dict, run_id: int = 0, version: str = "", before: str = "",
-               db_path: str = ""):
+def cmd_delete(config, run_id=0, version="", before="", db_path=""):
     db = DBManager(_resolve_db(config, db_path))
     if run_id:
-        count = db.delete_run(run_id)
-        print(f"删除记录 ID={run_id}: {count} 条")
+        print(f"删除记录 ID={run_id}: {db.delete_run(run_id)} 条")
     elif version:
-        count = db.delete_runs_by_version(version, before or None)
-        print(f"删除 {version}: {count} 条")
+        print(f"删除 {version}: {db.delete_runs_by_version(version, before or None)} 条")
     else:
         print("请指定 --id 或 --version")
 
 
-
 def main():
-    parser = argparse.ArgumentParser(description="Hybrid KEM ISS 性能测试框架")
+    parser = argparse.ArgumentParser(description="Hybrid KEM 性能测试框架")
     sub = parser.add_subparsers(dest="command")
-
-    p_run = sub.add_parser("run", help="运行性能测试")
-    p_run.add_argument("--config", default="")
-    p_run.add_argument("--db", default="", help="数据库路径 (默认: db/perf_results.db)")
-    p_run.add_argument("--versions", "-V", default="", help="版本过滤 (ver0,ver2)")
-    p_run.add_argument("--tests", "-t", default="", help="测试过滤 (sha3,mlkem_keypair)")
-
-    p_report = sub.add_parser("report", help="最新横向对比报告")
-    p_report.add_argument("--config", default="")
-    p_report.add_argument("--db", default="")
-    p_report.add_argument("--output", "-o", default="", help="保存到文件")
-
-    p_hist = sub.add_parser("history", help="单版本历史趋势")
-    p_hist.add_argument("--version", "-v", required=True)
+    p_run = sub.add_parser("run"); p_run.add_argument("--config", default="")
+    p_run.add_argument("--db", default=""); p_run.add_argument("--versions", "-V", default="")
+    p_run.add_argument("--tests", "-t", default="")
+    p_report = sub.add_parser("report"); p_report.add_argument("--config", default="")
+    p_report.add_argument("--db", default=""); p_report.add_argument("--output", "-o", default="")
+    p_hist = sub.add_parser("history"); p_hist.add_argument("--version", "-v", required=True)
     p_hist.add_argument("--db", default="")
-
-    p_del = sub.add_parser("delete", help="删除记录")
-    p_del.add_argument("--id", type=int, default=0)
-    p_del.add_argument("--version", "-v", default="")
-    p_del.add_argument("--before", default="")
+    p_del = sub.add_parser("delete"); p_del.add_argument("--id", type=int, default=0)
+    p_del.add_argument("--version", "-v", default=""); p_del.add_argument("--before", default="")
     p_del.add_argument("--db", default="")
 
     args = parser.parse_args()
     if args.command is None:
-        parser.print_help()
-        return
-
+        parser.print_help(); return
     config = load_config(getattr(args, "config", "") or "")
-
     if args.command == "run":
-        cmd_run(config, getattr(args, "versions", ""), getattr(args, "tests", ""),
-                getattr(args, "db", ""))
+        cmd_run(config, getattr(args, "versions", ""), getattr(args, "tests", ""), getattr(args, "db", ""))
     elif args.command == "report":
         cmd_report(config, getattr(args, "output", ""), getattr(args, "db", ""))
     elif args.command == "history":
         cmd_history(config, args.version, getattr(args, "db", ""))
     elif args.command == "delete":
-        cmd_delete(config, args.id, args.version, getattr(args, "before", ""),
-                   getattr(args, "db", ""))
+        cmd_delete(config, args.id, args.version, getattr(args, "before", ""), getattr(args, "db", ""))
 
 
 if __name__ == "__main__":

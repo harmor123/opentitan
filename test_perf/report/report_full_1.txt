@@ -1,91 +1,91 @@
 
 ═══ Hybrid KEM 多版本性能对比 (最新) ═══
-  2026-06-05 19:08:49
+  2026-06-05 21:29:12
 
 [1] 周期数 & 指令数
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  操作                      ver0 Cycles ver0 Instr  ver1 Cycles ver1 Instr  ver2 Cycles ver2 Instr  
-  ────────────────────────────────────────────────────────────────────────────────────────────────────
-  HKDF-SHA3-256                   51,146      51,145       1,550       1,549       1,550       1,549
-  HMAC-SHA3-256                   24,060      24,059         581         580         581         580
-  ML-KEM Decap                   610,966     610,965     248,559     248,558      73,388      73,387
-  ML-KEM Encap                   552,477     552,476     189,580     189,579      65,033      65,032
-  ML-KEM KeyGen                  505,005     505,004     150,858     150,857      59,608      59,607
-  P-256 ECDH                     581,345     581,344     581,345     581,344     581,345     581,344
-  SHA3/SHAKE Hash                 56,531      56,530       2,900       2,899       2,900       2,899
-  ────────────────────────────────────────────────────────────────────────────────────────────────────
-  TOTAL                        2,381,530   2,381,523   1,175,373   1,175,366     784,405     784,398
+  操作                    ver0 Cycles ver0 Instr  ver1 Cycles ver1 Instr  ver2 Cycles ver2 Instr  
+  ──────────────────────────────────────────────────────────────────────────────────────────────────
+  HKDF-SHA3-256                 54,823      51,145       2,136       1,549       2,136       1,549
+  HMAC-SHA3-256                 25,583      24,059         814         580         814         580
+  ML-KEM Decap                 660,480     610,965     267,667     248,558      88,803      73,387
+  ML-KEM Encap                 599,965     552,476     206,535     189,579      79,572      65,032
+  ML-KEM KeyGen                550,825     505,004     166,906     150,857      73,715      59,607
+  P-256 ECDH                   603,182     581,344     603,182     581,344     603,182     581,344
+  SHA3/SHAKE Hash               58,649      56,530       3,968       2,899       3,968       2,899
+  ──────────────────────────────────────────────────────────────────────────────────────────────────
+  TOTAL                      2,553,507   2,381,523   1,251,208   1,175,366     852,190     784,398
 
 [2] Stall & IPC
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  操作                      ver0 Stall  ver0 St%ver0 IPCver1 Stall  ver1 St%ver1 IPCver2 Stall  ver2 St%ver2 IPC
-  HKDF-SHA3-256                        1   0.0% 1.00            1   0.1% 1.00            1   0.1% 1.00 
-  HMAC-SHA3-256                        1   0.0% 1.00            1   0.2% 1.00            1   0.2% 1.00 
-  ML-KEM Decap                         1   0.0% 1.00            1   0.0% 1.00            1   0.0% 1.00 
-  ML-KEM Encap                         1   0.0% 1.00            1   0.0% 1.00            1   0.0% 1.00 
-  ML-KEM KeyGen                        1   0.0% 1.00            1   0.0% 1.00            1   0.0% 1.00 
-  P-256 ECDH                           1   0.0% 1.00            1   0.0% 1.00            1   0.0% 1.00 
-  SHA3/SHAKE Hash                      1   0.0% 1.00            1   0.0% 1.00            1   0.0% 1.00 
+  操作                    ver0 Stall  ver0 St%ver0 IPCver1 Stall  ver1 St%ver1 IPCver2 Stall  ver2 St%ver2 IPC
+  HKDF-SHA3-256                  3,678   7.2% 0.93          587  37.9% 0.73          587  37.9% 0.73 
+  HMAC-SHA3-256                  1,524   6.3% 0.94          234  40.3% 0.71          234  40.3% 0.71 
+  ML-KEM Decap                  49,515   8.1% 0.93       19,109   7.7% 0.93       15,416  21.0% 0.83 
+  ML-KEM Encap                  47,489   8.6% 0.92       16,956   8.9% 0.92       14,540  22.4% 0.82 
+  ML-KEM KeyGen                 45,821   9.1% 0.92       16,049  10.6% 0.90       14,108  23.7% 0.81 
+  P-256 ECDH                    21,838   3.8% 0.96       21,838   3.8% 0.96       21,838   3.8% 0.96 
+  SHA3/SHAKE Hash                2,119   3.7% 0.96        1,069  36.9% 0.73        1,069  36.9% 0.73 
 
 [2.5] 代码尺寸 (bytes)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  操作                      ver0 IMEM   ver0 DMEM   ver1 IMEM   ver1 DMEM   ver2 IMEM   ver2 DMEM   
-  HKDF-SHA3-256                    2,572       4,512       1,496       2,784       1,496       2,784
-  HMAC-SHA3-256                    2,048       2,336         976       1,312         976       1,312
-  ML-KEM Decap                    17,664      27,232      15,280      26,208      10,556      25,120
-  ML-KEM Encap                    17,000      26,048      14,664      25,024       9,984      23,936
-  ML-KEM KeyGen                   15,880      27,360      13,528      26,336       6,956      25,248
-  P-256 ECDH                       2,544         928       2,544         928       2,544         928
-  SHA3/SHAKE Hash                  2,088       1,728       1,376       2,464       1,376       2,464
+  操作                    ver0 IMEM   ver0 DMEM   ver1 IMEM   ver1 DMEM   ver2 IMEM   ver2 DMEM   
+  HKDF-SHA3-256                  2,572       4,512       1,496       2,784       1,496       2,784
+  HMAC-SHA3-256                  2,048       2,336         976       1,312         976       1,312
+  ML-KEM Decap                  17,664      27,232      15,280      26,208      10,556      25,120
+  ML-KEM Encap                  17,000      26,048      14,664      25,024       9,984      23,936
+  ML-KEM KeyGen                 15,880      27,360      13,528      26,336       6,956      25,248
+  P-256 ECDH                     2,544         928       2,544         928       2,544         928
+  SHA3/SHAKE Hash                2,088       1,728       1,376       2,464       1,376       2,464
 
 [3] 各阶段周期占比
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  HKDF-SHA3-256                   2.1%      0.1%      0.2%
-  HMAC-SHA3-256                   1.0%      0.0%      0.1%
-  ML-KEM Decap                   25.7%     21.1%      9.4%
-  ML-KEM Encap                   23.2%     16.1%      8.3%
-  ML-KEM KeyGen                  21.2%     12.8%      7.6%
-  P-256 ECDH                     24.4%     49.5%     74.1%
-  SHA3/SHAKE Hash                 2.4%      0.2%      0.4%
+  HKDF-SHA3-256                 2.1%      0.2%      0.3%
+  HMAC-SHA3-256                 1.0%      0.1%      0.1%
+  ML-KEM Decap                 25.9%     21.4%     10.4%
+  ML-KEM Encap                 23.5%     16.5%      9.3%
+  ML-KEM KeyGen                21.6%     13.3%      8.7%
+  P-256 ECDH                   23.6%     48.2%     70.8%
+  SHA3/SHAKE Hash               2.3%      0.3%      0.5%
 
 [4] 分组汇总
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  Hash                            80,591    3.4%       3,481    0.3%       3,481    0.4%
-  KDF                             51,146    2.1%       1,550    0.1%       1,550    0.2%
-  ECDH                           581,345   24.4%     581,345   49.5%     581,345   74.1%
-  KEM                          1,668,448   70.1%     588,997   50.1%     198,029   25.2%
+  Hash                          84,232    3.3%       4,782    0.4%       4,782    0.6%
+  KDF                           54,823    2.1%       2,136    0.2%       2,136    0.3%
+  ECDH                         603,182   23.6%     603,182   48.2%     603,182   70.8%
+  KEM                        1,811,270   70.9%     641,108   51.2%     242,090   28.4%
 
 [5] 加速比: ver1 vs ver0
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  HKDF-SHA3-256               33.00x  ▼97.0%
-  HMAC-SHA3-256               41.41x  ▼97.6%
-  ML-KEM Decap                 2.46x  ▼59.3%
-  ML-KEM Encap                 2.91x  ▼65.7%
-  ML-KEM KeyGen                3.35x  ▼70.1%
-  P-256 ECDH                   1.00x    ~0.0%
-  SHA3/SHAKE Hash             19.49x  ▼94.9%
-  TOTAL                        2.03x  ▼50.6%
+  HKDF-SHA3-256             25.67x  ▼96.1%
+  HMAC-SHA3-256             31.43x  ▼96.8%
+  ML-KEM Decap               2.47x  ▼59.5%
+  ML-KEM Encap               2.90x  ▼65.6%
+  ML-KEM KeyGen              3.30x  ▼69.7%
+  P-256 ECDH                 1.00x    ~0.0%
+  SHA3/SHAKE Hash           14.78x  ▼93.2%
+  TOTAL                      2.04x  ▼51.0%
 
 [5] 加速比: ver2 vs ver1
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  HKDF-SHA3-256                1.00x    ~0.0%
-  HMAC-SHA3-256                1.00x    ~0.0%
-  ML-KEM Decap                 3.39x  ▼70.5%
-  ML-KEM Encap                 2.92x  ▼65.7%
-  ML-KEM KeyGen                2.53x  ▼60.5%
-  P-256 ECDH                   1.00x    ~0.0%
-  SHA3/SHAKE Hash              1.00x    ~0.0%
-  TOTAL                        1.50x  ▼33.3%
+  HKDF-SHA3-256              1.00x    ~0.0%
+  HMAC-SHA3-256              1.00x    ~0.0%
+  ML-KEM Decap               3.01x  ▼66.8%
+  ML-KEM Encap               2.60x  ▼61.5%
+  ML-KEM KeyGen              2.26x  ▼55.8%
+  P-256 ECDH                 1.00x    ~0.0%
+  SHA3/SHAKE Hash            1.00x    ~0.0%
+  TOTAL                      1.47x  ▼31.9%
 
 [6] 吞吐量 @100MHz (ops/sec)
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-  HKDF-SHA3-256                   1955.2     64516.1     64516.1
-  HMAC-SHA3-256                   4156.3    172117.0    172117.0
-  ML-KEM Decap                     163.7       402.3      1362.6
-  ML-KEM Encap                     181.0       527.5      1537.7
-  ML-KEM KeyGen                    198.0       662.9      1677.6
-  P-256 ECDH                       172.0       172.0       172.0
-  SHA3/SHAKE Hash                 1768.9     34482.8     34482.8
+  HKDF-SHA3-256                 1824.1     46816.5     46816.5
+  HMAC-SHA3-256                 3908.8    122850.1    122850.1
+  ML-KEM Decap                   151.4       373.6      1126.1
+  ML-KEM Encap                   166.7       484.2      1256.7
+  ML-KEM KeyGen                  181.5       599.1      1356.6
+  P-256 ECDH                     165.8       165.8       165.8
+  SHA3/SHAKE Hash               1705.1     25201.6     25201.6
 
 [7] 指令明细 — ver0
 ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@
   ▸ ML-KEM Decap  (610,965 total)
     bn.rshi                   140,565  23.0%  ████████████████████
     bn.and                     77,644  12.7%  ███████████░░░░░░░░░
-    bn.mulqacc.wo.z            52,736   8.6%  ███████░░░░░░░░░░░░░
+    bn.mulqacc.wo              52,736   8.6%  ███████░░░░░░░░░░░░░
     bn.xor                     41,729   6.8%  █████░░░░░░░░░░░░░░░
     addi                       31,564   5.2%  ████░░░░░░░░░░░░░░░░
     bn.or                      25,452   4.2%  ███░░░░░░░░░░░░░░░░░
@@ -126,7 +126,7 @@
     bn.rshi                   124,692  22.6%  ████████████████████
     bn.and                     67,831  12.3%  ██████████░░░░░░░░░░
     bn.xor                     41,708   7.5%  ██████░░░░░░░░░░░░░░
-    bn.mulqacc.wo.z            38,144   6.9%  ██████░░░░░░░░░░░░░░
+    bn.mulqacc.wo              38,144   6.9%  ██████░░░░░░░░░░░░░░
     addi                       31,209   5.6%  █████░░░░░░░░░░░░░░░
     bn.or                      25,425   4.6%  ████░░░░░░░░░░░░░░░░
     lw                         24,064   4.4%  ███░░░░░░░░░░░░░░░░░
@@ -138,23 +138,23 @@
     bn.and                     60,836  12.0%  ███████████░░░░░░░░░
     bn.xor                     40,757   8.1%  ███████░░░░░░░░░░░░░
     addi                       30,427   6.0%  █████░░░░░░░░░░░░░░░
-    bn.mulqacc.wo.z            28,416   5.6%  █████░░░░░░░░░░░░░░░
+    bn.mulqacc.wo              28,416   5.6%  █████░░░░░░░░░░░░░░░
     bn.or                      24,831   4.9%  ████░░░░░░░░░░░░░░░░
     lw                         23,364   4.6%  ████░░░░░░░░░░░░░░░░
     andi                       23,270   4.6%  ████░░░░░░░░░░░░░░░░
     and                        18,740   3.7%  ███░░░░░░░░░░░░░░░░░
     add                        13,842   2.7%  ██░░░░░░░░░░░░░░░░░░
   ▸ P-256 ECDH  (581,344 total)
-    bn.mulqacc                172,790  29.7%  ████████████████████
-    bn.addm                    85,147  14.6%  █████████░░░░░░░░░░░
+    bn.mulqacc                191,990  33.0%  ████████████████████
+    bn.addm                    85,147  14.6%  ████████░░░░░░░░░░░░
     bn.add                     67,709  11.6%  ███████░░░░░░░░░░░░░
     bn.sub                     48,005   8.3%  █████░░░░░░░░░░░░░░░
+    bn.mulqacc.wo              38,396   6.6%  ███░░░░░░░░░░░░░░░░░
     bn.rshi                    31,775   5.5%  ███░░░░░░░░░░░░░░░░░
     bn.mov                     24,054   4.1%  ██░░░░░░░░░░░░░░░░░░
     bn.mulqacc.so              19,204   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.z               19,200   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.wo              19,198   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.wo.z            19,198   3.3%  ██░░░░░░░░░░░░░░░░░░
+    bn.subm                    14,424   2.5%  █░░░░░░░░░░░░░░░░░░░
+    jal                        10,578   1.8%  █░░░░░░░░░░░░░░░░░░░
   ▸ SHA3/SHAKE Hash  (56,530 total)
     bn.rshi                    18,524  32.8%  ████████████████████
     bn.xor                     10,407  18.4%  ███████████░░░░░░░░░
@@ -193,7 +193,7 @@
     bn.lid                         22   3.8%  ████░░░░░░░░░░░░░░░░
   ▸ ML-KEM Decap  (248,558 total)
     bn.rshi                    66,992  27.0%  ████████████████████
-    bn.mulqacc.wo.z            52,736  21.2%  ███████████████░░░░░
+    bn.mulqacc.wo              52,736  21.2%  ███████████████░░░░░
     bn.and                     37,092  14.9%  ███████████░░░░░░░░░
     bn.add                     23,533   9.5%  ███████░░░░░░░░░░░░░
     bn.addm                    14,976   6.0%  ████░░░░░░░░░░░░░░░░
@@ -204,7 +204,7 @@
     bn.lid                      3,774   1.5%  █░░░░░░░░░░░░░░░░░░░
   ▸ ML-KEM Encap  (189,579 total)
     bn.rshi                    51,119  27.0%  ████████████████████
-    bn.mulqacc.wo.z            38,144  20.1%  ██████████████░░░░░░
+    bn.mulqacc.wo              38,144  20.1%  ██████████████░░░░░░
     bn.and                     27,279  14.4%  ██████████░░░░░░░░░░
     bn.add                     16,555   8.7%  ██████░░░░░░░░░░░░░░
     bn.addm                    10,624   5.6%  ████░░░░░░░░░░░░░░░░
@@ -215,7 +215,7 @@
     beq                         3,598   1.9%  █░░░░░░░░░░░░░░░░░░░
   ▸ ML-KEM KeyGen  (150,857 total)
     bn.rshi                    37,817  25.1%  ████████████████████
-    bn.mulqacc.wo.z            28,416  18.8%  ███████████████░░░░░
+    bn.mulqacc.wo              28,416  18.8%  ███████████████░░░░░
     bn.and                     21,206  14.1%  ███████████░░░░░░░░░
     bn.add                     12,132   8.0%  ██████░░░░░░░░░░░░░░
     bn.addm                     8,448   5.6%  ████░░░░░░░░░░░░░░░░
@@ -225,16 +225,16 @@
     csrrs                       3,920   2.6%  ██░░░░░░░░░░░░░░░░░░
     beq                         3,575   2.4%  █░░░░░░░░░░░░░░░░░░░
   ▸ P-256 ECDH  (581,344 total)
-    bn.mulqacc                172,790  29.7%  ████████████████████
-    bn.addm                    85,147  14.6%  █████████░░░░░░░░░░░
+    bn.mulqacc                191,990  33.0%  ████████████████████
+    bn.addm                    85,147  14.6%  ████████░░░░░░░░░░░░
     bn.add                     67,709  11.6%  ███████░░░░░░░░░░░░░
     bn.sub                     48,005   8.3%  █████░░░░░░░░░░░░░░░
+    bn.mulqacc.wo              38,396   6.6%  ███░░░░░░░░░░░░░░░░░
     bn.rshi                    31,775   5.5%  ███░░░░░░░░░░░░░░░░░
     bn.mov                     24,054   4.1%  ██░░░░░░░░░░░░░░░░░░
     bn.mulqacc.so              19,204   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.z               19,200   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.wo              19,198   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.wo.z            19,198   3.3%  ██░░░░░░░░░░░░░░░░░░
+    bn.subm                    14,424   2.5%  █░░░░░░░░░░░░░░░░░░░
+    jal                        10,578   1.8%  █░░░░░░░░░░░░░░░░░░░
   ▸ SHA3/SHAKE Hash  (2,899 total)
     beq                           385  13.3%  ████████████████████
     addi                          381  13.1%  ███████████████████░
@@ -277,11 +277,11 @@
     addi                        5,082   6.9%  ███░░░░░░░░░░░░░░░░░
     csrrs                       3,912   5.3%  ███░░░░░░░░░░░░░░░░░
     beq                         3,598   4.9%  ██░░░░░░░░░░░░░░░░░░
+    bn.mulv.l                   3,288   4.5%  ██░░░░░░░░░░░░░░░░░░
     bn.and                      3,057   4.2%  ██░░░░░░░░░░░░░░░░░░
     andi                        2,969   4.0%  ██░░░░░░░░░░░░░░░░░░
     bn.cmp                      2,834   3.9%  ██░░░░░░░░░░░░░░░░░░
-    bn.lid                      1,960   2.7%  █░░░░░░░░░░░░░░░░░░░
-    bn.wsrr                     1,336   1.8%  █░░░░░░░░░░░░░░░░░░░
+    bn.trn                      2,376   3.2%  █░░░░░░░░░░░░░░░░░░░
   ▸ ML-KEM Encap  (65,032 total)
     bn.rshi                    21,381  32.9%  ████████████████████
     bne                         5,768   8.9%  █████░░░░░░░░░░░░░░░
@@ -291,8 +291,8 @@
     bn.and                      2,992   4.6%  ██░░░░░░░░░░░░░░░░░░
     andi                        2,970   4.6%  ██░░░░░░░░░░░░░░░░░░
     bn.cmp                      2,800   4.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.lid                      1,493   2.3%  █░░░░░░░░░░░░░░░░░░░
-    bn.wsrr                     1,333   2.0%  █░░░░░░░░░░░░░░░░░░░
+    bn.mulv.l                   2,320   3.6%  ██░░░░░░░░░░░░░░░░░░
+    bn.trn                      1,728   2.7%  █░░░░░░░░░░░░░░░░░░░
   ▸ ML-KEM KeyGen  (59,607 total)
     bn.rshi                    18,521  31.1%  ████████████████████
     bne                         5,752   9.6%  ██████░░░░░░░░░░░░░░
@@ -302,19 +302,19 @@
     andi                        2,967   5.0%  ███░░░░░░░░░░░░░░░░░
     bn.and                      2,912   4.9%  ███░░░░░░░░░░░░░░░░░
     bn.cmp                      2,800   4.7%  ███░░░░░░░░░░░░░░░░░
+    bn.mulv.l                   1,680   2.8%  █░░░░░░░░░░░░░░░░░░░
     bn.lid                      1,316   2.2%  █░░░░░░░░░░░░░░░░░░░
-    bn.wsrr                     1,297   2.2%  █░░░░░░░░░░░░░░░░░░░
   ▸ P-256 ECDH  (581,344 total)
-    bn.mulqacc                172,790  29.7%  ████████████████████
+    bn.mulqacc                191,990  33.0%  ████████████████████
+    bn.addm                    85,147  14.6%  ████████░░░░░░░░░░░░
     bn.add                     67,709  11.6%  ███████░░░░░░░░░░░░░
     bn.sub                     48,005   8.3%  █████░░░░░░░░░░░░░░░
+    bn.mulqacc.wo              38,396   6.6%  ███░░░░░░░░░░░░░░░░░
     bn.rshi                    31,775   5.5%  ███░░░░░░░░░░░░░░░░░
     bn.mov                     24,054   4.1%  ██░░░░░░░░░░░░░░░░░░
-    bn.addmw25,                19,520   3.4%  ██░░░░░░░░░░░░░░░░░░
     bn.mulqacc.so              19,204   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.z               19,200   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.mulqacc.wo              19,198   3.3%  ██░░░░░░░░░░░░░░░░░░
-    bn.addmw21,                19,198   3.3%  ██░░░░░░░░░░░░░░░░░░
+    bn.subm                    14,424   2.5%  █░░░░░░░░░░░░░░░░░░░
+    jal                        10,578   1.8%  █░░░░░░░░░░░░░░░░░░░
   ▸ SHA3/SHAKE Hash  (2,899 total)
     beq                           385  13.3%  ████████████████████
     addi                          381  13.1%  ███████████████████░
@@ -348,13 +348,236 @@
     RISC-V CSR           13,068   1.1%  ░░░░░░░░░░░░░░░░░░░░
     RISC-V Mem            5,674   0.5%  ░░░░░░░░░░░░░░░░░░░░
   ▸ ver2  (784,398 total)
+    BN ALU              265,612  33.9%  ██████░░░░░░░░░░░░░░
     BN MAC              249,590  31.8%  ██████░░░░░░░░░░░░░░
-    BN ALU              166,041  21.2%  ████░░░░░░░░░░░░░░░░
-    Other               118,823  15.1%  ███░░░░░░░░░░░░░░░░░
-    BN Shift            102,711  13.1%  ██░░░░░░░░░░░░░░░░░░
+    BN Shift            108,355  13.8%  ██░░░░░░░░░░░░░░░░░░
     RISC-V Ctrl          59,678   7.6%  █░░░░░░░░░░░░░░░░░░░
     BN Mem               43,972   5.6%  █░░░░░░░░░░░░░░░░░░░
     RISC-V ALU           28,905   3.7%  ░░░░░░░░░░░░░░░░░░░░
+    BN Vector            13,800   1.8%  ░░░░░░░░░░░░░░░░░░░░
     RISC-V CSR           12,962   1.7%  ░░░░░░░░░░░░░░░░░░░░
     RISC-V Mem            1,524   0.2%  ░░░░░░░░░░░░░░░░░░░░
-    BN Vector               192   0.0%  ░░░░░░░░░░░░░░░░░░░░
+
+[9] 函数调用热点 — ver0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ▸ HKDF-SHA3-256
+    sha3_update at sha3_shake.s:77                           28×  ████████████████████
+    sha3_init at sha3_shake.s:39                             24×  █████████████████░░░
+    keccakf at sha3_shake.s:346                              24×  █████████████████░░░
+    hmac_sha3_256 at hmac.s:30                               20×  ██████████████░░░░░░
+    hkdf_extract at hkdf_sha3_256.s:67                       12×  ████████░░░░░░░░░░░░
+    sha3_final at sha3_shake.s:158                           10×  ███████░░░░░░░░░░░░░
+    hkdf_expand at hkdf_sha3_256.s:114                        2×  █░░░░░░░░░░░░░░░░░░░
+  ▸ HMAC-SHA3-256
+    sha3_init at sha3_shake.s:39                             12×  ████████████████████
+    sha3_update at sha3_shake.s:77                           12×  ████████████████████
+    keccakf at sha3_shake.s:346                              12×  ████████████████████
+    hmac_sha3_256 at hmac.s:30                               11×  ██████████████████░░
+    sha3_final at sha3_shake.s:158                            4×  ██████░░░░░░░░░░░░░░
+  ▸ ML-KEM Decap
+    shake_out at sha3_shake.s:267                           339×  ████████████████████
+    shake_xof at sha3_shake.s:216                           333×  ███████████████████░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:301       271×  ███████████████░░░░░
+    polyvec_decompress_16 at pack_ciphertext.s:437           96×  █████░░░░░░░░░░░░░░░
+    polyvec_compress_16 at pack_ciphertext.s:194             96×  █████░░░░░░░░░░░░░░░
+    sha3_final at sha3_shake.s:158                           90×  █████░░░░░░░░░░░░░░░
+    keccakf at sha3_shake.s:346                              90×  █████░░░░░░░░░░░░░░░
+    sha3_init at sha3_shake.s:39                             89×  █████░░░░░░░░░░░░░░░
+    polyvec_decompress at pack_ciphertext.s:327              80×  ████░░░░░░░░░░░░░░░░
+    polyvec_compress at pack_ciphertext.s:73                 80×  ████░░░░░░░░░░░░░░░░
+  ▸ ML-KEM Encap
+    shake_xof at sha3_shake.s:216                           346×  ████████████████████
+    shake_out at sha3_shake.s:267                           340×  ███████████████████░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:301       271×  ███████████████░░░░░
+    poly_getnoise_eta_1 at poly.s:117                       201×  ███████████░░░░░░░░░
+    polyvec_compress_16 at pack_ciphertext.s:194             96×  █████░░░░░░░░░░░░░░░
+    keccakf at sha3_shake.s:346                              92×  █████░░░░░░░░░░░░░░░
+    sha3_init at sha3_shake.s:39                             88×  █████░░░░░░░░░░░░░░░
+    polyvec_compress at pack_ciphertext.s:73                 80×  ████░░░░░░░░░░░░░░░░
+    sha3_update at sha3_shake.s:77                           68×  ███░░░░░░░░░░░░░░░░░
+    pack_ciphertext at pack_ciphertext.s:252                 64×  ███░░░░░░░░░░░░░░░░░
+  ▸ ML-KEM KeyGen
+    shake_xof at sha3_shake.s:216                           348×  ████████████████████
+    shake_out at sha3_shake.s:267                           330×  ██████████████████░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:301       274×  ███████████████░░░░░
+    poly_getnoise_eta_1 at poly.s:117                       201×  ███████████░░░░░░░░░
+    keccakf at sha3_shake.s:346                              98×  █████░░░░░░░░░░░░░░░
+    sha3_init at sha3_shake.s:39                             91×  █████░░░░░░░░░░░░░░░
+    sha3_final at sha3_shake.s:158                           90×  █████░░░░░░░░░░░░░░░
+    sha3_update at sha3_shake.s:77                           68×  ███░░░░░░░░░░░░░░░░░
+    crypto_kem_keypair at mlkem_keypair.s:193                36×  ██░░░░░░░░░░░░░░░░░░
+    indcpa_keypair at mlkem_keypair.s:29                     36×  ██░░░░░░░░░░░░░░░░░░
+  ▸ P-256 ECDH
+    mul_modp at p256_base.s:99                            12819×  ████████████████████
+    fetch_proj_randomize at p256_base.s:746               11531×  █████████████████░░░
+    proj_double at p256_base.s:823                         1287×  ██░░░░░░░░░░░░░░░░░░
+    setup_modp at p256_base.s:295                           648×  █░░░░░░░░░░░░░░░░░░░
+    proj_add at p256_base.s:360                             645×  █░░░░░░░░░░░░░░░░░░░
+    scalar_mult_int at p256_base.s:950                      328×  ░░░░░░░░░░░░░░░░░░░░
+    p256_scalar_reblind at p256_base.s:1213                   8×  ░░░░░░░░░░░░░░░░░░░░
+    p256_shared_key                                           7×  ░░░░░░░░░░░░░░░░░░░░
+    p256_masked_scalar_reblind at p256_base.s:1167            7×  ░░░░░░░░░░░░░░░░░░░░
+    p256_isoncurve_proj at p256_isoncurve_proj.s:43           6×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ SHA3/SHAKE Hash
+    sha3_init at sha3_shake.s:39                             11×  ████████████████████
+    sha3_final at sha3_shake.s:158                           11×  ████████████████████
+    keccakf at sha3_shake.s:346                              11×  ████████████████████
+    sha3_update at sha3_shake.s:77                           11×  ████████████████████
+    test_sha3_256_empty at sha3_shake_test.s:32              10×  ██████████████████░░
+    test_sha3_256_msg at sha3_shake_test.s:48                10×  ██████████████████░░
+    shake_xof at sha3_shake.s:216                            10×  ██████████████████░░
+    shake_out at sha3_shake.s:267                             9×  ████████████████░░░░
+    test_sha3_512_empty at sha3_shake_test.s:40               8×  ██████████████░░░░░░
+    test_shake128_msg at sha3_shake_test.s:70                 8×  ██████████████░░░░░░
+
+[9] 函数调用热点 — ver1
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ▸ HKDF-SHA3-256
+    _ensure_digest at kmac_sha3_template.s:158               38×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:171             36×  ██████████████████░░
+    kmac_init at kmac_sha3_template.s:27                     24×  ████████████░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           24×  ████████████░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                 24×  ████████████░░░░░░░░
+    hmac_sha3_256 at hmac_sha3.s:40                          20×  ██████████░░░░░░░░░░
+    hkdf_extract at hkdf_sha3_256.s:67                       12×  ██████░░░░░░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                    10×  █████░░░░░░░░░░░░░░░
+    hkdf_expand at hkdf_sha3_256.s:114                        2×  █░░░░░░░░░░░░░░░░░░░
+  ▸ HMAC-SHA3-256
+    kmac_squeeze_32B at kmac_sha3_template.s:171             20×  ████████████████████
+    _ensure_digest at kmac_sha3_template.s:158               19×  ███████████████████░
+    kmac_init at kmac_sha3_template.s:27                     12×  ████████████░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           12×  ████████████░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                 12×  ████████████░░░░░░░░
+    hmac_sha3_256 at hmac_sha3.s:40                          11×  ███████████░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                     4×  ████░░░░░░░░░░░░░░░░
+  ▸ ML-KEM Decap
+    _ensure_digest at kmac_sha3_template.s:164             1359×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:177            332×  ████░░░░░░░░░░░░░░░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:267       305×  ████░░░░░░░░░░░░░░░░
+    kmac_process at kmac_sha3_template.s:145                292×  ████░░░░░░░░░░░░░░░░
+    polyvec_decompress_16 at pack_ciphertext.s:437           96×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_compress_16 at pack_ciphertext.s:194             96×  █░░░░░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     89×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_decompress at pack_ciphertext.s:327              80×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_compress at pack_ciphertext.s:73                 80×  █░░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:65           70×  █░░░░░░░░░░░░░░░░░░░
+  ▸ ML-KEM Encap
+    _ensure_digest at kmac_sha3_template.s:164             1359×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:177            332×  ████░░░░░░░░░░░░░░░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:267       305×  ████░░░░░░░░░░░░░░░░
+    kmac_process at kmac_sha3_template.s:145                292×  ████░░░░░░░░░░░░░░░░
+    polyvec_compress_16 at pack_ciphertext.s:194             96×  █░░░░░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     88×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_compress at pack_ciphertext.s:73                 80×  █░░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:65           68×  █░░░░░░░░░░░░░░░░░░░
+    pack_ciphertext at pack_ciphertext.s:252                 64×  ░░░░░░░░░░░░░░░░░░░░
+    kmac_run at kmac_sha3_template.s:235                     40×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ ML-KEM KeyGen
+    _ensure_digest at kmac_sha3_template.s:164             1328×  ████████████████████
+    kmac_process at kmac_sha3_template.s:145                331×  ████░░░░░░░░░░░░░░░░
+    kmac_squeeze_32B at kmac_sha3_template.s:177            324×  ████░░░░░░░░░░░░░░░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:267       307×  ████░░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     91×  █░░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:65           83×  █░░░░░░░░░░░░░░░░░░░
+    kmac_run at kmac_sha3_template.s:235                     48×  ░░░░░░░░░░░░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:260                    46×  ░░░░░░░░░░░░░░░░░░░░
+    crypto_kem_keypair at mlkem_keypair.s:206                36×  ░░░░░░░░░░░░░░░░░░░░
+    indcpa_keypair at mlkem_keypair.s:29                     36×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ P-256 ECDH
+    mul_modp at p256_base.s:99                            12819×  ████████████████████
+    fetch_proj_randomize at p256_base.s:746               11531×  █████████████████░░░
+    proj_double at p256_base.s:823                         1287×  ██░░░░░░░░░░░░░░░░░░
+    setup_modp at p256_base.s:295                           648×  █░░░░░░░░░░░░░░░░░░░
+    proj_add at p256_base.s:360                             645×  █░░░░░░░░░░░░░░░░░░░
+    scalar_mult_int at p256_base.s:950                      328×  ░░░░░░░░░░░░░░░░░░░░
+    p256_scalar_reblind at p256_base.s:1213                   8×  ░░░░░░░░░░░░░░░░░░░░
+    p256_shared_key                                           7×  ░░░░░░░░░░░░░░░░░░░░
+    p256_masked_scalar_reblind at p256_base.s:1167            7×  ░░░░░░░░░░░░░░░░░░░░
+    p256_isoncurve_proj at p256_isoncurve_proj.s:43           6×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ SHA3/SHAKE Hash
+    _ensure_digest at kmac_sha3_template.s:158               92×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:171             23×  █████░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     13×  ██░░░░░░░░░░░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                 13×  ██░░░░░░░░░░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                    13×  ██░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           13×  ██░░░░░░░░░░░░░░░░░░
+    test_sha3_256_empty at sha3_test.s:42                    10×  ██░░░░░░░░░░░░░░░░░░
+    test_sha3_256_msg at sha3_test.s:64                      10×  ██░░░░░░░░░░░░░░░░░░
+    test_sha3_512_empty at sha3_test.s:52                     7×  █░░░░░░░░░░░░░░░░░░░
+    test_sha3_512_msg at sha3_test.s:76                       6×  █░░░░░░░░░░░░░░░░░░░
+
+[9] 函数调用热点 — ver2
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ▸ HKDF-SHA3-256
+    _ensure_digest at kmac_sha3_template.s:158               38×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:171             36×  ██████████████████░░
+    kmac_init at kmac_sha3_template.s:27                     24×  ████████████░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           24×  ████████████░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                 24×  ████████████░░░░░░░░
+    hmac_sha3_256 at hmac_sha3.s:40                          20×  ██████████░░░░░░░░░░
+    hkdf_extract at hkdf_sha3_256.s:67                       12×  ██████░░░░░░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                    10×  █████░░░░░░░░░░░░░░░
+    hkdf_expand at hkdf_sha3_256.s:114                        2×  █░░░░░░░░░░░░░░░░░░░
+  ▸ HMAC-SHA3-256
+    kmac_squeeze_32B at kmac_sha3_template.s:171             20×  ████████████████████
+    _ensure_digest at kmac_sha3_template.s:158               19×  ███████████████████░
+    kmac_init at kmac_sha3_template.s:27                     12×  ████████████░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           12×  ████████████░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                 12×  ████████████░░░░░░░░
+    hmac_sha3_256 at hmac_sha3.s:40                          11×  ███████████░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                     4×  ████░░░░░░░░░░░░░░░░
+  ▸ ML-KEM Decap
+    _ensure_digest at kmac_sha3_template.s:158             1359×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:171            332×  ████░░░░░░░░░░░░░░░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:267       305×  ████░░░░░░░░░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                292×  ████░░░░░░░░░░░░░░░░
+    polyvec_decompress_16 at pack_ciphertext.s:448           96×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_compress_16 at pack_ciphertext.s:198             96×  █░░░░░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     89×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_compress at pack_ciphertext.s:75                 86×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_decompress at pack_ciphertext.s:327              80×  █░░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           70×  █░░░░░░░░░░░░░░░░░░░
+  ▸ ML-KEM Encap
+    _ensure_digest at kmac_sha3_template.s:158             1359×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:171            332×  ████░░░░░░░░░░░░░░░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:267       305×  ████░░░░░░░░░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                292×  ████░░░░░░░░░░░░░░░░
+    polyvec_compress_16 at pack_ciphertext.s:198             96×  █░░░░░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     88×  █░░░░░░░░░░░░░░░░░░░
+    polyvec_compress at pack_ciphertext.s:75                 86×  █░░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           68×  █░░░░░░░░░░░░░░░░░░░
+    pack_ciphertext at pack_ciphertext.s:258                 64×  ░░░░░░░░░░░░░░░░░░░░
+    kmac_run at kmac_sha3_template.s:229                     40×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ ML-KEM KeyGen
+    _ensure_digest at kmac_sha3_template.s:158             1328×  ████████████████████
+    kmac_process at kmac_sha3_template.s:139                331×  ████░░░░░░░░░░░░░░░░
+    kmac_squeeze_32B at kmac_sha3_template.s:171            324×  ████░░░░░░░░░░░░░░░░
+    _poly_uniform_inner_loop at poly_gen_matrix.s:267       307×  ████░░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     91×  █░░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           83×  █░░░░░░░░░░░░░░░░░░░
+    kmac_run at kmac_sha3_template.s:229                     48×  ░░░░░░░░░░░░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                    46×  ░░░░░░░░░░░░░░░░░░░░
+    crypto_kem_keypair at mlkem_keypair.s:164                36×  ░░░░░░░░░░░░░░░░░░░░
+    indcpa_keypair at mlkem_keypair.s:3                      36×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ P-256 ECDH
+    mul_modp at p256_base.s:99                            12819×  ████████████████████
+    fetch_proj_randomize at p256_base.s:746               11531×  █████████████████░░░
+    proj_double at p256_base.s:823                         1287×  ██░░░░░░░░░░░░░░░░░░
+    setup_modp at p256_base.s:295                           648×  █░░░░░░░░░░░░░░░░░░░
+    proj_add at p256_base.s:360                             645×  █░░░░░░░░░░░░░░░░░░░
+    scalar_mult_int at p256_base.s:950                      328×  ░░░░░░░░░░░░░░░░░░░░
+    p256_scalar_reblind at p256_base.s:1213                   8×  ░░░░░░░░░░░░░░░░░░░░
+    p256_shared_key                                           7×  ░░░░░░░░░░░░░░░░░░░░
+    p256_masked_scalar_reblind at p256_base.s:1167            7×  ░░░░░░░░░░░░░░░░░░░░
+    p256_isoncurve_proj at p256_isoncurve_proj.s:43           6×  ░░░░░░░░░░░░░░░░░░░░
+  ▸ SHA3/SHAKE Hash
+    _ensure_digest at kmac_sha3_template.s:158               92×  ████████████████████
+    kmac_squeeze_32B at kmac_sha3_template.s:171             23×  █████░░░░░░░░░░░░░░░
+    kmac_init at kmac_sha3_template.s:27                     13×  ██░░░░░░░░░░░░░░░░░░
+    kmac_process at kmac_sha3_template.s:139                 13×  ██░░░░░░░░░░░░░░░░░░
+    kmac_done at kmac_sha3_template.s:254                    13×  ██░░░░░░░░░░░░░░░░░░
+    keccak_send_message at kmac_sha3_template.s:59           13×  ██░░░░░░░░░░░░░░░░░░
+    test_sha3_256_empty at sha3_test.s:42                    10×  ██░░░░░░░░░░░░░░░░░░
+    test_sha3_256_msg at sha3_test.s:64                      10×  ██░░░░░░░░░░░░░░░░░░
+    test_sha3_512_empty at sha3_test.s:52                     7×  █░░░░░░░░░░░░░░░░░░░
+    test_sha3_512_msg at sha3_test.s:76                       6×  █░░░░░░░░░░░░░░░░░░░

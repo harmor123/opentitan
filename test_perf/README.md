@@ -43,7 +43,8 @@ python main.py delete --version ver0 --before 2026-01-01
 
 ### 全流程
 ```bash
-rm -f test_perf/db/perf_results.db
+rm -rf test_perf/__pycache__ hw/ip/otbn/dv/otbnsim/sim/__pycache__
+rm -f test_perf/db/v0_full_1.db
 python test_perf/main.py run --db test_perf/db/v0_full_1.db
 python test_perf/main.py report --db test_perf/db/v0_full_1.db -o test_perf/report_full_1.txt
 ```

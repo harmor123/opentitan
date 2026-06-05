@@ -51,6 +51,7 @@ class DBManager:
                 ("dmem", "INTEGER"),
                 ("instr_categories", "TEXT"),
                 ("instr_freqs", "TEXT"),
+                ("func_calls", "TEXT"),
             ]:
                 try:
                     con.execute(f"ALTER TABLE metrics ADD COLUMN {col} {typ}")
@@ -72,17 +73,19 @@ class DBManager:
                       stalls: int = 0, stall_pct: float = 0.0,
                       imem: int = 0, dmem: int = 0,
                       instr_categories: dict | None = None,
-                      instr_freqs: dict | None = None):
+                      instr_freqs: dict | None = None,
+                      func_calls: dict | None = None):
         import json
         cats_json = json.dumps(instr_categories) if instr_categories else "{}"
         freqs_json = json.dumps(instr_freqs) if instr_freqs else "{}"
+        funcs_json = json.dumps(func_calls) if func_calls else "{}"
         with self._connect() as con:
             con.execute(
                 "INSERT INTO metrics (run_id, operation, cycles, cycles_std, instructions, "
-                "stalls, stall_pct, imem, dmem, instr_categories, instr_freqs) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "stalls, stall_pct, imem, dmem, instr_categories, instr_freqs, func_calls) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (run_id, op, cycles, cycles_std, instructions,
-                 stalls, stall_pct, imem, dmem, cats_json, freqs_json),
+                 stalls, stall_pct, imem, dmem, cats_json, freqs_json, funcs_json),
             )
 
     # ── 删 ──
