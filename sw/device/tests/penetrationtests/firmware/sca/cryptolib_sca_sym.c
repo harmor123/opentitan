@@ -6,9 +6,8 @@
 
 #include "sw/device/lib/base/memory.h"
 #include "sw/device/lib/base/status.h"
-#include "sw/device/lib/crypto/drivers/cryptolib_build_info.h"
+#include "sw/device/lib/crypto/include/config.h"
 #include "sw/device/lib/crypto/include/cryptolib_build_info.h"
-#include "sw/device/lib/crypto/include/security_config.h"
 #include "sw/device/lib/runtime/log.h"
 #include "sw/device/lib/testing/test_framework/ottf_test_config.h"
 #include "sw/device/lib/testing/test_framework/ujson_ottf.h"
@@ -58,7 +57,11 @@ static status_t trigger_cryptolib_cmac(
   memset(data_out, 0, AES_CMD_MAX_MSG_BYTES);
   *data_out_len = AES_CMD_MAX_MSG_BYTES;
   *cfg_out = 0;
-  *status = 0;
+
+  *status = (size_t)cryptolib_sca_cmac_impl(data_in, data_in_len, key, key_len,
+                                            iv, data_out, data_out_len, cfg_in,
+                                            cfg_out, trigger)
+                .value;
   /////////////// STUB END ///////////////
 
   return OK_STATUS();
@@ -907,8 +910,6 @@ status_t handle_cryptolib_sca_sym_init(ujson_t *uj) {
                 released ? "true" : "false", build_hash_high, build_hash_low);
   RESP_OK(ujson_serialize_string, uj, cryptolib_version);
 
-  // Check the security config of the device.
-  TRY(otcrypto_security_config_check(kOtcryptoKeySecurityLevelHigh));
   /////////////// STUB END ///////////////
 
   return OK_STATUS();

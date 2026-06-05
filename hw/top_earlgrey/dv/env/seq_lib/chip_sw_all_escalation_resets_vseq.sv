@@ -94,54 +94,45 @@ class chip_sw_all_escalation_resets_vseq extends chip_sw_base_vseq;
     return -1;
   endfunction
 
+  // Consume the plusarg called plusarg_name, whose value should be a comma-separated list of
+  // strings. Append each of those strings to queue.
+  function void append_queue_plusarg(string plusarg_name, ref string queue[$]);
+    string plusarg_val;
+    if ($value$plusargs({plusarg_name, "=%0s"}, plusarg_val)) begin
+      string words[$];
+      str_split(plusarg_val, words, ",");
+      foreach (words[i]) begin
+        queue.push_back(words[i]);
+      end
+    end
+  endfunction
+
   virtual task body();
     sec_cm_pkg::sec_cm_base_if_proxy if_proxy;
     ip_fatal_alert_t ip_alert;
     bit [7:0] sw_alert_num[];
-    string sec_cm;
     string actual_ip;
-    bit show_proxies;
+    string excluded_ips[$];
+    int excluded_ip_idxs[$];
 
-    if ($value$plusargs("inject_fatal_error_for_sec_cm=%s", sec_cm)) begin
-      `uvm_info(`gfn, $sformatf("Will inject error on %0s interface", sec_cm), UVM_MEDIUM)
-    end else sec_cm = "prim_reg_we_check";
-    if ($value$plusargs("inject_fatal_error_for_ip=%s", actual_ip)) begin
-      ip_index = get_ip_index_from_name(actual_ip, sec_cm);
-    end else begin
-      string excluded_ips[$], excluded_ips_append[$];
-      int excluded_ip_idxs[$];
-      `DV_GET_QUEUE_PLUSARG(excluded_ips, avoid_inject_fatal_error_for_ips)
-      `DV_GET_QUEUE_PLUSARG(excluded_ips_append, avoid_ferr_ips_append)
-      if (excluded_ips_append.size() > 0) begin
-        while(excluded_ips_append.size() > 0)
-          excluded_ips.push_back(excluded_ips_append.pop_front());
-      end
-      foreach (excluded_ips[i]) begin
-        int sep_idx = find_separator(excluded_ips[i]);
-        if (sep_idx >= 0) begin
-          int str_len = excluded_ips[i].len();
-          actual_ip = excluded_ips[i].substr(0, sep_idx-1);
-          sec_cm = excluded_ips[i].substr(sep_idx + 1, str_len - 1);
-        end else begin
-          actual_ip = excluded_ips[i];
-          sec_cm = "prim_reg_we_check";
-        end
-        excluded_ip_idxs.push_back(get_ip_index_from_name(actual_ip, sec_cm));
-      end
-      `DV_CHECK_MEMBER_RANDOMIZE_WITH_FATAL(ip_index, !(ip_index inside {excluded_ip_idxs});)
-    end
+    append_queue_plusarg("avoid_inject_fatal_error_for_ips", excluded_ips);
 
-    if ($value$plusargs("show_proxies=%s", show_proxies)) begin
-      if (show_proxies) begin
-        foreach (sec_cm_pkg::sec_cm_if_proxy_q[i]) begin
-          `uvm_info(`gfn, $sformatf(
-                    "sec_cm type %0d at %s",
-                    sec_cm_pkg::sec_cm_if_proxy_q[i].sec_cm_type,
-                    sec_cm_pkg::sec_cm_if_proxy_q[i].path
-                    ), UVM_MEDIUM)
-        end
+    foreach (excluded_ips[i]) begin
+      string sec_cm;
+      int sep_idx = find_separator(excluded_ips[i]);
+
+      if (sep_idx >= 0) begin
+        int str_len = excluded_ips[i].len();
+        actual_ip = excluded_ips[i].substr(0, sep_idx-1);
+        sec_cm = excluded_ips[i].substr(sep_idx + 1, str_len - 1);
+      end else begin
+        actual_ip = excluded_ips[i];
+        sec_cm = "prim_reg_we_check";
       end
+      excluded_ip_idxs.push_back(get_ip_index_from_name(actual_ip, sec_cm));
     end
+    `DV_CHECK_MEMBER_RANDOMIZE_WITH_FATAL(ip_index, !(ip_index inside {excluded_ip_idxs});)
+
     ip_alert = ip_alerts[ip_index];
 
     // This sequence will trigger a fatal sec_cm failure.

@@ -2,10 +2,11 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "sw/device/lib/crypto/drivers/entropy.h"
 #include "sw/device/lib/crypto/drivers/kmac.h"
 #include "sw/device/lib/crypto/impl/keyblob.h"
+#include "sw/device/lib/crypto/include/config.h"
 #include "sw/device/lib/crypto/include/datatypes.h"
+#include "sw/device/lib/crypto/include/entropy_src.h"
 #include "sw/device/lib/crypto/include/integrity.h"
 #include "sw/device/lib/crypto/include/key_transport.h"
 #include "sw/device/lib/crypto/include/kmac_kdf.h"
@@ -319,7 +320,8 @@ static status_t run_test_vector(void) {
   uint32_t km_buffer2[km_keyblob_len];
 
   current_test_vector->key_derivation_key.checksum =
-      integrity_blinded_checksum(&current_test_vector->key_derivation_key);
+      otcrypto_integrity_blinded_checksum(
+          &current_test_vector->key_derivation_key);
 
   otcrypto_key_config_t km_config = {
       // The following key_mode is a dummy placeholder. It does not
@@ -438,8 +440,8 @@ bool test_main(void) {
   LOG_INFO("Keymgr entered %s State", state_name);
   LOG_INFO("Testing cryptolib KDF-KMAC driver with sideloaded key.");
 
+  CHECK_STATUS_OK(otcrypto_init(kOtcryptoKeySecurityLevelLow));
   // Initialize the core with default parameters
-  CHECK_STATUS_OK(entropy_complex_init());
   CHECK_STATUS_OK(kmac_hwip_default_configure());
 
   status_t test_result = OK_STATUS();

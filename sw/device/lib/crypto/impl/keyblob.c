@@ -8,7 +8,6 @@
 #include "sw/device/lib/base/math.h"
 #include "sw/device/lib/base/memory.h"
 #include "sw/device/lib/base/random_order.h"
-#include "sw/device/lib/crypto/drivers/entropy.h"
 #include "sw/device/lib/crypto/drivers/rv_core_ibex.h"
 #include "sw/device/lib/crypto/impl/status.h"
 #include "sw/device/lib/crypto/include/integrity.h"
@@ -93,9 +92,6 @@ status_t keyblob_to_shares(const otcrypto_blinded_key_t *key, uint32_t **share0,
 status_t keyblob_from_shares(const uint32_t *share0, const uint32_t *share1,
                              const otcrypto_key_config_t config,
                              uint32_t *keyblob) {
-  // Entropy complex must be initialized for `hardened_memcpy`.
-  HARDENED_TRY(entropy_complex_check());
-
   // Randomize the keyblob contents before writing shares.
   HARDENED_TRY(hardened_memshred(keyblob, keyblob_num_words(config)));
 
@@ -115,9 +111,6 @@ status_t keyblob_buffer_to_keymgr_diversification(
   // Set the version to the first word of the keyblob.
   diversification->version = launder32(keyblob[0]);
 
-  // Entropy complex must be initialized for `hardened_memcpy`.
-  HARDENED_TRY(entropy_complex_check());
-
   // Copy the remainder of the keyblob into the salt.
   HARDENED_TRY(hardened_memcpy(diversification->salt, &keyblob[1],
                                kKeymgrSaltNumWords - 1));
@@ -136,8 +129,12 @@ status_t keyblob_buffer_to_keymgr_diversification(
 status_t keyblob_to_keymgr_diversification(
     const otcrypto_blinded_key_t *key,
     keymgr_diversification_t *diversification) {
-  if (launder32(key->config.hw_backed) != kHardenedBoolTrue ||
-      key->keyblob == NULL) {
+#ifndef OTCRYPTO_DISABLE_NULL_CHECKS
+  if (key->keyblob == NULL) {
+    return OTCRYPTO_BAD_ARGS;
+  }
+#endif
+  if (launder32(key->config.hw_backed) != kHardenedBoolTrue) {
     return OTCRYPTO_BAD_ARGS;
   }
   HARDENED_CHECK_EQ(key->config.hw_backed, kHardenedBoolTrue);
@@ -148,6 +145,36 @@ status_t keyblob_to_keymgr_diversification(
 
   return keyblob_buffer_to_keymgr_diversification(
       key->keyblob, key->config.key_mode, diversification);
+}
+
+status_t keyblob_to_keymgr_attestation_diversification(
+    const otcrypto_blinded_key_t *key,
+    keymgr_diversification_t *diversification) {
+#ifndef OTCRYPTO_DISABLE_NULL_CHECKS
+  if (key->keyblob == NULL) {
+    return OTCRYPTO_BAD_ARGS;
+  }
+#endif
+  if (launder32(key->config.hw_backed) != kHardenedBoolTrue) {
+    return OTCRYPTO_BAD_ARGS;
+  }
+  HARDENED_CHECK_EQ(key->config.hw_backed, kHardenedBoolTrue);
+
+  if (key->keyblob_length != kCdiKeyblobHwBackedBytes) {
+    return OTCRYPTO_BAD_ARGS;
+  }
+
+  diversification->version = launder32(key->keyblob[0]);
+
+  HARDENED_TRY(hardened_memcpy(diversification->salt, &key->keyblob[1],
+                               kKeymgrSaltNumWords));
+
+  HARDENED_CHECK_EQ(diversification->version, key->keyblob[0]);
+  HARDENED_CHECK_EQ(hardened_memeq(diversification->salt, &key->keyblob[1],
+                                   kKeymgrSaltNumWords),
+                    kHardenedBoolTrue);
+
+  return OTCRYPTO_OK;
 }
 
 status_t keyblob_ensure_xor_masked(const otcrypto_key_config_t config) {
@@ -219,9 +246,6 @@ status_t keyblob_remask(otcrypto_blinded_key_t *key) {
   // Check that the key is masked with XOR.
   HARDENED_TRY(keyblob_ensure_xor_masked(key->config));
 
-  // Check that the entropy complex is up and properly configured.
-  HARDENED_TRY(entropy_complex_check());
-
   uint32_t *share0;
   uint32_t *share1;
   HARDENED_TRY(keyblob_to_shares(key, &share0, &share1));
@@ -236,15 +260,17 @@ status_t keyblob_remask(otcrypto_blinded_key_t *key) {
   HARDENED_TRY(hardened_xor_in_place(share1, mask, key_share_words));
 
   // Update the key checksum.
-  key->checksum = integrity_blinded_checksum(key);
+  key->checksum = otcrypto_integrity_blinded_checksum(key);
   return OTCRYPTO_OK;
 }
 
 status_t keyblob_key_unmask(const otcrypto_blinded_key_t *key,
                             size_t unmasked_key_len, uint32_t *unmasked_key) {
+#ifndef OTCRYPTO_DISABLE_NULL_CHECKS
   if (key == NULL || unmasked_key == NULL) {
     return OTCRYPTO_BAD_ARGS;
   }
+#endif
   if (keyblob_share_num_words(key->config) != unmasked_key_len) {
     return OTCRYPTO_BAD_ARGS;
   }
@@ -261,5 +287,5 @@ status_t keyblob_key_unmask(const otcrypto_blinded_key_t *key,
 status_t keyblob_sideload_key_otbn(const otcrypto_blinded_key_t *key) {
   keymgr_diversification_t diversification;
   HARDENED_TRY(keyblob_to_keymgr_diversification(key, &diversification));
-  return keymgr_generate_key_otbn(diversification);
+  return keymgr_generate_key_otbn(diversification, kHardenedBoolFalse);
 }

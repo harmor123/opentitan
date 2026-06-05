@@ -29,6 +29,7 @@ cryptotest(
 
 cryptotest(
     name = "hmac_sha256_acvp",
+    slow_test = True,
     test_args = " ".join([
         "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:hmac_sha256_vectors.json)\"",
         "--expected=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:hmac_sha256_expected.json)\"",
@@ -42,6 +43,7 @@ cryptotest(
 
 cryptotest(
     name = "cshake_acvp",
+    slow_test = True,
     test_args = " ".join([
         "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:cshake_vectors.json)\"",
         "--expected=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:cshake_expected.json)\"",
@@ -54,7 +56,48 @@ cryptotest(
 )
 
 cryptotest(
+    name = "eddsa_siggen_acvp",
+    slow_test = True,
+    test_args = " ".join([
+        "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:eddsa_vectors.hjson)\"",
+        "--run-siggen",
+    ]),
+    test_harness = "//sw/host/tests/crypto/acvp:harness",
+    test_vectors = [
+        "//sw/host/cryptotest/testvectors/acvp:eddsa_vectors.hjson",
+    ],
+)
+
+cryptotest(
+    name = "eddsa_keygen_acvp",
+    slow_test = True,
+    test_args = " ".join([
+        "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:eddsa_vectors.hjson)\"",
+        "--run-keygen",
+    ]),
+    test_harness = "//sw/host/tests/crypto/acvp:harness",
+    test_vectors = [
+        "//sw/host/cryptotest/testvectors/acvp:eddsa_vectors.hjson",
+    ],
+)
+
+cryptotest(
+    name = "eddsa_sigver_acvp",
+    slow_test = True,
+    test_args = " ".join([
+        "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:eddsa_vectors.hjson)\"",
+        "--expected=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:eddsa_expected.hjson)\"",
+    ]),
+    test_harness = "//sw/host/tests/crypto/acvp:harness",
+    test_vectors = [
+        "//sw/host/cryptotest/testvectors/acvp:eddsa_vectors.hjson",
+        "//sw/host/cryptotest/testvectors/acvp:eddsa_expected.hjson",
+    ],
+)
+
+cryptotest(
     name = "rsa_acvp",
+    slow_test = True,
     test_args = " ".join([
         "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:rsa_vectors.json)\"",
         "--expected=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:rsa_expected.json)\"",
@@ -63,6 +106,20 @@ cryptotest(
     test_vectors = [
         "//sw/host/cryptotest/testvectors/acvp:rsa_vectors.json",
         "//sw/host/cryptotest/testvectors/acvp:rsa_expected.json",
+    ],
+)
+
+cryptotest(
+    name = "rsa_acvp_siggen",
+    slow_test = True,
+    test_args = " ".join([
+        "--input=\"$(rootpath //sw/host/cryptotest/testvectors/acvp:rsa_vectors.json)\"",
+        "--run-siggen",
+        "--timeout=250s",
+    ]),
+    test_harness = "//sw/host/tests/crypto/acvp:harness",
+    test_vectors = [
+        "//sw/host/cryptotest/testvectors/acvp:rsa_vectors.json",
     ],
 )
 
@@ -170,6 +227,24 @@ cryptotest(
     test_args = ECDH_TESTVECTOR_ARGS,
     test_harness = "//sw/host/tests/crypto/ecdh_kat:harness",
     test_vectors = ECDH_TESTVECTOR_TARGETS,
+)
+
+ED25519_TESTVECTOR_TARGETS = [
+    "//sw/host/cryptotest/testvectors/data:wycheproof_ed25519_json",
+    "//sw/host/cryptotest/testvectors/data:wycheproof_ed25519_sign_json",
+]
+
+ED25519_TESTVECTOR_ARGS = " ".join([
+    "--ed25519-json=\"$(rootpath {})\"".format(target)
+    for target in ED25519_TESTVECTOR_TARGETS
+])
+
+cryptotest(
+    name = "ed25519_kat",
+    slow_test = True,
+    test_args = ED25519_TESTVECTOR_ARGS,
+    test_harness = "//sw/host/tests/crypto/ed25519_kat:harness",
+    test_vectors = ED25519_TESTVECTOR_TARGETS,
 )
 
 RSA_TESTVECTOR_TARGETS = [
@@ -680,12 +755,17 @@ test_suite(
         ":drbg_kat",
         ":ecdh_kat",
         ":ecdsa_kat",
+        ":ed25519_kat",
+        ":eddsa_keygen_acvp",
+        ":eddsa_siggen_acvp",
+        ":eddsa_sigver_acvp",
         ":hmac_sha256_acvp",
         ":hmac_sha256_kat",
         ":hmac_sha384_kat",
         ":hmac_sha512_kat",
         ":kmac_kat",
         ":rsa_acvp",
+        ":rsa_acvp_siggen",
         ":rsa_kat",
         ":sha256_kat",
         ":sha384_kat",

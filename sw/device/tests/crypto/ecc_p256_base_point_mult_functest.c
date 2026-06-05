@@ -5,9 +5,10 @@
 #include "sw/device/lib/crypto/drivers/otbn.h"
 #include "sw/device/lib/crypto/impl/ecc/p256.h"
 #include "sw/device/lib/crypto/impl/keyblob.h"
+#include "sw/device/lib/crypto/include/config.h"
 #include "sw/device/lib/crypto/include/ecc_p256.h"
+#include "sw/device/lib/crypto/include/entropy_src.h"
 #include "sw/device/lib/runtime/log.h"
-#include "sw/device/lib/testing/entropy_testutils.h"
 #include "sw/device/lib/testing/test_framework/check.h"
 #include "sw/device/lib/testing/test_framework/ottf_main.h"
 
@@ -59,11 +60,18 @@ status_t base_point_mult_test(void) {
   };
 
   LOG_INFO("Calculating base point multiplication...");
-  CHECK_STATUS_OK(otcrypto_p256_base_point_mult(&private_key, &public_key_ver));
+  CHECK_STATUS_OK(
+      otcrypto_ecc_p256_base_point_mult(&private_key, &public_key_ver));
 
   // The intial generated public key and the public key from the base point
   // multipliation must match.
   TRY_CHECK_ARRAYS_EQ(pk, pk_ver, kP256PublicKeyWords);
+
+  // Null inputs
+  CHECK(otcrypto_ecc_p256_base_point_mult(NULL, &public_key_ver).value !=
+        OTCRYPTO_OK.value);
+  CHECK(otcrypto_ecc_p256_base_point_mult(&private_key, NULL).value !=
+        OTCRYPTO_OK.value);
 
   return OTCRYPTO_OK;
 }
@@ -71,7 +79,7 @@ status_t base_point_mult_test(void) {
 OTTF_DEFINE_TEST_CONFIG();
 
 bool test_main(void) {
-  CHECK_STATUS_OK(entropy_testutils_auto_mode_init());
+  CHECK_STATUS_OK(otcrypto_init(kOtcryptoKeySecurityLevelLow));
 
   status_t err = base_point_mult_test();
   if (!status_ok(err)) {

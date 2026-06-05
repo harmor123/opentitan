@@ -221,10 +221,11 @@ static status_t provision(ujson_t *uj,
 bool test_main(void) {
   // Initialize DIF handles, pinmux, GPIO indicator pins, and console.
   CHECK_STATUS_OK(peripheral_handles_init());
-  CHECK_STATUS_OK(entropy_complex_init());
+  CHECK_STATUS_OK(entropy_complex_init(kHardenedBoolFalse));
   CHECK_STATUS_OK(configure_ate_gpio_indicators());
   CHECK_DIF_OK(dif_gpio_write(&gpio, kGpioPinTestStart, true));
   ottf_console_init();
+  CHECK_STATUS_OK(entropy_complex_init(kHardenedBoolFalse));
   ujson_t uj = ujson_ottf_console();
 
   // Extract factory data from flash info page 0.

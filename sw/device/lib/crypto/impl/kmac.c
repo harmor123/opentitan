@@ -5,46 +5,47 @@
 #include "sw/device/lib/crypto/include/kmac.h"
 
 #include "sw/device/lib/base/hardened_memory.h"
-#include "sw/device/lib/crypto/drivers/entropy.h"
 #include "sw/device/lib/crypto/drivers/kmac.h"
 #include "sw/device/lib/crypto/impl/keyblob.h"
 #include "sw/device/lib/crypto/impl/status.h"
+#include "sw/device/lib/crypto/include/config.h"
 #include "sw/device/lib/crypto/include/integrity.h"
-#include "sw/device/lib/crypto/include/security_config.h"
 
 // Module ID for status codes.
 #define MODULE_ID MAKE_MODULE_ID('k', 'm', 'c')
 
-otcrypto_status_t otcrypto_kmac(otcrypto_blinded_key_t *key,
-                                otcrypto_const_byte_buf_t *input_message,
-                                otcrypto_const_byte_buf_t *customization_string,
-                                size_t required_output_len,
-                                otcrypto_word32_buf_t *tag) {
+otcrypto_status_t otcrypto_kmac(
+    otcrypto_blinded_key_t *key, const otcrypto_const_byte_buf_t *input_message,
+    const otcrypto_const_byte_buf_t *customization_string,
+    size_t required_output_len, otcrypto_word32_buf_t *tag) {
   // TODO (#16410) Revisit/complete error checks
 
+#ifndef OTCRYPTO_DISABLE_NULL_CHECKS
   // Check for null pointers.
-  if (key == NULL || key->keyblob == NULL || tag->data == NULL) {
+  if (key == NULL || key->keyblob == NULL || tag == NULL || tag->data == NULL) {
     return OTCRYPTO_BAD_ARGS;
   }
 
   // Check for null input message with nonzero length.
-  if (input_message->data == NULL && input_message->len != 0) {
+  if (input_message == NULL ||
+      (input_message->data == NULL && input_message->len != 0)) {
     return OTCRYPTO_BAD_ARGS;
   }
 
   // Check for null customization string with nonzero length.
-  if (customization_string->data == NULL && customization_string->len != 0) {
+  if (customization_string == NULL ||
+      (customization_string->data == NULL && customization_string->len != 0)) {
     return OTCRYPTO_BAD_ARGS;
   }
+#endif
 
   // Ensure that tag buffer length and `required_output_len` match each other.
-  if (required_output_len != tag->len * sizeof(uint32_t) ||
-      required_output_len == 0) {
+  size_t required_output_words =
+      (required_output_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+
+  if (tag->len != required_output_words || required_output_len == 0) {
     return OTCRYPTO_BAD_ARGS;
   }
-
-  // Ensure the entropy complex is initialized.
-  HARDENED_TRY(entropy_complex_check());
 
   size_t key_len = keyblob_share_num_words(key->config) * sizeof(uint32_t);
 
@@ -52,10 +53,12 @@ otcrypto_status_t otcrypto_kmac(otcrypto_blinded_key_t *key,
   HARDENED_TRY(kmac_key_length_check(key_len));
 
   // Check the integrity of the blinded key.
-  if (launder32(integrity_blinded_key_check(key)) != kHardenedBoolTrue) {
+  if (launder32(otcrypto_integrity_blinded_key_check(key)) !=
+      kHardenedBoolTrue) {
     return OTCRYPTO_BAD_ARGS;
   }
-  HARDENED_CHECK_EQ(integrity_blinded_key_check(key), kHardenedBoolTrue);
+  HARDENED_CHECK_EQ(otcrypto_integrity_blinded_key_check(key),
+                    kHardenedBoolTrue);
 
   kmac_blinded_key_t kmac_key = {
       .share0 = NULL,
@@ -81,9 +84,12 @@ otcrypto_status_t otcrypto_kmac(otcrypto_blinded_key_t *key,
 
     // Check `key_len` matches `keyblob_length`.
     if (key->keyblob_length != 2 * key->config.key_length) {
+      // COVERAGE (MISSING) We do not cover bad key_len inputs
       return OTCRYPTO_BAD_ARGS;
     }
     HARDENED_TRY(keyblob_to_shares(key, &kmac_key.share0, &kmac_key.share1));
+    // Set the checksum of the key.
+    kmac_key.checksum = kmac_key_integrity_checksum(&kmac_key);
   } else {
     return OTCRYPTO_BAD_ARGS;
   }
@@ -95,7 +101,7 @@ otcrypto_status_t otcrypto_kmac(otcrypto_blinded_key_t *key,
                                  /*masked_digest=*/kHardenedBoolFalse,
                                  input_message, customization_string->data,
                                  customization_string->len, tag->data,
-                                 tag->len));
+                                 required_output_len));
       key_mode_used = launder32(key_mode_used) | kOtcryptoKeyModeKmac128;
       break;
     case kOtcryptoKeyModeKmac256:
@@ -103,7 +109,7 @@ otcrypto_status_t otcrypto_kmac(otcrypto_blinded_key_t *key,
                                  /*masked_digest=*/kHardenedBoolFalse,
                                  input_message, customization_string->data,
                                  customization_string->len, tag->data,
-                                 tag->len));
+                                 required_output_len));
       key_mode_used = launder32(key_mode_used) | kOtcryptoKeyModeKmac256;
       break;
     default:
@@ -115,13 +121,11 @@ otcrypto_status_t otcrypto_kmac(otcrypto_blinded_key_t *key,
 
   if (key->config.hw_backed == kHardenedBoolTrue) {
     HARDENED_TRY(keymgr_sideload_clear_kmac());
-  } else if (key->config.hw_backed != kHardenedBoolFalse) {
-    return OTCRYPTO_BAD_ARGS;
   }
 
   // Verify the input buffer
   HARDENED_CHECK_EQ(kHardenedBoolTrue,
                     OTCRYPTO_CHECK_BUF(customization_string));
 
-  return OTCRYPTO_OK;
+  return otcrypto_eval_exit(OTCRYPTO_OK);
 }

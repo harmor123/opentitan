@@ -17,9 +17,11 @@ extern "C" {
     value(_, Drbg) \
     value(_, Ecdsa) \
     value(_, Ecdh) \
+    value(_, Ed25519) \
     value(_, Hash) \
     value(_, Hmac) \
     value(_, Kmac) \
+    value(_, Quit) \
     value(_, Rsa) \
     value(_, SphincsPlus)
 UJSON_SERDE_ENUM(CryptotestCommand, cryptotest_cmd_t, COMMAND);

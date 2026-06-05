@@ -145,7 +145,7 @@ status_t aes_gcm_testutils_encrypt(const aes_gcm_test_t *test, bool streaming,
   };
 
   // Set the checksum.
-  key.checksum = integrity_blinded_checksum(&key);
+  key.checksum = otcrypto_integrity_blinded_checksum(&key);
 
   size_t iv_num_words =
       (test->iv_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
@@ -235,7 +235,7 @@ status_t aes_gcm_testutils_decrypt(const aes_gcm_test_t *test,
   };
 
   // Set the checksum.
-  key.checksum = integrity_blinded_checksum(&key);
+  key.checksum = otcrypto_integrity_blinded_checksum(&key);
 
   size_t iv_num_words =
       (test->iv_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
@@ -278,13 +278,11 @@ status_t aes_gcm_testutils_decrypt(const aes_gcm_test_t *test,
     *cycles = profile_end(t_start);
   } else {
     // Call decrypt() with a cycle count timing profile.
-    icache_invalidate();
     uint64_t t_start = profile_start();
     otcrypto_status_t err =
         otcrypto_aes_gcm_decrypt(&key, &ciphertext, &iv, &aad, tag_len, &tag,
                                  &actual_plaintext, tag_valid);
     *cycles = profile_end(t_start);
-    icache_invalidate();
 
     // Check for errors.
     TRY(err);

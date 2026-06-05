@@ -3,16 +3,16 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /**
- * Entrypoint for P-256 ECDH and ECDSA operations.
+ * Entrypoint for 25519 ECDH (X25519) and EdDSA (ed25519) operations.
  *
  * This binary has the following modes of operation:
  * 1. MODE_SIGN_PART1: generate a new keypair
- * 2. MODE_SIGN_PART2: generate an ECDSA signature using caller-provided secret key
+ * 2. MODE_SIGN_PART2: generate an EdDSA signature using caller-provided secret key
  */
 
 /**
  * Mode magic values, generated with
- * $ ./util/design/sparse-fsm-encode.py -d 6 -m 3 -n 11 \
+ * $ ./util/design/sparse-fsm-encode.py -d 6 -m 8 -n 11 \
  *     --avoid-zero -s 380925547
  *
  * Call the same utility with the same arguments and a higher -m to generate
@@ -23,10 +23,14 @@
  * as `li`. If support is added, we could use 32-bit values here instead of
  * 11-bit.
  */
-.equ MODE_KEYGEN, 0x6CE
-.equ MODE_SIGN_STAGE1, 0x77D
-.equ MODE_SIGN_STAGE2, 0x397
-.equ MODE_VERIFY, 0x5F2
+.equ MODE_KEYGEN, 0x1F8
+.equ MODE_SIGN_STAGE1, 0x669
+.equ MODE_SIGN_STAGE2, 0x23E
+.equ MODE_VERIFY, 0x54E
+.equ MODE_X25519, 0x695
+.equ MODE_X25519_KEYGEN, 0x7A2
+.equ MODE_X25519_SIDELOAD, 0xE7
+.equ MODE_X25519_KEYGEN_SIDELOAD, 0x353
 
 /**
  * Make the mode constants visible to Ibex.
@@ -35,6 +39,10 @@
 .globl MODE_SIGN_STAGE1
 .globl MODE_SIGN_STAGE2
 .globl MODE_VERIFY
+.globl MODE_X25519
+.globl MODE_X25519_KEYGEN
+.globl MODE_X25519_SIDELOAD
+.globl MODE_X25519_KEYGEN_SIDELOAD
 
 .section .text.start
 .globl start
@@ -44,19 +52,30 @@ start:
   lw    x2, 0(x2)
 
   addi  x3, x0, MODE_KEYGEN
-  beq   x2, x3, ecdsa_keygen
+  beq   x2, x3, ed25519_keygen
 
   addi  x3, x0, MODE_SIGN_STAGE1
-  beq   x2, x3, ecdsa_sign_compute_r
+  beq   x2, x3, ed25519_sign_compute_r
 
   addi  x3, x0, MODE_SIGN_STAGE2
-  beq   x2, x3, ecdsa_sign_compute_s
+  beq   x2, x3, ed25519_sign_compute_s
 
   addi  x3, x0, MODE_VERIFY
   beq   x2, x3, ed25519_verify
 
+  addi  x3, x0, MODE_X25519
+  beq   x2, x3, x25519
+
+  addi  x3, x0, MODE_X25519_KEYGEN
+  beq   x2, x3, x25519_keygen
+
+  addi  x3, x0, MODE_X25519_SIDELOAD
+  beq   x2, x3, x25519_sideload
+
+  addi  x3, x0, MODE_X25519_KEYGEN_SIDELOAD
+  beq   x2, x3, x25519_keygen_sideload
+
   /* Invalid mode; fail. */
-  unimp
   unimp
   unimp
 
@@ -72,7 +91,7 @@ start:
  * clobbered registers: x2 to x3, w2 to w31
  * clobbered flag groups: FG0
  */
-ecdsa_keygen:
+ed25519_keygen:
   /* Zeroize w31 */
   bn.xor   w31, w31, w31
 
@@ -100,7 +119,7 @@ ecdsa_keygen:
  * clobbered registers: x2 to x3, w2 to w31
  * clobbered flag groups: FG0
  */
-ecdsa_sign_compute_r:
+ed25519_sign_compute_r:
   /* Zeroize w31 */
   bn.xor   w31, w31, w31
 
@@ -123,7 +142,7 @@ ecdsa_sign_compute_r:
  * clobbered registers: x2 to x4, x20 to x23, w2 to w31
  * clobbered flag groups: FG0
  */
-ecdsa_sign_compute_s:
+ed25519_sign_compute_s:
   /* Zeroize w31 */
   bn.xor   w31, w31, w31
 
@@ -155,6 +174,105 @@ ed25519_verify:
 
   ecall
 
+x25519:
+  /* Zeroize w31 */
+  bn.xor   w31, w31, w31
+
+  /* Load private key into w8 */
+  li       x2, 8
+  la       x3, x25519_private_key
+  bn.lid   x2, 0(x3)
+
+  /* Load public key into w9 */
+  li       x2, 9
+  la       x3, x25519_public_key
+  bn.lid   x2, 0(x3)
+
+  /* Call Edwards-mapped X25519 */
+  jal      x1, X25519
+
+  /* Store shared key from w22 */
+  li       x2, 22
+  la       x3, x25519_shared_key
+  bn.sid   x2, 0(x3)
+
+  ecall
+
+x25519_keygen:
+  /* Zeroize w31 */
+  bn.xor   w31, w31, w31
+
+  /* Load private key into w8 */
+  li       x2, 8
+  la       x3, x25519_private_key
+  bn.lid   x2, 0(x3)
+
+  /* Set public key */
+  bn.addi  w9, w31, 9
+
+  jal      x1, X25519
+
+  /* Store public key from w22 */
+  li       x2, 22
+  la       x3, x25519_public_key
+  bn.sid   x2, 0(x3)
+
+  ecall
+
+x25519_sideload:
+  /* Zeroize w31 */
+  bn.xor   w31, w31, w31
+
+  /* Read private key shares */
+  bn.wsrr w7, KEY_S0_L
+  bn.wsrr w8, KEY_S1_L
+
+  /* Clamp the Boolean shares */
+  jal x1, x25519_clamp_shares
+
+  /* Unmask the key */
+  bn.xor  w8, w7, w8
+
+  /* Load public key into w9 */
+  li x2, 9
+  la x3, x25519_public_key
+  bn.lid x2, 0(x3)
+
+  jal x1, X25519
+
+  /* Store shared key from w22 */
+  li x2, 22
+  la x3, x25519_shared_key
+  bn.sid x2, 0(x3)
+
+  ecall
+
+x25519_keygen_sideload:
+  /* Zeroize w31 */
+  bn.xor   w31, w31, w31
+
+  /* Read private key shares */
+  bn.wsrr w7, KEY_S0_L
+  bn.wsrr w8, KEY_S1_L
+
+  /* Clamp the Boolean shares */
+  jal x1, x25519_clamp_shares
+
+  /* Unmask the key */
+  bn.xor  w8, w7, w8
+
+  /* Set Curve25519 basepoint */
+  bn.addi w9, w31, 9
+
+  jal x1, X25519
+
+  /* Store public key from w22 into DMEM */
+  li x2, 22
+  la x3, x25519_public_key
+  bn.sid x2, 0(x3)
+
+  ecall
+
 .bss
 
 /* Operation mode. */
@@ -164,7 +282,7 @@ mode:
   .zero 4
 
 /* Verification result code (32 bits). Output for verify.
-   If verification is successful, this will be SUCCESS = 0xf77fe650.
+   If verification is successful, this will be SUCCESS = 0x739.
    Otherwise, this will be FAILURE = 0xeda2bfaf. */
 .balign 32
 .globl ed25519_verify_result
@@ -195,16 +313,46 @@ ed25519_public_key:
 ed25519_hash_k:
   .zero 64
 
-/* Lower half of precomputed hash h (256 bits). See RFC 8032, section
-   5.1.6, step 1 or the docstring of ed25519_sign. Input for sign. */
+/* Precomputed arithmetic shares of the clamped integer s (256 bits embedded in
+   384 bits). See RFC 8032, section 5.1.6, step 1 or the docstring of
+   ed25519_sign. Input for sign. */
 .balign 32
-.globl ed25519_hash_h_low
-ed25519_hash_h_low:
+.globl ed25519_s0
+ed25519_s0:
+  .zero 64
+
+.balign 32
+.globl ed25519_s1
+ed25519_s1:
+  .zero 64
+
+/* Precomputed arithmetic shares of r (512 bits embedded in 640 bits). See
+   RFC 8032, section 5.1.6, step 2 or the docstring of ed25519_sign.
+   Input for sign. */
+.balign 32
+.globl ed25519_r0
+ed25519_r0:
+  .zero 96
+
+.balign 32
+.globl ed25519_r1
+ed25519_r1:
+  .zero 96
+
+/* X25519 public key */
+.balign 32
+.globl x25519_public_key
+x25519_public_key:
   .zero 32
 
-/* Precomputed hash r (512 bits). See RFC 8032, section 5.1.6, step 2 or the
-   docstring of ed25519_sign. Input for sign. */
+/* Shared key (256 bits). Output for ecdh. */
 .balign 32
-.globl ed25519_hash_r
-ed25519_hash_r:
-  .zero 64
+.globl x25519_shared_key
+x25519_shared_key:
+  .zero 32
+
+/* X25519 Private Key (256 bits). Input for ecdh and keygen. */
+.balign 32
+.globl x25519_private_key
+x25519_private_key:
+  .zero 32

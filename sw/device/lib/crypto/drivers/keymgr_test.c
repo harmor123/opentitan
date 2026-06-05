@@ -55,7 +55,7 @@ status_t test_setup(void) {
 
   TRY(keymgr_testutils_initialize(&keymgr, &kmac));
 
-  return entropy_complex_init();
+  return entropy_complex_init(kHardenedBoolFalse);
 }
 
 /**
@@ -63,7 +63,7 @@ status_t test_setup(void) {
  */
 status_t sw_single_key_test(void) {
   keymgr_output_t key;
-  return keymgr_generate_key_sw(kTestDiversification, &key);
+  return keymgr_generate_key_sw(kTestDiversification, kHardenedBoolFalse, &key);
 }
 
 /**
@@ -84,7 +84,14 @@ status_t kmac_basic_test(void) {
  * Test generating a single sideloaded OTBN key.
  */
 status_t otbn_basic_test(void) {
-  return keymgr_generate_key_otbn(kTestDiversification);
+  return keymgr_generate_key_otbn(kTestDiversification, kHardenedBoolFalse);
+}
+
+/**
+ * Test generating a single sideloaded OTBN CDI key.
+ */
+status_t otbn_basic_cdi_test(void) {
+  return keymgr_generate_key_otbn(kTestDiversification, kHardenedBoolTrue);
 }
 
 /**
@@ -110,17 +117,17 @@ status_t sw_keys_change_salt_test(void) {
   div.version = kTestDiversification.version;
 
   keymgr_output_t key1;
-  TRY(keymgr_generate_key_sw(div, &key1));
+  TRY(keymgr_generate_key_sw(div, kHardenedBoolFalse, &key1));
 
   div.salt[0]++;
   keymgr_output_t key2;
-  TRY(keymgr_generate_key_sw(div, &key2));
+  TRY(keymgr_generate_key_sw(div, kHardenedBoolFalse, &key2));
 
   TRY_CHECK(!output_equiv(key1, key2));
 
   div.salt[0]--;
   keymgr_output_t key3;
-  TRY(keymgr_generate_key_sw(div, &key3));
+  TRY(keymgr_generate_key_sw(div, kHardenedBoolFalse, &key3));
 
   TRY_CHECK(output_equiv(key1, key3));
   TRY_CHECK_ARRAYS_NE(key1.share0, key2.share0, sizeof(key1.share0));
@@ -147,17 +154,17 @@ status_t sw_keys_change_version_test(void) {
   div.version = kTestDiversification.version;
 
   keymgr_output_t key1;
-  TRY(keymgr_generate_key_sw(div, &key1));
+  TRY(keymgr_generate_key_sw(div, kHardenedBoolFalse, &key1));
 
   div.version++;
   keymgr_output_t key2;
-  TRY(keymgr_generate_key_sw(div, &key2));
+  TRY(keymgr_generate_key_sw(div, kHardenedBoolFalse, &key2));
 
   TRY_CHECK(!output_equiv(key1, key2));
 
   div.version--;
   keymgr_output_t key3;
-  TRY(keymgr_generate_key_sw(div, &key3));
+  TRY(keymgr_generate_key_sw(div, kHardenedBoolFalse, &key3));
 
   TRY_CHECK(output_equiv(key1, key3));
   TRY_CHECK_ARRAYS_NE(key1.share0, key2.share0, sizeof(key1.share0));
@@ -175,8 +182,8 @@ static status_t run_negative_test(void) {
   bad_version_div.version = 0xFFFFFFFF;
   CHECK_STATUS_OK(ottf_alerts_expect_alert_start(
       kTopEarlgreyAlertIdKeymgrRecovOperationErr));
-  CHECK(keymgr_generate_key_sw(bad_version_div, &dummy_key).value ==
-        OTCRYPTO_RECOV_ERR.value);
+  CHECK(keymgr_generate_key_sw(bad_version_div, kHardenedBoolFalse, &dummy_key)
+            .value == OTCRYPTO_RECOV_ERR.value);
   CHECK_STATUS_OK(ottf_alerts_expect_alert_finish(
       kTopEarlgreyAlertIdKeymgrRecovOperationErr));
 
@@ -185,8 +192,9 @@ static status_t run_negative_test(void) {
       kTopEarlgreyAlertIdKeymgrRecovOperationErr));
   abs_mmio_write32(keymgr_base() + KEYMGR_START_REG_OFFSET,
                    1 << KEYMGR_START_EN_BIT);
-  CHECK(keymgr_generate_key_sw(kTestDiversification, &dummy_key).value ==
-        OTCRYPTO_RECOV_ERR.value);
+  CHECK(keymgr_generate_key_sw(kTestDiversification, kHardenedBoolFalse,
+                               &dummy_key)
+            .value == OTCRYPTO_RECOV_ERR.value);
   uint32_t status;
   uint32_t reg;
   do {
@@ -215,6 +223,7 @@ bool test_main(void) {
   EXECUTE_TEST(result, aes_basic_test);
   EXECUTE_TEST(result, kmac_basic_test);
   EXECUTE_TEST(result, otbn_basic_test);
+  EXECUTE_TEST(result, otbn_basic_cdi_test);
   EXECUTE_TEST(result, run_negative_test);
 
   return status_ok(result);

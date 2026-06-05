@@ -21,7 +21,7 @@ enum {
   /**
    * Number of windows for Galois field pre-computed tables.
    *
-   * We suse 4-bit windows, so the number of windows is 2x the number of bytes
+   * We use 4-bit windows, so the number of windows is 2x the number of bytes
    * in a block.
    */
   kNumWindows = kGhashBlockNumBytes << 1,
@@ -169,6 +169,8 @@ hardened_bool_t ghash_context_integrity_checksum_check(
       launder32(ghash_context_integrity_checksum(ghash_ctx))) {
     return kHardenedBoolTrue;
   }
+  // COVERAGE (FI CM) We only provide correct encoded contexts, this is to check
+  // for faults.
   return kHardenedBoolFalse;
 }
 

@@ -67,13 +67,11 @@ typedef struct otcrypto_aes_gcm_context {
  * @return Result of the authenticated encryption.
  * operation
  */
-otcrypto_status_t otcrypto_aes_gcm_encrypt(otcrypto_blinded_key_t *key,
-                                           otcrypto_const_byte_buf_t *plaintext,
-                                           otcrypto_const_word32_buf_t *iv,
-                                           otcrypto_const_byte_buf_t *aad,
-                                           otcrypto_aes_gcm_tag_len_t tag_len,
-                                           otcrypto_byte_buf_t *ciphertext,
-                                           otcrypto_word32_buf_t *auth_tag);
+otcrypto_status_t otcrypto_aes_gcm_encrypt(
+    otcrypto_blinded_key_t *key, const otcrypto_const_byte_buf_t *plaintext,
+    const otcrypto_const_word32_buf_t *iv, const otcrypto_const_byte_buf_t *aad,
+    otcrypto_aes_gcm_tag_len_t tag_len, otcrypto_byte_buf_t *ciphertext,
+    otcrypto_word32_buf_t *auth_tag);
 
 /**
  * Performs the AES-GCM authenticated decryption operation.
@@ -103,10 +101,11 @@ otcrypto_status_t otcrypto_aes_gcm_encrypt(otcrypto_blinded_key_t *key,
  * operation
  */
 otcrypto_status_t otcrypto_aes_gcm_decrypt(
-    otcrypto_blinded_key_t *key, otcrypto_const_byte_buf_t *ciphertext,
-    otcrypto_const_word32_buf_t *iv, otcrypto_const_byte_buf_t *aad,
-    otcrypto_aes_gcm_tag_len_t tag_len, otcrypto_const_word32_buf_t *auth_tag,
-    otcrypto_byte_buf_t *plaintext, hardened_bool_t *success);
+    otcrypto_blinded_key_t *key, const otcrypto_const_byte_buf_t *ciphertext,
+    const otcrypto_const_word32_buf_t *iv, const otcrypto_const_byte_buf_t *aad,
+    otcrypto_aes_gcm_tag_len_t tag_len,
+    const otcrypto_const_word32_buf_t *auth_tag, otcrypto_byte_buf_t *plaintext,
+    hardened_bool_t *success);
 
 /**
  * Initializes the AES-GCM authenticated encryption operation.
@@ -131,7 +130,7 @@ otcrypto_status_t otcrypto_aes_gcm_decrypt(
  * @return Result of the initialization operation.
  */
 otcrypto_status_t otcrypto_aes_gcm_encrypt_init(
-    otcrypto_blinded_key_t *key, otcrypto_const_word32_buf_t *iv,
+    otcrypto_blinded_key_t *key, const otcrypto_const_word32_buf_t *iv,
     otcrypto_aes_gcm_context_t *ctx);
 
 /**
@@ -161,7 +160,7 @@ otcrypto_status_t otcrypto_aes_gcm_encrypt_init(
  * @return Result of the initialization operation.
  */
 otcrypto_status_t otcrypto_aes_gcm_decrypt_init(
-    otcrypto_blinded_key_t *key, otcrypto_const_word32_buf_t *iv,
+    otcrypto_blinded_key_t *key, const otcrypto_const_word32_buf_t *iv,
     otcrypto_aes_gcm_context_t *ctx);
 /**
  * Updates additional authenticated data for an AES-GCM operation.
@@ -173,8 +172,8 @@ otcrypto_status_t otcrypto_aes_gcm_decrypt_init(
  * @param aad Additional authenticated data.
  * @return Result of the update operation.
  */
-otcrypto_status_t otcrypto_aes_gcm_update_aad(otcrypto_aes_gcm_context_t *ctx,
-                                              otcrypto_const_byte_buf_t *aad);
+otcrypto_status_t otcrypto_aes_gcm_update_aad(
+    otcrypto_aes_gcm_context_t *ctx, const otcrypto_const_byte_buf_t *aad);
 
 /**
  * Updates authenticated-and-encrypted data for an AES-GCM operation.
@@ -194,6 +193,10 @@ otcrypto_status_t otcrypto_aes_gcm_update_aad(otcrypto_aes_gcm_context_t *ctx,
  * not long enough; if `output` is overly long, only the first
  * `output_bytes_written` bytes will be used.
  *
+ * Security Warning: This API does not yet check the validity of the tag of the
+ * GCM before writing the ciphertext. Please handle the API call with care and
+ * release decrypted data only after the tag is verified.
+ *
  * @param ctx Context object for the operation, updated in place.
  * @param input Plaintext for encryption, ciphertext for decryption.
  * @param[out] output Ciphertext for encryption, plaintext for decryption.
@@ -201,7 +204,7 @@ otcrypto_status_t otcrypto_aes_gcm_update_aad(otcrypto_aes_gcm_context_t *ctx,
  * @return Result of the update operation.
  */
 otcrypto_status_t otcrypto_aes_gcm_update_encrypted_data(
-    otcrypto_aes_gcm_context_t *ctx, otcrypto_const_byte_buf_t *input,
+    otcrypto_aes_gcm_context_t *ctx, const otcrypto_const_byte_buf_t *input,
     otcrypto_byte_buf_t *output, size_t *output_bytes_written);
 
 /**
@@ -215,6 +218,10 @@ otcrypto_status_t otcrypto_aes_gcm_update_encrypted_data(
  * `ciphertext_bytes_written` parameter with the number of bytes written to
  * `ciphertext`, which is always either 16 or 0. This function returns an error
  * if the ciphertext or tag buffer is not long enough.
+ *
+ * Security Warning: This API does not yet check the validity of the tag of the
+ * GCM before writing the ciphertext. Please handle the API call with care and
+ * release decrypted data only after the tag is verified.
  *
  * @param ctx Context object for the operation.
  * @param tag_len Length of authentication tag to be generated.
@@ -252,7 +259,8 @@ otcrypto_status_t otcrypto_aes_gcm_encrypt_final(
  * @return Result of the final operation.
  */
 otcrypto_status_t otcrypto_aes_gcm_decrypt_final(
-    otcrypto_aes_gcm_context_t *ctx, otcrypto_const_word32_buf_t *auth_tag,
+    otcrypto_aes_gcm_context_t *ctx,
+    const otcrypto_const_word32_buf_t *auth_tag,
     otcrypto_aes_gcm_tag_len_t tag_len, otcrypto_byte_buf_t *plaintext,
     size_t *plaintext_bytes_written, hardened_bool_t *success);
 

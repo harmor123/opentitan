@@ -39,10 +39,10 @@ static inline uint32_t edn0_base(void) {
 }
 
 static status_t entropy_complex_init_test(void) {
-  TRY(entropy_complex_init());
+  TRY(entropy_complex_init(kHardenedBoolFalse));
 
   // Check the configuration.
-  TRY(entropy_complex_check());
+  TRY(entropy_complex_check(kHardenedBoolFalse));
 
   // The following test requests entropy from both EDN0 and EDN1.
   dif_otbn_t otbn;
@@ -70,7 +70,8 @@ static status_t run_negative_test(void) {
   CHECK_STATUS_OK(
       ottf_alerts_expect_alert_start(kTopEarlgreyAlertIdCsrngRecovAlert));
   abs_mmio_write32(csrng_ctrl_addr, 0);
-  CHECK(entropy_complex_check().value == OTCRYPTO_RECOV_ERR.value);
+  CHECK(entropy_complex_check(kHardenedBoolFalse).value ==
+        OTCRYPTO_RECOV_ERR.value);
   abs_mmio_write32(csrng_ctrl_addr, old_csrng_ctrl);
   CHECK_STATUS_OK(
       ottf_alerts_expect_alert_finish(kTopEarlgreyAlertIdCsrngRecovAlert));
@@ -81,7 +82,8 @@ static status_t run_negative_test(void) {
   CHECK_STATUS_OK(
       ottf_alerts_expect_alert_start(kTopEarlgreyAlertIdEdn0RecovAlert));
   abs_mmio_write32(edn0_ctrl_addr, 0);
-  CHECK(entropy_complex_check().value == OTCRYPTO_RECOV_ERR.value);
+  CHECK(entropy_complex_check(kHardenedBoolFalse).value ==
+        OTCRYPTO_RECOV_ERR.value);
   abs_mmio_write32(edn0_ctrl_addr, old_edn0_ctrl);
   CHECK_STATUS_OK(
       ottf_alerts_expect_alert_finish(kTopEarlgreyAlertIdEdn0RecovAlert));
@@ -89,11 +91,39 @@ static status_t run_negative_test(void) {
   return OTCRYPTO_OK;
 }
 
+static status_t health_test_config_check_test(void) {
+  LOG_INFO("Running health test config check tests.");
+
+  // Test with FIPS set to False
+  TRY(entropy_complex_health_test_config_check(kHardenedBoolFalse));
+  CHECK(entropy_complex_health_test_config_check(kHardenedBoolTrue).value ==
+        OTCRYPTO_RECOV_ERR.value);
+
+  return OK_STATUS();
+}
+
+static status_t upgrade_fips_test(void) {
+  LOG_INFO("Running test to check it is possible to upgrade to fips.");
+
+  // Test with FIPS set to True
+  TRY(entropy_complex_init(kHardenedBoolTrue));
+  TRY(entropy_complex_health_test_config_check(kHardenedBoolTrue));
+  CHECK(entropy_complex_health_test_config_check(kHardenedBoolFalse).value ==
+        OTCRYPTO_RECOV_ERR.value);
+
+  return OK_STATUS();
+}
+
 bool test_main(void) {
   status_t result = OK_STATUS();
 
   EXECUTE_TEST(result, entropy_complex_init_test);
+  EXECUTE_TEST(result, health_test_config_check_test);
   EXECUTE_TEST(result, entropy_csrng_kat);
   EXECUTE_TEST(result, run_negative_test);
+
+  // Needs to be the last test as it upgrades to fips as we can not downgrade.
+  EXECUTE_TEST(result, upgrade_fips_test);
+
   return status_ok(result);
 }

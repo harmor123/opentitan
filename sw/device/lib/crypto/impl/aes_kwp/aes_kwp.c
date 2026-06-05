@@ -88,7 +88,7 @@ status_t aes_kwp_wrap(const aes_key_t kek, const uint32_t *plaintext,
 
   // Copy A into the first semiblock of the ciphertext.
   HARDENED_TRY(hardened_memcpy(ciphertext, block.data, kSemiblockWords));
-  return OTCRYPTO_OK;
+  return aes_end(NULL);
 }
 
 status_t aes_kwp_unwrap(const aes_key_t kek, const uint32_t *ciphertext,
@@ -150,7 +150,7 @@ status_t aes_kwp_unwrap(const aes_key_t kek, const uint32_t *ciphertext,
   // Check that the first 32 bits of A match the AES-KWP fixed prefix.
   if (block.data[0] != 0xa65959a6) {
     *success = kHardenedBoolFalse;
-    return OTCRYPTO_OK;
+    return aes_end(NULL);
   }
 
   // Decode the next 32 bits of A as the plaintext length.
@@ -161,19 +161,18 @@ status_t aes_kwp_unwrap(const aes_key_t kek, const uint32_t *ciphertext,
   // Check that the padding length is valid.
   if (pad_len >= kSemiblockBytes) {
     *success = kHardenedBoolFalse;
-    return OTCRYPTO_OK;
+    return aes_end(NULL);
   }
 
-  // Check that the padding bytes are zero. Note: this should happen only after
-  // the prefix check. Otherwise it could expose a padding oracle, because
-  // memcmp is not constant-time.
+  // Check that the padding bytes are zero.
   if (pad_len != 0) {
     uint8_t exp_pad[kSemiblockBytes];
     memset(exp_pad, 0, kSemiblockBytes);
     unsigned char *pad_start = ((unsigned char *)r) + plaintext_len;
-    if (memcmp(pad_start, exp_pad, pad_len) != 0) {
+    if (consttime_memeq_byte(pad_start, exp_pad, pad_len) !=
+        kHardenedBoolTrue) {
       *success = kHardenedBoolFalse;
-      return OTCRYPTO_OK;
+      return aes_end(NULL);
     }
   }
 
@@ -183,5 +182,5 @@ status_t aes_kwp_unwrap(const aes_key_t kek, const uint32_t *ciphertext,
 
   // Return success.
   *success = kHardenedBoolTrue;
-  return OTCRYPTO_OK;
+  return aes_end(NULL);
 }

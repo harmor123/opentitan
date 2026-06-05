@@ -55,6 +55,10 @@ typedef struct kmac_blinded_key {
   // Whether the key should be provided by keymgr through sideload port.
   // If `hw_backed` is true, `share0/1` pointers and `len` are ignored.
   hardened_bool_t hw_backed;
+  /**
+   * Checksum of this KMAC key structure.
+   */
+  uint32_t checksum;
 } kmac_blinded_key_t;
 
 /**
@@ -231,10 +235,10 @@ status_t kmac_cshake_256(const otcrypto_const_byte_buf_t *message,
  * With SW-provided keys, `key->hw_backed` must be `kHardenedBoolFalse`, `share`
  * pointers must be correctly configured and `len` must match the key length.
  *
- * The caller must ensure that `digest_len` words are allocated at the location
+ * The caller must ensure that `digest_len` bytes are allocated at the location
  * pointed to by `digest`. `cust_str_len` must not exceed
  * `kKmacCustStrMaxSize`. If `masked_digest` is true, the `digest` buffer must
- * have enough space for 2x `digest_len` words.
+ * have enough space for 2x `digest_len` bytes.
  *
  * @param key The KMAC key.
  * @param masked_digest Whether to return the digest in concatenated shares.
@@ -242,7 +246,7 @@ status_t kmac_cshake_256(const otcrypto_const_byte_buf_t *message,
  * @param cust_str The customization string.
  * @param cust_str_len The customization string length in bytes.
  * @param[out] digest Output buffer for the result.
- * @param digest_len Requested digest length in 32-bit words.
+ * @param digest_len Requested digest length in bytes.
  * @return Error status.
  */
 OT_WARN_UNUSED_RESULT
@@ -263,10 +267,10 @@ status_t kmac_kmac_128(kmac_blinded_key_t *key, hardened_bool_t masked_digest,
  * With SW-provided keys, `key->hw_backed` must be `kHardenedBoolFalse`, `share`
  * pointers must be correctly configured and `len` must match the key length.
  *
- * The caller must ensure that `digest_len` words are allocated at the location
+ * The caller must ensure that `digest_len` bytes are allocated at the location
  * pointed to by `digest`. `cust_str_len` must not exceed
  * `kKmacCustStrMaxSize`. If `masked_digest` is true, the `digest` buffer must
- * have enough space for 2x `digest_len` words.
+ * have enough space for 2x `digest_len` bytes.
  *
  * @param key The KMAC key.
  * @param masked_digest Whether to return the digest in concatenated shares.
@@ -274,7 +278,7 @@ status_t kmac_kmac_128(kmac_blinded_key_t *key, hardened_bool_t masked_digest,
  * @param cust_str The customization string.
  * @param cust_str_len The customization string length in bytes.
  * @param[out] digest Output buffer for the result.
- * @param digest_len Requested digest length in 32-bit words.
+ * @param digest_len Requested digest length in bytes.
  * @return Error status.
  */
 OT_WARN_UNUSED_RESULT
@@ -282,6 +286,28 @@ status_t kmac_kmac_256(kmac_blinded_key_t *key, hardened_bool_t masked_digest,
                        const otcrypto_const_byte_buf_t *message,
                        const unsigned char *cust_str, size_t cust_str_len,
                        uint32_t *digest, size_t digest_len);
+
+/**
+ * Compute the checksum of an KMAC key.
+ *
+ * Call this routine after creating or modifying the KMAC key structure.
+ *
+ * @param key KMAC key.
+ * @returns Checksum value.
+ */
+uint32_t kmac_key_integrity_checksum(const kmac_blinded_key_t *key);
+
+/**
+ * Perform an integrity check on the KMAC key.
+ *
+ * Returns `kHardenedBoolTrue` if the check passed and `kHardenedBoolFalse`
+ * otherwise.
+ *
+ * @param key KMAC key.
+ * @returns Whether the integrity check passed.
+ */
+hardened_bool_t kmac_key_integrity_checksum_check(
+    const kmac_blinded_key_t *key);
 
 #ifdef __cplusplus
 }

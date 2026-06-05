@@ -144,23 +144,6 @@ class OTAsymCrypto:
         }
         self.target.write(json.dumps(input_data).encode("ascii"))
 
-    def handle_prime_generation(self, e, cfg, trigger) -> None:
-        """Call the cryptolib to generate prime numbers.
-
-        Args:
-            e: Integer for the public e.
-            cfg: Integer for configuration.
-            trigger: Integer specifying which triggers to set.
-        """
-        self._ujson_asym_crypto_sca_cmd()
-        self.target.write(json.dumps("Prime").encode("ascii"))
-        input_data = {
-            "e": e,
-            "cfg": cfg,
-            "trigger": trigger,
-        }
-        self.target.write(json.dumps(input_data).encode("ascii"))
-
     def handle_p256_base_mult_fvsr(self, scalar, cfg, trigger, num_iterations) -> None:
         """Call the cryptolib p256 base multiplication.
 
@@ -358,6 +341,76 @@ class OTAsymCrypto:
             "pubx": pubx,
             "puby": puby,
             "message": message,
+            "cfg": cfg,
+            "trigger": trigger,
+        }
+        self.target.write(json.dumps(input_data).encode("ascii"))
+
+    def handle_ed25519_sign(self, scalar, message, message_len, cfg, trigger) -> None:
+        """Call the cryptolib Ed25519 signing.
+
+        Args:
+            scalar: Array of 32 bytes of private key seed data.
+            message: Array of max 128 bytes of message data.
+            message_len: Length of the message in bytes.
+            cfg: Integer for configuration.
+            trigger: Integer specifying which triggers to set.
+        """
+        self._ujson_asym_crypto_sca_cmd()
+        self.target.write(json.dumps("Ed25519Sign").encode("ascii"))
+        input_data = {
+            "scalar": scalar,
+            "message": message,
+            "message_len": message_len,
+            "cfg": cfg,
+            "trigger": trigger,
+        }
+        self.target.write(json.dumps(input_data).encode("ascii"))
+
+    def handle_x25519_base_mult_fvsr(
+        self, scalar, cfg, trigger, num_iterations
+    ) -> None:
+        self._ujson_asym_crypto_sca_cmd()
+        self.target.write(json.dumps("X25519BaseMulFvsr").encode("ascii"))
+        input_data = {
+            "scalar": scalar,
+            "cfg": cfg,
+            "trigger": trigger,
+            "num_iterations": num_iterations,
+        }
+        self.target.write(json.dumps(input_data).encode("ascii"))
+
+    def handle_x25519_base_mult_daisy(
+        self, scalar, cfg, trigger, num_iterations
+    ) -> None:
+        self._ujson_asym_crypto_sca_cmd()
+        self.target.write(json.dumps("X25519BaseMulDaisy").encode("ascii"))
+        input_data = {
+            "scalar": scalar,
+            "cfg": cfg,
+            "trigger": trigger,
+            "num_iterations": num_iterations,
+        }
+        self.target.write(json.dumps(input_data).encode("ascii"))
+
+    def handle_x25519_point_mult(self, scalar_alice, scalar_bob, cfg, trigger) -> None:
+        self._ujson_asym_crypto_sca_cmd()
+        self.target.write(json.dumps("X25519PointMul").encode("ascii"))
+        input_data = {
+            "scalar_alice": scalar_alice,
+            "scalar_bob": scalar_bob,
+            "cfg": cfg,
+            "trigger": trigger,
+        }
+        self.target.write(json.dumps(input_data).encode("ascii"))
+
+    def handle_x25519_ecdh(self, private_key, public_x, public_y, cfg, trigger) -> None:
+        self._ujson_asym_crypto_sca_cmd()
+        self.target.write(json.dumps("X25519Ecdh").encode("ascii"))
+        input_data = {
+            "private_key": private_key,
+            "public_x": public_x,
+            "public_y": public_y,
             "cfg": cfg,
             "trigger": trigger,
         }

@@ -6,13 +6,15 @@
 
 #include "sw/device/lib/base/memory.h"
 #include "sw/device/lib/base/status.h"
-#include "sw/device/lib/crypto/impl/keyblob.h"
+#include "sw/device/lib/crypto/impl/status.h"
 #include "sw/device/lib/crypto/include/aes.h"
 #include "sw/device/lib/crypto/include/aes_gcm.h"
+#include "sw/device/lib/crypto/include/cmac.h"
 #include "sw/device/lib/crypto/include/datatypes.h"
 #include "sw/device/lib/crypto/include/drbg.h"
 #include "sw/device/lib/crypto/include/hmac.h"
 #include "sw/device/lib/crypto/include/integrity.h"
+#include "sw/device/lib/crypto/include/key_transport.h"
 #include "sw/device/lib/runtime/log.h"
 #include "sw/device/lib/testing/test_framework/ujson_ottf.h"
 #include "sw/device/tests/penetrationtests/firmware/lib/cryptolib_sym.h"
@@ -102,26 +104,39 @@ status_t cryptolib_sca_aes_impl(uint8_t data_in[AES_CMD_MAX_MSG_BYTES],
       .security_level = kOtcryptoKeySecurityLevelHigh,
   };
 
-  // Create buffer to store key.
+  size_t key_words = (key_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+
   uint32_t key_buf[kPentestAesMaxKeyWords];
   memset(key_buf, 0, AES_CMD_MAX_KEY_BYTES);
-  memcpy(key_buf, key, sizeof(key_buf));
-  // Create keyblob.
-  uint32_t keyblob[keyblob_num_words(config)];
-  // Create blinded key.
+  memcpy(key_buf, key, key_len);
+
   uint32_t aes_key_mask[kPentestAesMaxKeyWords];
   memset(aes_key_mask, 0, AES_CMD_MAX_KEY_BYTES);
   for (size_t it = 0; it < kPentestAesMaxKeyWords; it++) {
     aes_key_mask[it] = pentest_ibex_rnd32_read();
   }
-  HARDENED_TRY(
-      keyblob_from_key_and_mask(key_buf, aes_key_mask, config, keyblob));
+
+  for (size_t i = 0; i < key_words; ++i) {
+    key_buf[i] ^= aes_key_mask[i];
+  }
+
+  otcrypto_const_word32_buf_t share0 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, key_buf, key_words);
+  otcrypto_const_word32_buf_t share1 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, aes_key_mask, key_words);
+
+  uint32_t keyblob[2 * kPentestAesMaxKeyWords];
   otcrypto_blinded_key_t aes_key = {
       .config = config,
-      .keyblob_length = sizeof(keyblob),
+      .keyblob_length = 2 * key_words * sizeof(uint32_t),
       .keyblob = keyblob,
   };
-  aes_key.checksum = integrity_blinded_checksum(&aes_key);
+
+  otcrypto_status_t import_status =
+      otcrypto_import_blinded_key(&share0, &share1, &aes_key);
+  if (import_status.value != kOtcryptoStatusValueOk) {
+    return INTERNAL(import_status.value);
+  }
 
   size_t padded_len_bytes;
   otcrypto_aes_padded_plaintext_length(data_in_len, aes_padding,
@@ -136,8 +151,8 @@ status_t cryptolib_sca_aes_impl(uint8_t data_in[AES_CMD_MAX_MSG_BYTES],
 
   // Trigger window.
   pentest_set_trigger_high();
-  HARDENED_TRY(otcrypto_aes(&aes_key, &aes_iv, aes_mode, op, &input,
-                            aes_padding, &output));
+  TRY(otcrypto_aes(&aes_key, &aes_iv, aes_mode, op, &input, aes_padding,
+                   &output));
   pentest_set_trigger_low();
 
   // Return data back to host.
@@ -226,32 +241,39 @@ status_t cryptolib_sca_gcm_impl(
       .security_level = kOtcryptoKeySecurityLevelHigh,
   };
 
-  // Construct blinded key from the key and mask.
+  size_t key_words = (key_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+
   uint32_t key_buf[kPentestAesMaxKeyWords];
   memset(key_buf, 0, AES_CMD_MAX_KEY_BYTES);
   memcpy(key_buf, key, key_len);
 
-  // Create random mask.
   uint32_t aes_key_mask[kPentestAesMaxKeyWords];
   memset(aes_key_mask, 0, AES_CMD_MAX_KEY_BYTES);
   for (size_t it = 0; it < kPentestAesMaxKeyWords; it++) {
     aes_key_mask[it] = pentest_ibex_rnd32_read();
   }
 
-  uint32_t keyblob[keyblob_num_words(config)];
-  HARDENED_TRY(
-      keyblob_from_key_and_mask(key_buf, aes_key_mask, config, keyblob));
+  for (size_t i = 0; i < key_words; ++i) {
+    key_buf[i] ^= aes_key_mask[i];
+  }
 
-  // Construct the blinded key.
+  otcrypto_const_word32_buf_t share0 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, key_buf, key_words);
+  otcrypto_const_word32_buf_t share1 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, aes_key_mask, key_words);
+
+  uint32_t keyblob[2 * kPentestAesMaxKeyWords];
   otcrypto_blinded_key_t gcm_key = {
       .config = config,
-      .keyblob_length = sizeof(keyblob),
+      .keyblob_length = 2 * key_words * sizeof(uint32_t),
       .keyblob = keyblob,
-      .checksum = 0,
   };
 
-  // Set the checksum.
-  gcm_key.checksum = integrity_blinded_checksum(&gcm_key);
+  otcrypto_status_t import_status =
+      otcrypto_import_blinded_key(&share0, &share1, &gcm_key);
+  if (import_status.value != kOtcryptoStatusValueOk) {
+    return INTERNAL(import_status.value);
+  }
 
   // Prepare the input buffers.
   size_t iv_num_words = 4;
@@ -294,9 +316,8 @@ status_t cryptolib_sca_gcm_impl(
 
   // Trigger window.
   pentest_set_trigger_high();
-  HARDENED_TRY(otcrypto_aes_gcm_encrypt(&gcm_key, &plaintext, &gcm_iv, &gcm_aad,
-                                        gcm_tag_len, &actual_ciphertext,
-                                        &actual_tag));
+  TRY(otcrypto_aes_gcm_encrypt(&gcm_key, &plaintext, &gcm_iv, &gcm_aad,
+                               gcm_tag_len, &actual_ciphertext, &actual_tag));
   pentest_set_trigger_low();
 
   // Return data back to host.
@@ -350,25 +371,39 @@ status_t cryptolib_sca_hmac_impl(uint8_t data_in[HMAC_CMD_MAX_MSG_BYTES],
       .security_level = kOtcryptoKeySecurityLevelHigh,
   };
 
-  // Create buffer to store key.
-  uint32_t key_buf[key_len];
+  size_t key_words = (key_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+
+  uint32_t key_buf[kPentestHmacMaxKeyWords];
+  memset(key_buf, 0, HMAC_CMD_MAX_KEY_BYTES);
   memcpy(key_buf, key, key_len);
-  // Create keyblob.
-  uint32_t keyblob[keyblob_num_words(config)];
-  // Create blinded key.
+
   uint32_t hmac_key_mask[kPentestHmacMaxKeyWords];
   memset(hmac_key_mask, 0, HMAC_CMD_MAX_KEY_BYTES);
   for (size_t it = 0; it < kPentestHmacMaxKeyWords; it++) {
     hmac_key_mask[it] = pentest_ibex_rnd32_read();
   }
-  HARDENED_TRY(
-      keyblob_from_key_and_mask(key_buf, hmac_key_mask, config, keyblob));
+
+  for (size_t i = 0; i < key_words; ++i) {
+    key_buf[i] ^= hmac_key_mask[i];
+  }
+
+  otcrypto_const_word32_buf_t share0 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, key_buf, key_words);
+  otcrypto_const_word32_buf_t share1 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, hmac_key_mask, key_words);
+
+  uint32_t keyblob[2 * kPentestHmacMaxKeyWords];
   otcrypto_blinded_key_t hmac_key = {
       .config = config,
-      .keyblob_length = sizeof(keyblob),
+      .keyblob_length = 2 * key_words * sizeof(uint32_t),
       .keyblob = keyblob,
   };
-  hmac_key.checksum = integrity_blinded_checksum(&hmac_key);
+
+  otcrypto_status_t import_status =
+      otcrypto_import_blinded_key(&share0, &share1, &hmac_key);
+  if (import_status.value != kOtcryptoStatusValueOk) {
+    return INTERNAL(import_status.value);
+  }
 
   // Create input message.
   uint8_t msg_buf[data_in_len];
@@ -390,6 +425,83 @@ status_t cryptolib_sca_hmac_impl(uint8_t data_in[HMAC_CMD_MAX_MSG_BYTES],
   *data_out_len = tag_bytes;
   *cfg_out = 0;
   memset(data_out, 0, HMAC_CMD_MAX_TAG_BYTES);
+  memcpy(data_out, tag_buf, tag_bytes);
+
+  return OK_STATUS();
+}
+
+status_t cryptolib_sca_cmac_impl(uint8_t data_in[AES_CMD_MAX_MSG_BYTES],
+                                 size_t data_in_len,
+                                 uint8_t key[AES_CMD_MAX_KEY_BYTES],
+                                 size_t key_len,
+                                 uint8_t iv[AES_CMD_MAX_BLOCK_BYTES],
+                                 uint8_t data_out[AES_CMD_MAX_MSG_BYTES],
+                                 size_t *data_out_len, size_t cfg_in,
+                                 size_t *cfg_out, size_t trigger) {
+  // Build the key configuration.
+  otcrypto_key_config_t config = {
+      .version = kOtcryptoLibVersion1,
+      .key_mode = kOtcryptoKeyModeAesCmac,
+      .key_length = key_len,
+      .hw_backed = kHardenedBoolFalse,
+      .security_level = kOtcryptoKeySecurityLevelLow,
+  };
+
+  size_t key_words = (key_len + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+
+  uint32_t key_buf[kPentestAesMaxKeyWords];
+  memset(key_buf, 0, AES_CMD_MAX_KEY_BYTES);
+  memcpy(key_buf, key, key_len);
+
+  uint32_t cmac_key_mask[kPentestAesMaxKeyWords];
+  memset(cmac_key_mask, 0, AES_CMD_MAX_KEY_BYTES);
+  for (size_t it = 0; it < kPentestAesMaxKeyWords; it++) {
+    cmac_key_mask[it] = pentest_ibex_rnd32_read();
+  }
+
+  for (size_t i = 0; i < key_words; ++i) {
+    key_buf[i] ^= cmac_key_mask[i];
+  }
+
+  otcrypto_const_word32_buf_t share0 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, key_buf, key_words);
+  otcrypto_const_word32_buf_t share1 =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_word32_buf_t, cmac_key_mask, key_words);
+
+  uint32_t keyblob[2 * kPentestAesMaxKeyWords];
+  otcrypto_blinded_key_t cmac_key = {
+      .config = config,
+      .keyblob_length = 2 * key_words * sizeof(uint32_t),
+      .keyblob = keyblob,
+  };
+
+  otcrypto_status_t import_status =
+      otcrypto_import_blinded_key(&share0, &share1, &cmac_key);
+  if (import_status.value != kOtcryptoStatusValueOk) {
+    return INTERNAL(import_status.value);
+  }
+
+  // Create input message.
+  uint8_t msg_buf[data_in_len];
+  memcpy(msg_buf, data_in, data_in_len);
+  otcrypto_const_byte_buf_t input_message =
+      OTCRYPTO_MAKE_BUF(otcrypto_const_byte_buf_t, msg_buf, data_in_len);
+
+  // CMAC generates a 128 bit tag for AES.
+  size_t tag_bytes = 16;
+  uint32_t tag_buf[kPentestAesBlockWords];
+  otcrypto_word32_buf_t tag = OTCRYPTO_MAKE_BUF(otcrypto_word32_buf_t, tag_buf,
+                                                tag_bytes / sizeof(uint32_t));
+
+  // Trigger window.
+  pentest_set_trigger_high();
+  TRY(otcrypto_cmac(&cmac_key, &input_message, &tag));
+  pentest_set_trigger_low();
+
+  // Return data back to host.
+  *data_out_len = tag_bytes;
+  *cfg_out = cfg_in;
+  memset(data_out, 0, AES_CMD_MAX_MSG_BYTES);
   memcpy(data_out, tag_buf, tag_bytes);
 
   return OK_STATUS();

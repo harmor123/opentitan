@@ -218,6 +218,8 @@ typedef enum otcrypto_aes_key_mode {
   kOtcryptoAesKeyModeGcm = 0xaa5,
   // Mode AES KWP.
   kOtcryptoAesKeyModeKwp = 0x7d5,
+  // Mode AES CMAC.
+  kOtcryptoAesKeyModeCmac = 0x1a2,
 } otcrypto_aes_key_mode_t;
 
 /**
@@ -333,6 +335,8 @@ typedef enum otcrypto_key_mode {
   kOtcryptoKeyModeAesGcm = kOtcryptoKeyTypeAes << 16 | kOtcryptoAesKeyModeGcm,
   // Key is intended for AES KWP mode.
   kOtcryptoKeyModeAesKwp = kOtcryptoKeyTypeAes << 16 | kOtcryptoAesKeyModeKwp,
+  // Key is intended for AES CMAC mode.
+  kOtcryptoKeyModeAesCmac = kOtcryptoKeyTypeAes << 16 | kOtcryptoAesKeyModeCmac,
   // Key is intended for HMAC SHA256 mode.
   kOtcryptoKeyModeHmacSha256 =
       kOtcryptoKeyTypeHmac << 16 | kOtcryptoHmacKeyModeSha256,
@@ -441,6 +445,24 @@ typedef struct otcrypto_key_config {
   // Key security level.
   otcrypto_key_security_level_t security_level;
 } otcrypto_key_config_t;
+
+/**
+ * Maximum number of 32-bit words in a wrapped key.
+ *
+ * Sized for the largest supported key (RSA-4096 private key). Callers can use
+ * this to bound input buffers passed to `otcrypto_key_unwrap`.
+ */
+enum {
+  kOtcryptoWrappedKeyMaxWords =
+      /* key configuration struct */
+  sizeof(otcrypto_key_config_t) / sizeof(uint32_t) +
+  /* checksum and keyblob_length fields */
+  2 +
+  /* RSA-4096 keyblob: 2 shares of 512 bytes each */
+  2 * (4096 / 8 / sizeof(uint32_t)) +
+  /* AES-KWP 64-bit integrity prefix */
+  2,
+};
 
 /**
  * Struct to handle unmasked key type.

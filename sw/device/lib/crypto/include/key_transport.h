@@ -48,7 +48,7 @@ extern "C" {
  */
 OT_WARN_UNUSED_RESULT
 otcrypto_status_t otcrypto_symmetric_keygen(
-    otcrypto_const_byte_buf_t *perso_string, otcrypto_blinded_key_t *key);
+    const otcrypto_const_byte_buf_t *perso_string, otcrypto_blinded_key_t *key);
 
 /**
  * Creates a handle for a hardware-backed key.
@@ -76,6 +76,42 @@ OT_WARN_UNUSED_RESULT
 otcrypto_status_t otcrypto_hw_backed_key(uint32_t version,
                                          const uint32_t salt[7],
                                          otcrypto_blinded_key_t *key);
+
+/**
+ * Creates a handle for a hardware-backed key for attestation.
+ *
+ * Similar to otcrypto_hw_backed_key, however, the salt is one word longer
+ * specifically for the CDI key derivation.
+ *
+ * @param version Key version.
+ * @param salt Key salt (diversification data for KDF).
+ * @param[out] key Destination blinded key struct.
+ * @return The result of the operation.
+ */
+OT_WARN_UNUSED_RESULT
+otcrypto_status_t otcrypto_hw_backed_attestation_key(
+    uint32_t version, const uint32_t salt[8], otcrypto_blinded_key_t *key);
+
+/**
+ * Generate a HW-backed key from key manager that is returned to SW. The
+ * key consists of two Boolean shares of eight words (uint32_t) each, for a
+ * total of 16 words. The actual key is retrieved by the word-wise XOR of the
+ * two shares.
+ *
+ * The key should first be passed to otcrypto_hw_backed_key when
+ * attestation is kHardenedBoolFalse or otcrypto_hw_backed_attestation_key when
+ * attestation is kHardenedBoolTrue, to set the key handle. These functions
+ * ingest the version and salt.
+ *
+ * @param attestation To either use the sealing ladder (kHardenedBoolFalse) or
+ * the attestation ladder (kHardenedBoolTrue).
+ * @param[out] key Destination blinded key preset by otcrypto_hw_backed_key or
+ * otcrypto_hw_backed_attestation_key.
+ * @return The result of the operation.
+ */
+OT_WARN_UNUSED_RESULT
+otcrypto_status_t ot_crypto_hw_backed_keygen(hardened_bool_t attestation,
+                                             otcrypto_blinded_key_t *key);
 
 /**
  * Returns the length that the blinded key will have once wrapped.
@@ -142,10 +178,10 @@ otcrypto_status_t otcrypto_key_wrap(const otcrypto_blinded_key_t *key_to_wrap,
  * @return Result of the aes-kwp unwrap operation.
  */
 OT_WARN_UNUSED_RESULT
-otcrypto_status_t otcrypto_key_unwrap(otcrypto_const_word32_buf_t *wrapped_key,
-                                      const otcrypto_blinded_key_t *key_kek,
-                                      hardened_bool_t *success,
-                                      otcrypto_blinded_key_t *unwrapped_key);
+otcrypto_status_t otcrypto_key_unwrap(
+    const otcrypto_const_word32_buf_t *wrapped_key,
+    const otcrypto_blinded_key_t *key_kek, hardened_bool_t *success,
+    otcrypto_blinded_key_t *unwrapped_key);
 
 /**
  * Creates a blinded key struct from masked key material.

@@ -9,6 +9,7 @@
 #include "sw/device/lib/crypto/drivers/kmac.h"
 #include "sw/device/lib/crypto/impl/keyblob.h"
 #include "sw/device/lib/crypto/impl/status.h"
+#include "sw/device/lib/crypto/include/config.h"
 #include "sw/device/lib/crypto/include/datatypes.h"
 #include "sw/device/lib/crypto/include/integrity.h"
 
@@ -20,9 +21,11 @@ otcrypto_status_t otcrypto_kmac_kdf(
     const otcrypto_const_byte_buf_t *label,
     const otcrypto_const_byte_buf_t *context,
     otcrypto_blinded_key_t *output_key_material) {
+#ifndef OTCRYPTO_DISABLE_NULL_CHECKS
   // Check NULL pointers.
-  if (key_derivation_key->keyblob == NULL || output_key_material == NULL ||
-      output_key_material->keyblob == NULL) {
+  if (key_derivation_key == NULL || key_derivation_key->keyblob == NULL ||
+      output_key_material == NULL || output_key_material->keyblob == NULL ||
+      label == NULL || context == NULL) {
     return OTCRYPTO_BAD_ARGS;
   }
 
@@ -30,23 +33,26 @@ otcrypto_status_t otcrypto_kmac_kdf(
   if (label->data == NULL && label->len != 0) {
     return OTCRYPTO_BAD_ARGS;
   }
+#endif
   // Because of KMAC HWIPs prefix limitation, `label` should not exceed
   // `kKmacCustStrMaxSize` bytes.
   if (label->len > kKmacCustStrMaxSize) {
     return OTCRYPTO_BAD_ARGS;
   }
 
+#ifndef OTCRYPTO_DISABLE_NULL_CHECKS
   // Check for null context with nonzero length.
   if (context->data == NULL && context->len != 0) {
     return OTCRYPTO_BAD_ARGS;
   }
+#endif
 
   // Check the private key checksum.
-  if (launder32(integrity_blinded_key_check(key_derivation_key)) !=
+  if (launder32(otcrypto_integrity_blinded_key_check(key_derivation_key)) !=
       kHardenedBoolTrue) {
     return OTCRYPTO_BAD_ARGS;
   }
-  HARDENED_CHECK_EQ(integrity_blinded_key_check(key_derivation_key),
+  HARDENED_CHECK_EQ(otcrypto_integrity_blinded_key_check(key_derivation_key),
                     kHardenedBoolTrue);
 
   // Check `key_len` is supported by KMAC HWIP.
@@ -87,13 +93,10 @@ otcrypto_status_t otcrypto_kmac_kdf(
     }
     HARDENED_TRY(keyblob_to_shares(key_derivation_key, &kmac_key.share0,
                                    &kmac_key.share1));
+    // Set the checksum of the key.
+    kmac_key.checksum = kmac_key_integrity_checksum(&kmac_key);
   } else {
     return OTCRYPTO_BAD_ARGS;
-  }
-
-  // At the moment, `kmac_kmac_128/256` only supports word-sized digest lengths.
-  if (output_key_material->config.key_length % sizeof(uint32_t) != 0) {
-    return OTCRYPTO_NOT_IMPLEMENTED;
   }
 
   // Output key cannot be hardware-backed.
@@ -119,10 +122,10 @@ otcrypto_status_t otcrypto_kmac_kdf(
       key_mode_used = launder32(key_mode_used) | kOtcryptoKeyModeKdfKmac128;
       // No need to further check key size against security level because
       // `kmac_key_length_check` ensures that the key is at least 128-bit.
-      HARDENED_TRY(kmac_kmac_128(
-          &kmac_key, /*masked_digest=*/kHardenedBoolTrue, context, label->data,
-          label->len, output_key_material->keyblob,
-          output_key_material->config.key_length / sizeof(uint32_t)));
+      HARDENED_TRY(kmac_kmac_128(&kmac_key, /*masked_digest=*/kHardenedBoolTrue,
+                                 context, label->data, label->len,
+                                 output_key_material->keyblob,
+                                 output_key_material->config.key_length));
       break;
     }
     case kOtcryptoKeyModeKdfKmac256: {
@@ -132,10 +135,10 @@ otcrypto_status_t otcrypto_kmac_kdf(
       if (key_derivation_key->config.key_length < 256 / 8) {
         return OTCRYPTO_BAD_ARGS;
       }
-      HARDENED_TRY(kmac_kmac_256(
-          &kmac_key, /*masked_digest=*/kHardenedBoolTrue, context, label->data,
-          label->len, output_key_material->keyblob,
-          output_key_material->config.key_length / sizeof(uint32_t)));
+      HARDENED_TRY(kmac_kmac_256(&kmac_key, /*masked_digest=*/kHardenedBoolTrue,
+                                 context, label->data, label->len,
+                                 output_key_material->keyblob,
+                                 output_key_material->config.key_length));
       break;
     }
     default:
@@ -147,8 +150,8 @@ otcrypto_status_t otcrypto_kmac_kdf(
                     key_derivation_key->config.key_mode);
 
   output_key_material->checksum =
-      integrity_blinded_checksum(output_key_material);
+      otcrypto_integrity_blinded_checksum(output_key_material);
 
   // Clear the KMAC sideload slot in case the key was sideloaded.
-  return keymgr_sideload_clear_kmac();
+  return otcrypto_eval_exit(keymgr_sideload_clear_kmac());
 }

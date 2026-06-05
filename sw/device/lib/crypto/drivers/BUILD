@@ -37,12 +37,52 @@ CRYPTO_EXEC_ENVS = dicts.add(
 
 autogen_cryptolib_build_info(name = "cryptolib_build_info")
 
+dual_cc_library(
+    name = "alert",
+    srcs = dual_inputs(
+        device = ["alert.c"],
+        host = ["mock_alert.cc"],
+    ),
+    hdrs = [
+        "alert.h",
+    ],
+    deps = [
+        "//hw/top:alert_handler_c_regs",
+        "//hw/top:sensor_ctrl_c_regs",
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/base:bitfield",
+        "//sw/device/lib/base:hardened_memory",
+        "//sw/device/lib/base:macros",
+        "//sw/device/lib/base:mmio",
+        "//sw/device/lib/crypto/impl:status",
+    ],
+)
+
+opentitan_test(
+    name = "alert_test",
+    srcs = ["alert_test.c"],
+    exec_env = CRYPTO_EXEC_ENVS,
+    verilator = verilator_params(
+        timeout = "long",
+    ),
+    deps = [
+        ":alert",
+        "//sw/device/lib/base:abs_mmio",
+        "//sw/device/lib/base:bitfield",
+        "//sw/device/lib/base:hardened_memory",
+        "//sw/device/lib/base:macros",
+        "//sw/device/lib/crypto/impl:status",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_alerts",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+    ],
+)
+
 cc_library(
     name = "aes",
     srcs = ["aes.c"],
     hdrs = ["aes.h"],
     deps = [
-        ":entropy",
         ":rv_core_ibex",
         "//hw/top:aes_c_regs",
         "//hw/top/dt:aes",
@@ -70,6 +110,7 @@ opentitan_test(
         "//hw/top/dt:aes",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/drivers:entropy",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_alerts",
@@ -84,7 +125,6 @@ cc_library(
         "keymgr.h",
     ],
     deps = [
-        ":entropy",
         ":rv_core_ibex",
         "//hw/top:keymgr_c_regs",
         "//hw/top/dt:keymgr",
@@ -109,6 +149,7 @@ opentitan_test(
         "//hw/top/dt:keymgr",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/drivers:entropy",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing:keymgr_testutils",
         "//sw/device/lib/testing/test_framework:check",
@@ -125,12 +166,12 @@ cc_library(
         "//sw/device/lib/crypto/include:datatypes.h",
     ],
     deps = [
-        ":entropy",
         ":rv_core_ibex",
         "//hw/top:kmac_c_regs",
         "//hw/top/dt:kmac",
         "//sw/device/lib/base:abs_mmio",
         "//sw/device/lib/base:bitfield",
+        "//sw/device/lib/base:crc32",
         "//sw/device/lib/base:hardened",
         "//sw/device/lib/base:hardened_memory",
         "//sw/device/lib/base:macros",
@@ -153,6 +194,8 @@ opentitan_test(
         "//hw/top/dt:kmac",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/drivers:entropy",
+        "//sw/device/lib/crypto/impl:integrity",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
@@ -199,8 +242,7 @@ cc_library(
         "//sw/device/lib/base:bitfield",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
-        "//sw/device/lib/base:status",
-        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/crypto/impl:status",
     ],
 )
 
@@ -268,6 +310,8 @@ opentitan_test(
         "//hw/top/dt:hmac",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/drivers:entropy",
+        "//sw/device/lib/crypto/impl:integrity",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
@@ -348,9 +392,24 @@ opentitan_test(
         "//hw/top/dt:otbn",
         "//sw/device/lib/base:macros",
         "//sw/device/lib/base:memory",
+        "//sw/device/lib/crypto/drivers:entropy",
         "//sw/device/lib/crypto/impl:status",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_alerts",
         "//sw/device/lib/testing/test_framework:ottf_main",
+    ],
+)
+
+test_suite(
+    name = "drivers_test_suite",
+    tests = [
+        ":aes_test",
+        ":alert_test",
+        ":entropy_test",
+        ":hmac_test",
+        ":keymgr_test",
+        ":kmac_test",
+        ":otbn_test",
+        ":rv_core_ibex_test",
     ],
 )

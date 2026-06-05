@@ -241,6 +241,9 @@ static status_t aes_gcm_hash_subkey(
   HARDENED_TRY(ghash_init_subkey(hash_subkey_share0.data, ctx->tbl0));
   ghash_init_subkey(hash_subkey_share1.data, ctx->tbl1);
 
+  hardened_memshred((uint32_t *)&hash_subkey,
+                    sizeof(hash_subkey) / sizeof(uint32_t));
+
   return OTCRYPTO_OK;
 }
 
@@ -357,8 +360,10 @@ status_t aes_gcm_encrypt(const aes_key_t key, const size_t iv_len,
                          const uint32_t *iv, const size_t plaintext_len,
                          const uint8_t *plaintext, const size_t aad_len,
                          const uint8_t *aad, const size_t tag_len,
+                         otcrypto_key_security_level_t security_level,
                          uint32_t *tag, uint8_t *ciphertext) {
   aes_gcm_context_t ctx;
+  ctx.security_level = security_level;
   HARDENED_TRY(aes_gcm_encrypt_init(key, iv_len, iv, &ctx));
   HARDENED_TRY(aes_gcm_update_aad(&ctx, aad_len, aad));
   size_t ciphertext_bytes_written;
@@ -382,11 +387,6 @@ status_t aes_gcm_encrypt(const aes_key_t key, const size_t iv_len,
  */
 static status_t aes_gcm_init(const aes_key_t key, const size_t iv_len,
                              const uint32_t *iv, aes_gcm_context_t *ctx) {
-  // Check for null pointers and IV length (must be 96 or 128 bits = 3 or 4
-  // words).
-  if (ctx == NULL || iv == NULL || (iv_len != 3 && iv_len != 4)) {
-    return OTCRYPTO_BAD_ARGS;
-  }
   HARDENED_CHECK_EQ(key.checksum, aes_key_integrity_checksum(&key));
 
   // Initialize the hash subkey H.
@@ -499,11 +499,7 @@ status_t aes_gcm_update_encrypted_data(aes_gcm_context_t *ctx, size_t input_len,
   // than NIST requires, but SP800-38D also allows implementations to stipulate
   // lower length limits.
   if (input_len > UINT32_MAX - ctx->input_len) {
-    return OTCRYPTO_BAD_ARGS;
-  }
-
-  // Check for null pointers.
-  if (ctx == NULL || input == NULL || output == NULL) {
+    // COVERAGE (MISSING) We do not cover too large inputs.
     return OTCRYPTO_BAD_ARGS;
   }
 
@@ -535,6 +531,8 @@ status_t aes_gcm_update_encrypted_data(aes_gcm_context_t *ctx, size_t input_len,
     // Since we only generate ciphertext in full-block increments, no partial
     // blocks are possible in this case.
     if (*output_len % kGhashBlockNumBytes != 0) {
+      // COVERAGE (SW ERR) Since we call aes_gcm_gctr before, this should
+      // normally not be called.
       return OTCRYPTO_RECOV_ERR;
     }
     HARDENED_TRY(ghash_process_full_blocks(&ctx->ghash_ctx, /*partial_len=*/0,
@@ -567,16 +565,10 @@ status_t aes_gcm_update_encrypted_data(aes_gcm_context_t *ctx, size_t input_len,
  */
 status_t aes_gcm_final(aes_gcm_context_t *ctx, size_t tag_len, uint32_t *tag,
                        size_t *output_len, uint8_t *output) {
-  // Check for null pointers.
-  if (ctx == NULL || output_len == NULL || tag == NULL) {
-    return OTCRYPTO_BAD_ARGS;
-  }
-
   // If there was no input (we never entered the "update encrypted data"
   // stage), process the remaining partial AAD and update the state.
   size_t partial_ghash_block_len = ctx->aad_len % kGhashBlockNumBytes;
   if (ctx->input_len == 0 && partial_ghash_block_len != 0) {
-    size_t partial_ghash_block_len = ctx->aad_len % kGhashBlockNumBytes;
     if (ctx->security_level != kOtcryptoKeySecurityLevelLow) {
       // To mitigate FI, perform the GHASH update twice and compare the result.
       HARDENED_TRY(ghash_update_redundant(
@@ -656,16 +648,31 @@ status_t aes_gcm_decrypt(const aes_key_t key, const size_t iv_len,
                          const uint8_t *ciphertext, const size_t aad_len,
                          const uint8_t *aad, const size_t tag_len,
                          const uint32_t *tag, uint8_t *plaintext,
+                         otcrypto_key_security_level_t security_level,
                          hardened_bool_t *success) {
   aes_gcm_context_t ctx;
+  ctx.security_level = security_level;
   HARDENED_TRY(aes_gcm_decrypt_init(key, iv_len, iv, &ctx));
   HARDENED_TRY(aes_gcm_update_aad(&ctx, aad_len, aad));
+  uint8_t *plaintext_base = plaintext;
   size_t plaintext_bytes_written;
   HARDENED_TRY(aes_gcm_update_encrypted_data(
       &ctx, ciphertext_len, ciphertext, &plaintext_bytes_written, plaintext));
   plaintext += plaintext_bytes_written;
-  return aes_gcm_decrypt_final(&ctx, tag_len, tag, &plaintext_bytes_written,
-                               plaintext, success);
+  status_t result = aes_gcm_decrypt_final(
+      &ctx, tag_len, tag, &plaintext_bytes_written, plaintext, success);
+  if (*success != kHardenedBoolTrue) {
+    // If authentication fails, zero the plaintext so that the caller does not
+    // use the unauthenticated decrypted data. We still use `OTCRYPTO_OK`
+    // because there was no internal error during the authentication check.
+    volatile uint8_t *p = plaintext_base;
+    // Use a volatile loop instead of a memset to ensure that the code persists
+    // even when compiler optimizations are enabled.
+    for (size_t i = 0; i < ciphertext_len; i++) {
+      p[i] = 0;
+    }
+  }
+  return result;
 }
 
 status_t aes_gcm_decrypt_init(const aes_key_t key, const size_t iv_len,
@@ -686,11 +693,7 @@ status_t aes_gcm_decrypt_final(aes_gcm_context_t *ctx, size_t tag_len,
   // Compare the expected tag to the actual tag (in constant time).
   *success = hardened_memeq(expected_tag, tag, tag_len);
   if (*success != kHardenedBoolTrue) {
-    // If authentication fails, zero the plaintext so that the caller does not
-    // use the unauthenticated decrypted data. We still use `OTCRYPTO_OK`
-    // because there was no internal error during the authentication check.
     *success = kHardenedBoolFalse;
-    memset(output, 0, bytes_written);
   }
 
   return OTCRYPTO_OK;

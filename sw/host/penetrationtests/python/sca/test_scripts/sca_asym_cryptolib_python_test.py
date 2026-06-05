@@ -23,7 +23,7 @@ from Crypto.Hash import SHA256, SHA384
 ignored_keys_set = set([])
 opentitantool_path = ""
 iterations = 2
-num_segments_list = [1, 5, 12]
+num_segments_list = [1, 5]
 
 target = None
 
@@ -260,6 +260,44 @@ class AsymCryptoScaTest(unittest.TestCase):
         signature = r + s
         verifier.verify(h, bytes(signature))
 
+    def test_char_p256_base_mult_daisy(self):
+        for num_segments in num_segments_list:
+            private_key = ECC.generate(curve="P-256")
+            private_key_array = [x for x in private_key.d.to_bytes(32, "little")]
+            cfg = 0
+            trigger = 0
+
+            actual_result = sca_asym_cryptolib_functions.char_p256_base_mult_daisy(
+                target,
+                iterations,
+                private_key_array,
+                cfg,
+                trigger,
+                num_segments,
+            )
+            actual_result_json = json.loads(actual_result)
+
+            for _ in range(iterations):
+                chained_scalar = private_key.d
+                for __ in range(num_segments):
+                    chained_p256 = ECC.construct(curve="P-256", d=chained_scalar)
+                    pub_point = chained_p256.public_key().pointQ
+                    chained_scalar = pub_point.x
+
+            point_x = [x for x in pub_point.x.to_bytes(32, "little")]
+            point_y = [x for x in pub_point.y.to_bytes(32, "little")]
+
+            expected_result_json = {
+                "status": 0,
+                "x": point_x,
+                "y": point_y,
+                "cfg": 0,
+            }
+
+            utils.compare_json_data(
+                actual_result_json, expected_result_json, ignored_keys_set
+            )
+
     def test_char_p384_ecdh(self):
         private_key = ECC.generate(curve="P-384")
         private_key_array = [x for x in private_key.d.to_bytes(48, "little")]
@@ -339,6 +377,126 @@ class AsymCryptoScaTest(unittest.TestCase):
         s.reverse()
         signature = r + s
         verifier.verify(h, bytes(signature))
+
+    def test_char_p384_base_mult_daisy(self):
+        for num_segments in num_segments_list:
+            private_key = ECC.generate(curve="P-384")
+            private_key_array = [x for x in private_key.d.to_bytes(48, "little")]
+            cfg = 0
+            trigger = 0
+
+            actual_result = sca_asym_cryptolib_functions.char_p384_base_mult_daisy(
+                target,
+                iterations,
+                private_key_array,
+                cfg,
+                trigger,
+                num_segments,
+            )
+            actual_result_json = json.loads(actual_result)
+
+            for _ in range(iterations):
+                chained_scalar = private_key.d
+                for __ in range(num_segments):
+                    chained_p384 = ECC.construct(curve="P-384", d=chained_scalar)
+                    pub_point = chained_p384.public_key().pointQ
+                    chained_scalar = pub_point.x
+
+            point_x = [x for x in pub_point.x.to_bytes(48, "little")]
+            point_y = [x for x in pub_point.y.to_bytes(48, "little")]
+
+            expected_result_json = {
+                "status": 0,
+                "x": point_x,
+                "y": point_y,
+                "cfg": 0,
+            }
+
+            utils.compare_json_data(
+                actual_result_json, expected_result_json, ignored_keys_set
+            )
+
+    def test_char_ed25519_sign(self):
+        scalar = [random.randint(0, 255) for _ in range(32)]
+        message = [random.randint(0, 255) for _ in range(16)]
+        message_padded = utils.pad_with_zeros(message, 128)
+        message_len = len(message)
+        cfg = 0
+        trigger = 1
+
+        actual_result = sca_asym_cryptolib_functions.char_ed25519_sign(
+            target,
+            iterations,
+            scalar,
+            message_padded,
+            message_len,
+            cfg,
+            trigger,
+        )
+        actual_result_json = json.loads(actual_result)
+
+        sign_ignored_keys_set = ignored_keys_set.copy()
+        sign_ignored_keys_set.add("r")
+        sign_ignored_keys_set.add("s")
+        sign_ignored_keys_set.add("pubx")
+        sign_ignored_keys_set.add("puby")
+
+        expected_result_json = {
+            "status": 0,
+            "cfg": 0,
+        }
+
+        # As the verify is done on the device after the sign, just check if the reported
+        # status is valid.
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, sign_ignored_keys_set
+        )
+
+    def test_char_x25519_ecdh(self):
+        # Test vector from RFC 7748, Section 6.1
+        # https://datatracker.ietf.org/doc/html/rfc7748#section-6.1
+        # Alice's Private Key
+        private_key_bytes = bytes.fromhex(
+            "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
+        )
+        private_key = list(private_key_bytes)
+
+        # Bob's Public Key
+        public_bob_bytes = bytes.fromhex(
+            "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"
+        )
+        public_x = list(public_bob_bytes)
+        public_y = [0] * 32  # X25519 ignores Y
+        cfg = 0
+        trigger = 0
+
+        actual_result = sca_asym_cryptolib_functions.char_x25519_ecdh(
+            target,
+            iterations,
+            private_key,
+            public_x,
+            public_y,
+            cfg,
+            trigger,
+        )
+        actual_result_json = json.loads(actual_result)
+
+        # Expected Shared Secret K
+        expected_shared = list(
+            bytes.fromhex(
+                "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"
+            )
+        )
+
+        expected_result_json = {
+            "status": 0,
+            "shared_key": expected_shared,
+            "cfg": 0,
+        }
+
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
 
 
 if __name__ == "__main__":

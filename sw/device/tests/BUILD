@@ -2428,7 +2428,7 @@ opentitan_test(
         "//sw/device/lib/testing/test_framework:ottf_alerts",
         "//sw/device/lib/testing/test_framework:ottf_main",
         "//sw/device/silicon_creator/lib/drivers:retention_sram",
-        "//sw/otbn/crypto:x25519_sideload",
+        "//sw/otbn/crypto:run_curve25519",
     ],
 )
 
@@ -2465,7 +2465,7 @@ opentitan_test(
         "//sw/device/lib/testing:sram_ctrl_testutils",
         "//sw/device/lib/testing/test_framework:ottf_main",
         "//sw/device/silicon_creator/lib/drivers:retention_sram",
-        "//sw/otbn/crypto:x25519_sideload",
+        "//sw/otbn/crypto:run_curve25519",
     ],
 )
 
@@ -2686,7 +2686,7 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:ottf_alerts",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//sw/otbn/crypto:x25519_sideload",
+        "//sw/otbn/crypto:run_curve25519",
     ],
 )
 
@@ -2723,7 +2723,7 @@ opentitan_test(
         "//sw/device/lib/testing:keymgr_testutils",
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//sw/otbn/crypto:x25519_sideload",
+        "//sw/otbn/crypto:run_curve25519",
     ],
 )
 
@@ -6263,6 +6263,13 @@ _RV_DM_TAP_SEL_LC_STATES = get_lc_items(
         exec_env = dicts.add(
             EARLGREY_SILICON_OWNER_ROM_EXT_ENVS if lc_state == "prod" else {},
             {
+                "//hw/top_earlgrey:fpga_cw310_sival": None,
+                # TODO: (#30294) Adapt for bkdr_loader: in DEV state the DFT TAP strapping
+                # triggers PRELOAD mode, presenting the bkdr_loader JTAG TAP instead
+                # of the chip DFT TAP. The test must be updated to account for the
+                # bkdr_loader's IDCODE and its done-register handshake before the
+                # downstream DFT TAP becomes visible.
+            } if lc_state == "dev" else {
                 "//hw/top_earlgrey:fpga_cw310_sival": None,
                 "//hw/top_earlgrey:fpga_cw340_sival": None,
             },

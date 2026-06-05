@@ -81,7 +81,9 @@ class SymCryptolibFiTest(unittest.TestCase):
         expected_sensors_keys = {"sensor_ctrl_en", "sensor_ctrl_fatal"}
         actual_sensors_keys = set(sensors_json.keys())
 
-        self.assertEqual(expected_sensors_keys, actual_sensors_keys, "sensor keys do not match")
+        self.assertEqual(
+            expected_sensors_keys, actual_sensors_keys, "sensor keys do not match"
+        )
 
         expected_alerts_keys = {
             "alert_classes",
@@ -96,7 +98,9 @@ class SymCryptolibFiTest(unittest.TestCase):
         }
         actual_alerts_keys = set(alerts_json.keys())
 
-        self.assertEqual(expected_alerts_keys, actual_alerts_keys, "alert keys do not match")
+        self.assertEqual(
+            expected_alerts_keys, actual_alerts_keys, "alert keys do not match"
+        )
 
         expected_owner_page_keys = {
             "config_version",
@@ -133,7 +137,9 @@ class SymCryptolibFiTest(unittest.TestCase):
         }
         actual_boot_log_keys = set(boot_log_json.keys())
 
-        self.assertEqual(expected_boot_log_keys, actual_boot_log_keys, "boot_log keys do not match")
+        self.assertEqual(
+            expected_boot_log_keys, actual_boot_log_keys, "boot_log keys do not match"
+        )
 
         expected_boot_measurements_keys = {"bl0", "rom_ext"}
         actual_boot_measurements_keys = set(boot_measurements_json.keys())
@@ -197,7 +203,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, enc_ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, enc_ignored_keys_set
+        )
 
         encrypted_data = actual_result_json["data"]
         encrypted_data_len = actual_result_json["data_len"]
@@ -272,7 +280,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, sign_ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, sign_ignored_keys_set
+        )
 
         signature = actual_result_json["sig"]
         signature = signature[:256]
@@ -326,7 +336,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
 
     def test_char_p256_ecdh(self):
         private_key = ECC.generate(curve="P-256")
@@ -362,7 +374,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
 
     def test_char_p256_sign(self):
         key = ECC.generate(curve="P-256")
@@ -402,7 +416,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, sign_ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, sign_ignored_keys_set
+        )
 
         verifier = DSS.new(key.public_key(), "fips-186-3")
         r = actual_result_json["r"]
@@ -455,7 +471,42 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
+
+    def test_char_p256_base_mult(self):
+        private_key = ECC.generate(curve="P-256")
+        private_key_array = [x for x in private_key.d.to_bytes(32, "little")]
+        cfg = 0
+        trigger = 0
+
+        actual_result = fi_asym_cryptolib_functions.char_p256_base_mult(
+            target,
+            iterations,
+            private_key_array,
+            cfg,
+            trigger,
+        )
+        actual_result_json = json.loads(actual_result)
+
+        point_x = [x for x in private_key.pointQ.x.to_bytes(32, "little")]
+        point_y = [x for x in private_key.pointQ.y.to_bytes(32, "little")]
+
+        expected_result_json = {
+            "status": 0,
+            "err_status": 0,
+            "alerts": [0, 0, 0],
+            "loc_alerts": 0,
+            "ast_alerts": [0, 0],
+            "x": point_x,
+            "y": point_y,
+            "cfg": 0,
+        }
+
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
 
     def test_char_p384_ecdh(self):
         private_key = ECC.generate(curve="P-384")
@@ -491,7 +542,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
 
     def test_char_p384_sign(self):
         key = ECC.generate(curve="P-384")
@@ -531,7 +584,9 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, sign_ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, sign_ignored_keys_set
+        )
 
         verifier = DSS.new(key.public_key(), "fips-186-3")
         r = actual_result_json["r"]
@@ -584,13 +639,221 @@ class SymCryptolibFiTest(unittest.TestCase):
             "cfg": 0,
         }
 
-        utils.compare_json_data(actual_result_json, expected_result_json, ignored_keys_set)
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
+
+    def test_char_p384_base_mult(self):
+        private_key = ECC.generate(curve="P-384")
+        private_key_array = [x for x in private_key.d.to_bytes(48, "little")]
+        cfg = 0
+        trigger = 0
+
+        actual_result = fi_asym_cryptolib_functions.char_p384_base_mult(
+            target,
+            iterations,
+            private_key_array,
+            cfg,
+            trigger,
+        )
+        actual_result_json = json.loads(actual_result)
+
+        point_x = [x for x in private_key.pointQ.x.to_bytes(48, "little")]
+        point_y = [x for x in private_key.pointQ.y.to_bytes(48, "little")]
+
+        expected_result_json = {
+            "status": 0,
+            "err_status": 0,
+            "alerts": [0, 0, 0],
+            "loc_alerts": 0,
+            "ast_alerts": [0, 0],
+            "x": point_x,
+            "y": point_y,
+            "cfg": 0,
+        }
+
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
+
+    def test_char_ed25519_sign(self):
+        scalar = [random.randint(0, 255) for _ in range(32)]
+        message = [random.randint(0, 255) for _ in range(16)]
+        message_padded = utils.pad_with_zeros(message, 128)
+        message_len = len(message)
+        cfg = 0
+        trigger = 1
+
+        actual_result = fi_asym_cryptolib_functions.char_ed25519_sign(
+            target,
+            iterations,
+            scalar,
+            message_padded,
+            message_len,
+            cfg,
+            trigger,
+        )
+        actual_result_json = json.loads(actual_result)
+
+        sign_ignored_keys_set = ignored_keys_set.copy()
+        sign_ignored_keys_set.add("r")
+        sign_ignored_keys_set.add("s")
+        sign_ignored_keys_set.add("pubx")
+        sign_ignored_keys_set.add("puby")
+
+        expected_result_json = {
+            "status": 0,
+            "err_status": 0,
+            "alerts": [0, 0, 0],
+            "loc_alerts": 0,
+            "ast_alerts": [0, 0],
+            "cfg": 0,
+        }
+        # As the verify is done on the device after the sign, just check if the reported
+        # status is valid.
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, sign_ignored_keys_set
+        )
+
+    def test_char_ed25519_verify(self):
+        scalar = [random.randint(0, 255) for _ in range(32)]
+        message = [random.randint(0, 255) for _ in range(16)]
+        message_padded = utils.pad_with_zeros(message, 128)
+        message_len = len(message)
+        cfg = 0
+        trigger = 1
+
+        # Sign on device to obtain a valid signature and public key.
+        sign_result = fi_asym_cryptolib_functions.char_ed25519_sign(
+            target,
+            iterations,
+            scalar,
+            message_padded,
+            message_len,
+            cfg,
+            trigger,
+        )
+        sign_result_json = json.loads(sign_result)
+
+        pubx = sign_result_json["pubx"]
+        puby = [0] * 32
+        r = sign_result_json["r"]
+        s = sign_result_json["s"]
+
+        actual_result = fi_asym_cryptolib_functions.char_ed25519_verify(
+            target,
+            iterations,
+            pubx,
+            puby,
+            r,
+            s,
+            message_padded,
+            message_len,
+            cfg,
+            trigger,
+        )
+        actual_result_json = json.loads(actual_result)
+
+        expected_result_json = {
+            "status": 0,
+            "result": True,
+            "err_status": 0,
+            "alerts": [0, 0, 0],
+            "loc_alerts": 0,
+            "ast_alerts": [0, 0],
+            "cfg": 0,
+        }
+
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
+
+    def test_char_x25519_base_mult(self):
+        # Test vector from RFC 7748, Section 6.1
+        # https://datatracker.ietf.org/doc/html/rfc7748#section-6.1
+        # Alice's Private Key
+        private_key_bytes = bytes.fromhex(
+            "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
+        )
+        scalar = list(private_key_bytes)
+        cfg = 0
+        trigger = 0
+
+        actual_result = fi_asym_cryptolib_functions.char_x25519_base_mult(
+            target, iterations, scalar, cfg, trigger
+        )
+        actual_result_json = json.loads(actual_result)
+
+        # Alice's Public Key
+        expected_public = list(
+            bytes.fromhex(
+                "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
+            )
+        )
+
+        expected_result_json = {
+            "status": 0,
+            "x": expected_public,
+            "y": [0] * 32,  # X25519 has no Y coordinate
+            "err_status": 0,
+            "alerts": [0, 0, 0],
+            "loc_alerts": 0,
+            "ast_alerts": [0, 0],
+            "cfg": 0,
+        }
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
+
+    def test_char_x25519_ecdh(self):
+        # Test vector from RFC 7748, Section 6.1
+        # https://datatracker.ietf.org/doc/html/rfc7748#section-6.1
+        # Alice's Private Key
+        private_key_bytes = bytes.fromhex(
+            "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
+        )
+        private_key = list(private_key_bytes)
+
+        # Bob's Public Key
+        public_bob_bytes = bytes.fromhex(
+            "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"
+        )
+        public_x = list(public_bob_bytes)
+        public_y = [0] * 32  # X25519 uses the u-coordinate (x) exclusively
+        cfg = 0
+        trigger = 0
+
+        actual_result = fi_asym_cryptolib_functions.char_x25519_ecdh(
+            target, iterations, private_key, public_x, public_y, cfg, trigger
+        )
+        actual_result_json = json.loads(actual_result)
+
+        expected_shared = list(
+            bytes.fromhex(
+                "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"
+            )
+        )
+
+        expected_result_json = {
+            "status": 0,
+            "shared_key": expected_shared,
+            "err_status": 0,
+            "alerts": [0, 0, 0],
+            "loc_alerts": 0,
+            "ast_alerts": [0, 0],
+            "cfg": 0,
+        }
+        utils.compare_json_data(
+            actual_result_json, expected_result_json, ignored_keys_set
+        )
 
 
 if __name__ == "__main__":
     r = Runfiles.Create()
     # Get the opentitantool path.
-    opentitantool_path = r.Rlocation("lowrisc_opentitan/sw/host/opentitantool/opentitantool")
+    opentitantool_path = r.Rlocation(
+        "lowrisc_opentitan/sw/host/opentitantool/opentitantool"
+    )
     # Program the bitstream for FPGAs.
     bitstream_path = None
     if BITSTREAM:
