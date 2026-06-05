@@ -2,11 +2,26 @@
 
 ## 一、构建
 
+### OTBN 二进制 (ELF)
+
+```bash
+cd ~/pqc/opentitan
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/hkdf:all --cache_test_results=no
+
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/hkdf:sha3_shake
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hmac_sha3_256
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_ecdh_shared_key
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_keypair
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_encap
+bazel build //test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_decap
+```
+
 ### ISS 测试
 
 ```bash
 # 全部 7 个测试
-bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:all
+bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:all --cache_test_results=no
 
 # 或单独跑
 bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:sha3_shake_test
@@ -16,6 +31,21 @@ bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:p256_ecdh_test
 bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:mlkem768_keypair_test
 bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:mlkem768_encap_test
 bazel test //test_hybrid_kem_otbn_prompt_base/otbn/test:mlkem768_decap_test
+```
+### OTBN co-sim (RTL vs ISS)
+
+```bash
+cd ~/pqc/opentitan
+chmod +x test_hybrid_kem_otbn_prompt_base/otbn/co_sim/*.sh
+
+# 全部 7 个
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_sha3_co_sim.sh
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_hmac_co_sim.sh
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_hkdf_co_sim.sh
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_p256_co_sim.sh
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_mlkem_keypair_co_sim.sh
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_mlkem_encap_co_sim.sh
+bash test_hybrid_kem_otbn_prompt_base/otbn/co_sim/run_mlkem_decap_co_sim.sh
 ```
 
 ### Chip Sim
@@ -140,3 +170,5 @@ python3 ref/hkdf_dexp.py 32           # HKDF: .dexp + .s 数据段
 | 问题 | 状态 |
 |------|------|
 | P-256 示例点 P 触发 RTL `scalar_mult_int` z=0 bug | 已定位, 使用基点 G |
+| HKDF chip sim Alert 48 (DMEM ECC) | 待修复，ISS 和 co_sim 均通过 |
+| SHA3 co_sim RTL/ISS mismatch | sha3_final jal 覆盖 ra 导致死循环，ISS 容错但锁步对比发散 |

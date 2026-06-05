@@ -37,50 +37,92 @@ context:
 .balign 32
 .globl rc
 rc:
-    .dword 0x0000000000000001
-    .dword 0x0000000000008082
-    .dword 0x800000000000808a
-    .dword 0x8000000080008000
-    .dword 0x000000000000808b
-    .dword 0x0000000080000001
-    .dword 0x8000000080008081
-    .dword 0x8000000000008009
-    .dword 0x000000000000008a
-    .dword 0x0000000000000088
-    .dword 0x0000000080008009
-    .dword 0x000000008000000a
-    .dword 0x000000008000808b
-    .dword 0x800000000000008b
-    .dword 0x8000000000008089
-    .dword 0x8000000000008003
-    .dword 0x8000000000008002
-    .dword 0x8000000000000080
-    .dword 0x000000000000800a
-    .dword 0x800000008000000a
-    .dword 0x8000000080008081
-    .dword 0x8000000000008080
-    .dword 0x0000000080000001
-    .dword 0x8000000080008008
+  .balign 32
+  .dword 0x0000000000000001
+  .balign 32
+  .dword 0x0000000000008082
+  .balign 32
+  .dword 0x800000000000808a
+  .balign 32
+  .dword 0x8000000080008000
+  .balign 32
+  .dword 0x000000000000808b
+  .balign 32
+  .dword 0x0000000080000001
+  .balign 32
+  .dword 0x8000000080008081
+  .balign 32
+  .dword 0x8000000000008009
+  .balign 32
+  .dword 0x000000000000008a
+  .balign 32
+  .dword 0x0000000000000088
+  .balign 32
+  .dword 0x0000000080008009
+  .balign 32
+  .dword 0x000000008000000a
+  .balign 32
+  .dword 0x000000008000808b
+  .balign 32
+  .dword 0x800000000000008b
+  .balign 32
+  .dword 0x8000000000008089
+  .balign 32
+  .dword 0x8000000000008003
+  .balign 32
+  .dword 0x8000000000008002
+  .balign 32
+  .dword 0x8000000000000080
+  .balign 32
+  .dword 0x000000000000800a
+  .balign 32
+  .dword 0x800000008000000a
+  .balign 32
+  .dword 0x8000000080008081
+  .balign 32
+  .dword 0x8000000000008080
+  .balign 32
+  .dword 0x0000000080000001
+  .balign 32
+  .dword 0x8000000080008008
+
+/* ---- HMAC work buffers (HW-compatible) ---- */
 
 .balign 32
-.globl inner_hash
-inner_hash:
+.globl hmac_ipad
+hmac_ipad:
+    .zero 160
+
+.balign 32
+.globl hmac_opad
+hmac_opad:
+    .zero 160
+
+.balign 32
+.globl hmac_inner
+hmac_inner:
     .zero 32
 
 .balign 32
-.globl key_buf
-key_buf:
-    .zero 200
+.globl hmac_key_hashed
+hmac_key_hashed:
+    .zero 32
+
+/* ---- Constants ---- */
 
 .balign 32
-.globl ipad
-ipad:
-    .zero 200
+.globl const_0x36
+const_0x36:
+    .rept 40
+    .word 0x36363636
+    .endr
 
 .balign 32
-.globl opad
-opad:
-    .zero 200
+.globl const_0x5c
+const_0x5c:
+    .rept 40
+    .word 0x5c5c5c5c
+    .endr
 
 /* ---- Test data ---- */
 

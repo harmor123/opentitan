@@ -272,11 +272,5 @@ static const uint8_t kExpectedSs[32] = {
 
   CHECK_ARRAYS_EQ(ss, kExpectedSs, sizeof(kExpectedSs));
 
-  LOG_INFO("=== ML-KEM Decap OK ===");
-  LOG_INFO("ss[ 0.. 7]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           ss[0],ss[1],ss[2],ss[3],ss[4],ss[5],ss[6],ss[7]);
-  LOG_INFO("ss[24..31]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           ss[24],ss[25],ss[26],ss[27],ss[28],ss[29],ss[30],ss[31]);
-
   return true;
 }

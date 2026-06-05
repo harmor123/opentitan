@@ -282,15 +282,5 @@ static const uint8_t kExpectedSkM[2400] = {
   CHECK_ARRAYS_EQ(pk_m, kExpectedPkM, sizeof(kExpectedPkM));
   CHECK_ARRAYS_EQ(sk_m, kExpectedSkM, sizeof(kExpectedSkM));
 
-  LOG_INFO("=== ML-KEM KeyGen OK ===");
-  LOG_INFO("pk_m[   0..   7]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           pk_m[0],pk_m[1],pk_m[2],pk_m[3],pk_m[4],pk_m[5],pk_m[6],pk_m[7]);
-  LOG_INFO("pk_m[1176..1183]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           pk_m[1176],pk_m[1177],pk_m[1178],pk_m[1179],pk_m[1180],pk_m[1181],pk_m[1182],pk_m[1183]);
-  LOG_INFO("sk_m[   0..   7]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           sk_m[0],sk_m[1],sk_m[2],sk_m[3],sk_m[4],sk_m[5],sk_m[6],sk_m[7]);
-  LOG_INFO("sk_m[2392..2399]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           sk_m[2392],sk_m[2393],sk_m[2394],sk_m[2395],sk_m[2396],sk_m[2397],sk_m[2398],sk_m[2399]);
-
   return true;
 }

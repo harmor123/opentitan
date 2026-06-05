@@ -311,7 +311,6 @@ bool test_main(void) {
   /* ==============================================================
    * Step 1: P-256 ECDH → shared key ss_e = d*G.x
    * ============================================================== */
-  LOG_INFO("=== Phase 1: P-256 ECDH ===");
   LOG_INFO("Load p256_ecdh_shared_key...");
   CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppP256));
 
@@ -351,7 +350,6 @@ bool test_main(void) {
   /* ==============================================================
    * Step 2: ML-KEM-768 KeyGen → pk_m, sk_m
    * ============================================================== */
-  LOG_INFO("=== Phase 1: ML-KEM KeyGen ===");
   LOG_INFO("Load mlkem768_keypair...");
   CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppMlkem));
 
@@ -363,7 +361,6 @@ bool test_main(void) {
   CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
   CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));
 
-  LOG_INFO("Read pk_m, sk_m...");
   uint8_t pk_m[1184], sk_m[2400];
   CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, sizeof(pk_m),
       OTBN_ADDR_T_INIT(mlkem768_keypair, ek), pk_m));

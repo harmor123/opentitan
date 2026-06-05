@@ -23,10 +23,10 @@ ss_m = bytes.fromhex(
     "ac865f839fef1bf3d528dd7504bed2f6"
     "4b5502b0fa81d1c32763658e4aac5037")
 
-salt   = bytes(32)
-info   = bytes(16)              # kInfo[16], KEM layer: unified OKM
-ctx    = bytes(32)              # kCtx[32]
-sid    = bytes(32)              # kSid[32]
+salt   = bytes(range(32))                           # 0x00..0x1f
+info   = bytes(range(1, 17))                        # kInfo[16] = 0x01..0x10
+ctx    = b"HybridKEM-v1-context-0123456789A"       # kCtx[32]
+sid    = b"Session-042-run-XYZ9876543210fed"       # kSid[32]
 okm_len = int(sys.argv[1]) if len(sys.argv) > 1 else 32
 
 # ============ IKM construction ============

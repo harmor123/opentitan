@@ -9,6 +9,7 @@
 .section .text.start
 .globl main
 main:
+    bn.xor  w31, w31, w31
     /* ---- Basic tests ---- */
     jal     x1, test_sha3_256_empty
     jal     x1, test_sha3_512_empty

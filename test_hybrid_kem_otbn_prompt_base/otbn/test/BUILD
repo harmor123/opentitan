@@ -92,6 +92,7 @@ otbn_sim_test(
 otbn_sim_test(
     name = "p256_ecdh_test",
     srcs = ["p256_ecdh_shared_key_test.s"],
+    dexp = "p256.dexp",
     deps = [
         "//test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_base_lib",
         "//test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_isoncurve_proj_lib",
@@ -106,6 +107,7 @@ otbn_sim_test(
 otbn_sim_test(
     name = "hkdf_test",
     srcs = ["hkdf_test.s"],
+    dexp = "hkdf_test.dexp",
     deps = [
         "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256_lib",
         "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hmac_sha3_lib",
@@ -120,6 +122,7 @@ otbn_sim_test(
 otbn_sim_test(
     name = "hmac_test",
     srcs = ["hmac_test.s"],
+    dexp = "hmac_test.dexp",
     deps = [
         "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hmac_sha3_lib",
         "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:sha3_shake_lib",

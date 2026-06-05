@@ -10,7 +10,7 @@ import sys
 
 # ============ Test vectors ============
 
-salt = bytes(32)
+salt = bytes(range(32))  # 0x00..0x1f
 
 ss_e = bytes.fromhex(
     "5f33d746a326640a739a9490ec15c103"
@@ -19,9 +19,9 @@ ss_m = bytes.fromhex(
     "3750ac4a8e656327c3d181fab002554b"
     "f6d2be0475dd28d5f31bef9f835f86ac")
 
-ctx  = bytes(32)  # kCtx[32]
-sid  = bytes(32)  # kSid[32]
-info = bytes(16)  # kInfo[16]
+ctx  = b"HybridKEM-v1-context-0123456789A"  # kCtx[32]
+sid  = b"Session-042-run-XYZ9876543210fed"  # kSid[32]
+info = bytes(range(1, 17))                   # kInfo[16] = 0x01..0x10
 
 okm_len = int(sys.argv[1]) if len(sys.argv) > 1 else 32
 

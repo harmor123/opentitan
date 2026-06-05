@@ -9,6 +9,7 @@
 main:
     la      x2, stack_end
     addi    x2, x2, -64
+    bn.xor  w31, w31, w31
     jal     x1, hkdf_extract
     jal     x1, hkdf_expand
     ecall
@@ -110,30 +111,54 @@ context:
 .balign 32
 .globl rc
 rc:
-    .dword 0x0000000000000001
-    .dword 0x0000000000008082
-    .dword 0x800000000000808a
-    .dword 0x8000000080008000
-    .dword 0x000000000000808b
-    .dword 0x0000000080000001
-    .dword 0x8000000080008081
-    .dword 0x8000000000008009
-    .dword 0x000000000000008a
-    .dword 0x0000000000000088
-    .dword 0x0000000080008009
-    .dword 0x000000008000000a
-    .dword 0x000000008000808b
-    .dword 0x800000000000008b
-    .dword 0x8000000000008089
-    .dword 0x8000000000008003
-    .dword 0x8000000000008002
-    .dword 0x8000000000000080
-    .dword 0x000000000000800a
-    .dword 0x800000008000000a
-    .dword 0x8000000080008081
-    .dword 0x8000000000008080
-    .dword 0x0000000080000001
-    .dword 0x8000000080008008
+  .balign 32
+  .dword 0x0000000000000001
+  .balign 32
+  .dword 0x0000000000008082
+  .balign 32
+  .dword 0x800000000000808a
+  .balign 32
+  .dword 0x8000000080008000
+  .balign 32
+  .dword 0x000000000000808b
+  .balign 32
+  .dword 0x0000000080000001
+  .balign 32
+  .dword 0x8000000080008081
+  .balign 32
+  .dword 0x8000000000008009
+  .balign 32
+  .dword 0x000000000000008a
+  .balign 32
+  .dword 0x0000000000000088
+  .balign 32
+  .dword 0x0000000080008009
+  .balign 32
+  .dword 0x000000008000000a
+  .balign 32
+  .dword 0x000000008000808b
+  .balign 32
+  .dword 0x800000000000008b
+  .balign 32
+  .dword 0x8000000000008089
+  .balign 32
+  .dword 0x8000000000008003
+  .balign 32
+  .dword 0x8000000000008002
+  .balign 32
+  .dword 0x8000000000000080
+  .balign 32
+  .dword 0x000000000000800a
+  .balign 32
+  .dword 0x800000008000000a
+  .balign 32
+  .dword 0x8000000080008081
+  .balign 32
+  .dword 0x8000000000008080
+  .balign 32
+  .dword 0x0000000080000001
+  .balign 32
+  .dword 0x8000000080008008
 
 .balign 32
 .globl inner_hash

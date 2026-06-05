@@ -202,15 +202,5 @@ static const uint8_t kExpectedSs[32] = {
   CHECK_ARRAYS_EQ(ct, kExpectedCt, sizeof(kExpectedCt));
   CHECK_ARRAYS_EQ(ss, kExpectedSs, sizeof(kExpectedSs));
 
-  LOG_INFO("=== ML-KEM Encap OK ===");
-  LOG_INFO("ct[   0..   7]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           ct[0],ct[1],ct[2],ct[3],ct[4],ct[5],ct[6],ct[7]);
-  LOG_INFO("ct[1080..1087]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           ct[1080],ct[1081],ct[1082],ct[1083],ct[1084],ct[1085],ct[1086],ct[1087]);
-  LOG_INFO("ss[ 0.. 7]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           ss[0],ss[1],ss[2],ss[3],ss[4],ss[5],ss[6],ss[7]);
-  LOG_INFO("ss[24..31]=%02x%02x%02x%02x%02x%02x%02x%02x",
-           ss[24],ss[25],ss[26],ss[27],ss[28],ss[29],ss[30],ss[31]);
-
   return true;
 }

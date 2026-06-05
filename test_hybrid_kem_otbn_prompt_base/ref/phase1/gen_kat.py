@@ -9,7 +9,7 @@ MLKEM_DIR = os.path.join(os.path.dirname(__file__),
     "../../assets/output/mlkem768/test_000")
 # P-256 KAT from OTBN test
 P256_DEXP = os.path.join(os.path.dirname(__file__),
-    "../../test_hybrid_kem_otbn_prompt/otbn/test/p256_ecdh_shared_key_test.dexp")
+    "../../test_hybrid_kem_otbn_prompt_base/otbn/test/p256_ecdh_shared_key_test.dexp")
 
 def dexp_to_bytes(dexp_path, label):
     """Read .dexp file, extract hex for label, return bytes in DMEM order.

@@ -100,8 +100,6 @@ bool test_main(void) {
   CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(lens), lens,
       OTBN_ADDR_T_INIT(hkdf_sha3_256, input_lengths)));
 
-  LOG_INFO("output_okm addr: 0x%08x",
-      OTBN_ADDR_T_INIT(hkdf_sha3_256, output_okm));
   LOG_INFO("Execute...");
   CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
   CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));

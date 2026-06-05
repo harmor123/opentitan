@@ -1,192 +1,164 @@
-/*
- * 名称:        hmac
+/* ================================================================
+ * hmac.s -- HMAC-SHA3-256 纯软件实现
  *
- * 描述:        基于 SHA3-256 的 HMAC 消息认证码计算。
- *              实现 RFC 2104 定义的 HMAC 算法，使用 SHA3-256 作为底层哈希函数。
- *              内部使用 ipad 和 opad 进行两次哈希计算，最终输出 32 字节的 HMAC 值。
+ * 接口对齐 HW 版 hmac_sha3.s，内部使用 sha3_init/update/final 替代 KMAC。
+ * 无数据段 -- 所有缓冲区由调用者通过 label 提供。
  *
- * 参数:        - x10: 密钥指针 (key_ptr)
- *              - x11: 密钥长度 (key_len)，单位字节
- *              - x12: 消息指针 (msg_ptr)
- *              - x13: 消息长度 (msg_len)，单位字节
- *              - x14: 输出缓冲区指针 (out_ptr)，用于存储 32 字节的 HMAC 结果
+ * 调用约定:
+ *   x10 = key_ptr
+ *   x11 = key_len (字节)
+ *   x12 = msg_ptr
+ *   x13 = msg_len (字节)
+ *   x14 = out_ptr (32B 输出)
  *
- * 标志:        会破坏 FG0，对调用者无特殊含义。
- *
- * 破坏的寄存器: x5-x9, x16-x19, x28-x31, w0-w13, w21-w30（通过调用 sha3_* 函数间接破坏）
- *               以及栈上保存的 ra, x10-x14 被保护。
- */
+ * 调用者需提供的 .globl 标签:
+ *   hmac_ipad    (160B, 32B对齐) -- ipad 工作区
+ *   hmac_opad    (160B, 32B对齐) -- opad 工作区
+ *   hmac_inner   (32B,  32B对齐) -- 内部哈希输出
+ *   hmac_key_hashed (32B, 32B对齐) -- 超长密钥哈希后存储
+ *   const_0x36   (160B, 32B对齐) -- 全 0x36 常量表
+ *   const_0x5c   (160B, 32B对齐) -- 全 0x5C 常量表
+ *   context      (212B, 32B对齐) -- SHA3 上下文 (SW SHA3 需要)
+ *   rc           (24×32B)        -- Keccak 轮常量 (SW SHA3 需要)
+ * ================================================================ */
+
+.section .text
 
 .globl hmac_sha3_256
-
 hmac_sha3_256:
-  addi    sp, sp, -64
-  sw      ra, 60(sp)
-  sw      x10, 56(sp)
-  sw      x11, 52(sp)
-  sw      x12, 48(sp)
-  sw      x13, 44(sp)
-  sw      x14, 40(sp)
+    /* ---- Save caller parameters on stack ---- */
+    addi    sp, sp, -24
+    sw      ra, 20(sp)
+    sw      x12, 16(sp)           /* msg_ptr */
+    sw      x13, 12(sp)           /* msg_len */
+    sw      x14, 8(sp)            /* out_ptr */
 
-  /* ==========================================
-   * 步骤 1.1: 处理超长密钥 (纯位运算判断)
-   * ========================================== */
-  lw      x18, 56(sp)
-  lw      x19, 52(sp)
-  li      x6, 136
-  addi    x5, x19, -136
-  srli    x5, x5, 31
-  bne     x5, x0, key_preprocess_done
-  beq     x19, x6, key_preprocess_done
-  jal     x1, hash_long_key
+    bn.xor  w31, w31, w31         /* w31=0, 所有 SW SHA3 函数要求 */
 
-hash_long_key:
-  la      x10, context
-  li      x11, 32
-  jal     x1, sha3_init
+    /* ---- 超长密钥处理: key_len > 136 -> SHA3-256(key) -> 32B ---- */
+    li      x5, 136
+    sub     x30, x11, x5
+    srli    x30, x30, 31           /* key_len < 136 → 1 */
+    bne     x30, x0, hmac_key_ok
+    beq     x11, x5, hmac_key_ok   /* key_len == 136 → skip hash */
 
-  la      x10, context
-  lw      x11, 56(sp)
-  lw      x12, 52(sp)
-  jal     x1, sha3_update
+    /* H(key) -> hmac_key_hashed (32B) */
+    sw      x10, 4(sp)
+    sw      x11, 0(sp)
+    la      x10, context
+    addi    x11, x0, 32            /* mdlen = 32 (SHA3-256) */
+    jal     x1, sha3_init
+    lw      x10, 4(sp)
+    lw      x11, 0(sp)
+    la      x12, hmac_key_hashed
+    sw      x12, 4(sp)             /* reuse slot for key_hashed ptr */
+    lw      x12, 0(sp)             /* key_len */
+    jal     x1, sha3_update         /* sha3_update(context, key, key_len) */
+    la      x10, context
+    la      x11, hmac_key_hashed
+    jal     x1, sha3_final          /* H(key) → hmac_key_hashed */
 
-  la      x10, context
-  la      x11, key_buf             /*  key_buf stores H(key) */
-  jal     x1, sha3_final
+    la      x10, hmac_key_hashed
+    addi    x11, x0, 32
 
-  la      x5, key_buf
-  sw      x5, 56(sp)
-  li      x5, 32
-  sw      x5, 52(sp)
-  
-  lw      x18, 56(sp)
-  lw      x19, 52(sp)
+hmac_key_ok:
+    /* x10 = key_ptr, x11 = key_len */
 
-key_preprocess_done:
+    /* ---- 构造 ipad + opad: 用 bn.lid/bn.sid 一次搬 32B ----
+     * ipad = 0x36... XOR key, opad = 0x5C... XOR key */
+    la      x5, hmac_ipad
+    la      x6, hmac_opad
+    la      x12, const_0x36
+    la      x13, const_0x5c
+    li      x4, 0
+    li      x7, 5                  /* 160B / 32B = 5 */
+1:  bn.lid  x4, 0(x12++)
+    bn.sid  x4, 0(x5++)
+    bn.lid  x4, 0(x13++)
+    bn.sid  x4, 0(x6++)
+    addi    x7, x7, -1
+    bne     x7, x0, 1b
 
-  /* ==========================================
-   * 步骤 1.2: 初始化 ipad 和 opad 为 0
-   * ========================================== */
-  la      x5, ipad
-  li      x6, 0
-  LOOPI   34, 2
-    sw    x6, 0(x5)
-    addi  x5, x5, 4
-  
-  la      x5, opad
-  LOOPI   34, 2
-    sw    x6, 0(x5)
-    addi  x5, x5, 4
+    /* ---- XOR key into ipad/opad ---- */
+    la      x5, hmac_ipad
+    la      x6, hmac_opad
+    srli    x7, x11, 2            /* key_len / 4 (full words) */
+    beq     x7, x0, key_tail
 
-  /* ==========================================
-   * 步骤 1.3: 按字拷贝 Key 到 ipad 和 opad
-   * ========================================== */
-  la      x16, ipad
-  la      x17, opad
-  srli    x7, x19, 2
-  beq     x7, x0, copy_key_tail
+key_wloop:
+    lw      x8, 0(x10)
+    lw      x9, 0(x5)
+    lw      x15, 0(x6)
+    xor     x9, x9, x8
+    xor     x15, x15, x8
+    sw      x9, 0(x5)
+    sw      x15, 0(x6)
+    addi    x10, x10, 4
+    addi    x5, x5, 4
+    addi    x6, x6, 4
+    addi    x7, x7, -1
+    bne     x7, x0, key_wloop
 
-copy_word_loop:
-  lw      x5, 0(x18)
-  sw      x5, 0(x16)
-  sw      x5, 0(x17)
-  addi    x18, x18, 4
-  addi    x16, x16, 4
-  addi    x17, x17, 4
-  addi    x7, x7, -1
-  bne     x7, x0, copy_word_loop
+key_tail:
+    andi    x7, x11, 3            /* tail bytes (1-3) */
+    beq     x7, x0, hmac_inner_hash
 
-/* ==========================================
- * 步骤 1.4: 处理不足 4 字节的尾部 
- * ========================================== */
-copy_key_tail:
-  andi    x7, x19, 0x3
-  beq     x7, x0, key_copy_done
-  
-  lw      x28, 0(x18)
-  
-  li      x5, 0x00FFFFFF           /* Default mask: 3 bytes */
-  li      x6, 1
-  beq     x7, x6, set_mask_1
-  li      x6, 2
-  beq     x7, x6, set_mask_2
-  jal     x1, apply_tail_mask
-  
-set_mask_1:
-  li      x5, 0x000000FF
-  jal     x1, apply_tail_mask
-  
-set_mask_2:
-  li      x5, 0x0000FFFF
+    li      x16, 1
+    slli    x17, x7, 3
+    sll     x16, x16, x17
+    addi    x16, x16, -1           /* byte mask */
 
-apply_tail_mask:
-  and     x28, x28, x5
-  sw      x28, 0(x16)
-  sw      x28, 0(x17)
+    lw      x8, 0(x10)
+    and     x8, x8, x16
 
-key_copy_done:
+    lw      x9, 0(x5)
+    xor     x9, x9, x8
+    sw      x9, 0(x5)
 
-  /* ==========================================
-   * 步骤 2: ipad 异或 0x36，opad 异或 0x5c
-   * ========================================== */
-  li      x9, 0x36363636
-  la      x5, ipad
-  LOOPI   34, 4
-    lw    x6, 0(x5)
-    xor   x6, x6, x9
-    sw    x6, 0(x5)
-    addi  x5, x5, 4
+    lw      x9, 0(x6)
+    xor     x9, x9, x8
+    sw      x9, 0(x6)
 
-  li      x9, 0x5c5c5c5c
-  la      x5, opad
-  LOOPI   34, 4
-    lw    x6, 0(x5)
-    xor   x6, x6, x9
-    sw    x6, 0(x5)
-    addi  x5, x5, 4
+    /* ---- 内部哈希: inner = SHA3-256(ipad[0:136] || message) ---- */
+hmac_inner_hash:
+    la      x10, context
+    addi    x11, x0, 32
+    jal     x1, sha3_init
 
-  /* ------------------------------------------
-   * 步骤 3: 内部哈希 H(ipad || message)
-   * ------------------------------------------ */
-  la      x10, context
-  li      x11, 32
-  jal     x1, sha3_init
+    la      x10, context
+    la      x11, hmac_ipad
+    addi    x12, x0, 136
+    jal     x1, sha3_update
 
-  la      x10, context
-  la      x11, ipad
-  li      x12, 136
-  jal     x1, sha3_update
+    la      x10, context
+    lw      x11, 16(sp)           /* msg_ptr */
+    lw      x12, 12(sp)           /* msg_len */
+    jal     x1, sha3_update
 
-  la      x10, context
-  lw      x11, 48(sp)
-  lw      x12, 44(sp)
-  jal     x1, sha3_update
+    la      x10, context
+    la      x11, hmac_inner
+    jal     x1, sha3_final
 
-  la      x10, context
-  la      x11, inner_hash
-  jal     x1, sha3_final
+    /* ---- 外部哈希: result = SHA3-256(opad[0:136] || hmac_inner[0:32]) ---- */
+    la      x10, context
+    addi    x11, x0, 32
+    jal     x1, sha3_init
 
-  /* ------------------------------------------
-   * 步骤 4: 外部哈希 H(opad || inner_hash)
-   * ------------------------------------------ */
-  la      x10, context
-  li      x11, 32
-  jal     x1, sha3_init
+    la      x10, context
+    la      x11, hmac_opad
+    addi    x12, x0, 136
+    jal     x1, sha3_update
 
-  la      x10, context
-  la      x11, opad
-  li      x12, 136
-  jal     x1, sha3_update
+    la      x10, context
+    la      x11, hmac_inner
+    addi    x12, x0, 32
+    jal     x1, sha3_update
 
-  la      x10, context
-  la      x11, inner_hash
-  li      x12, 32
-  jal     x1, sha3_update
+    la      x10, context
+    lw      x11, 8(sp)            /* out_ptr */
+    jal     x1, sha3_final
 
-  la      x10, context
-  lw      x11, 40(sp)
-  jal     x1, sha3_final
-
-  lw      ra, 60(sp)
-  addi    sp, sp, 64
-  ret
+    /* ---- Return ---- */
+    lw      ra, 20(sp)
+    addi    sp, sp, 24
+    ret

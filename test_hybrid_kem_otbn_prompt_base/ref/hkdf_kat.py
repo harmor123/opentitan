@@ -24,10 +24,10 @@ ss_m = bytes.fromhex(
     "3750ac4a8e656327c3d181fab002554b"
     "f6d2be0475dd28d5f31bef9f835f86ac")
 
-salt   = bytes(32)              # salt (32B, all-zero if empty)
-info   = b""                    # info="" (KEM layer, no role binding)
-ctx    = b""                    # context binding
-sid    = b""                    # session ID
+salt   = bytes(range(32))                           # 0x00..0x1f
+info   = bytes(range(1, 17))                        # kInfo[16] = 0x01..0x10
+ctx    = b"HybridKEM-v1-context-0123456789A"       # kCtx[32]
+sid    = b"Session-042-run-XYZ9876543210fed"       # kSid[32]
 okm_len = int(sys.argv[1]) if len(sys.argv) > 1 else 32
 
 # ============ IKM construction ============

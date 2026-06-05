@@ -6,71 +6,52 @@
 |------|------|------|
 | v0.1 | 2026-05-25 | 初始创建：目录结构、Ibex C 调度框架、OTBN 汇编包装器 |
 | v0.2 | 2026-05-25 | HKDF/HMAC 纯软件实现（sha3_init/update/final 替代 KMAC 硬件） |
-| v0.3 | 2026-05-25 | ML-KEM 三阶段包装器：keypair/encap/decap 独立 OTBN 二进制 |
-| v0.4 | 2026-05-25 | P-256 ECDH 包装器集成 |
-| v0.5 | 2026-05-25 | Ibex 侧性能测量 (mcycle CSR)：周期数/DMEM读写/调用次数统计 |
-| v0.6 | 2026-05-25 | 顶层 BUILD：test + prod 双模式（HYBRID_KEM_TEST_MODE） |
-| v0.7 | 2026-05-25 | 文档完善：API/USAGE/REVISION/SECURITY_AND_TEST/RTL |
-| v1.0 | 2026-05-25 | 重构 HMAC/HKDF 为纯函数库（仿参考版模式）：hmac_sha3_256 入口，bn.lid/bn.sid 常量加载，const_0x36/const_0x5c 外部提供 |
-| v1.1 | 2026-05-25 | HKDF 二进制包装器 hkdf_wrapper.s：定义所有 DMEM 标签 + main 入口 |
-| v1.2 | 2026-05-25 | 移除 hkdf_integration.{c,h}：HKDF IKM 构建内联到 hybrid_kem.c 的 phase_hkdf() |
-| v1.3 | 2026-05-25 | SHA3 测试替换为 kyber_ver0_base/hash/sha3_shake_test（dexp 格式） |
-| v1.5 | 2026-05-25 | otbn/test/ 完整测试套件：7 个 otbn_sim_test 全部通过 |
+| v0.3 | 2026-05-25 | ML-KEM 三阶段：keypair/encap/decap 库代码迁移自 test/kyber_ver0_base |
+| v0.4 | 2026-05-25 | P-256 ECDH 集成（同 HW 版） |
+| v0.5 | 2026-06-05 | rc 布局修复: hmac_test.s / hkdf_test.s 每个 .dword 加 .balign 32 (bn.lid 32B 步进) |
+| v0.6 | 2026-06-05 | w31 初始化修复: sha3_shake_test.s / hkdf_test.s 添加 bn.xor w31,w31,w31 |
+| v0.7 | 2026-06-05 | ML-KEM 测试改用 test/kyber_ver0_base 原始版本 |
+| v0.8 | 2026-06-05 | mlkem768/BUILD 移除重复 sha3_shake 规则 |
+| v0.9 | 2026-06-05 | co_sim/ 脚本清理: 去除 bnmulv_ver2，路径指向 base |
+| v1.0 | 2026-06-05 | **全部 ISS / co_sim / Chip Sim 通过** |
+| v1.1 | 2026-06-05 | hmac.s 重写对齐 HW 结构，sha3_shake.s ra 覆盖修复 (x17 保存/恢复) |
+| v1.2 | 2026-06-05 | ibex/*.c 清理调试 LOG_INFO，ref/*.py 测试向量更新 (HW+base 同步) |
 
----
+## 当前测试状态
 
-## 与参考版 (test_hybrid_kem_otbn_prompt) 的差异总结
+| 测试 | ISS | co_sim | Chip Sim |
+|------|-----|--------|----------|
+| SHA3 | PASSED | PASSED | — |
+| HMAC | PASSED | PASSED | — |
+| HKDF | PASSED | PASSED | PASSED |
+| P-256 ECDH | PASSED | PASSED | PASSED |
+| ML-KEM keypair | PASSED | PASSED | PASSED |
+| ML-KEM encap | PASSED | PASSED | PASSED |
+| ML-KEM decap | PASSED | PASSED | PASSED |
+| Phase 1 KeyGen | — | — | PASSED |
+| Phase 2 Alice | — | — | PASSED |
+| Phase 2 Bob | — | — | PASSED |
 
-### 不需要的修改（纯软件基线特有无需）
+## 关键修复记录
 
-| 项目 | 参考版修改 | 基线版状态 |
-|------|-----------|-----------|
-| `rules/otbn.bzl` | copts + BNMULV_VER 支持 | **无需修改** |
-| `hw/ip/otbn/util/otbn_as.py` | --bnmulv_version_id CLI 参数 | **无需修改** |
-| `hw/ip/otbn/rtl/otbn_decoder.sv` | BN.SHV/TRN/ADDVM 解码 | **无需修改** |
-| `hw/ip/otbn/rtl/otbn_predecode.sv` | 16H 向量预解码 | **无需修改** |
-| `hw/ip/otbn/rtl/otbn_alu_bignum.sv` | buffer_bit 16H 加法器 | **无需修改** |
-| `hw/ip/otbn/rtl/otbn_controller.sv` | vector_type/vector_sel 穿透 | **无需修改** |
-| `hw/ip/otbn/rtl/otbn_vec_transposer.sv` | 16H 转置器 | **无需修改** |
+### rc 布局 (v0.5)
 
-### 新增文件（基线版特有）
+keccakf 使用 `bn.lid x31, 0(x6++)` 加载轮常量，每次加载 32B 并步进 32。hmac_test.s / hkdf_test.s 的 rc 原本是 packed (8B 间距)，需改为每个 .dword 独占 32B 槽（加 .balign 32），否则第 7-24 轮读取越界数据。
 
-| 文件 | 说明 |
-|------|------|
-| `otbn/hkdf/hmac_sha3.s` | 纯函数库 HMAC-SHA3-256（sha3_init/update/final，无 KMAC，无数据段） |
-| `otbn/hkdf/hkdf_sha3_256.s` | 纯函数库 HKDF（hkdf_extract / hkdf_expand，无数据段） |
-| `otbn/hkdf/hkdf_wrapper.s` | HKDF 二进制包装器（定义所有 DMEM 标签 + main 入口） |
-| `otbn/hkdf/sha3_shake.s` | Keccak-f[1600] 纯软件实现（来自 kyber_ver0_base） |
-| `otbn/mlkem768/mlkem_keypair_test.s` | Keypair 二进制包装器 → crypto_kem_keypair |
-| `otbn/mlkem768/mlkem_encap_test.s` | Encap 二进制包装器 → crypto_kem_enc |
-| `otbn/mlkem768/mlkem_decap_test.s` | Decap 二进制包装器 → crypto_kem_dec |
-| `otbn/p256_ecdh/p256_ecdh_test.s` | P-256 二进制包装器 → p256_shared_key |
-| `otbn/test/` | 7 个 otbn_sim_test：sha3_shake / hmac / hkdf / mlkem×3 / p256 |
-| `ibex/otbn_utils.h` | MCYCLE 读取 + 性能测量宏 |
+### w31 初始化 (v0.6)
 
-### 复用文件（来自 kyber_ver0_base）
+sha3_shake.s 所有函数要求 w31 为全零 WDR 常数。ISS 默认清零 WDR，但 RTL 未初始化。sha3_shake_test.s / hkdf_test.s 缺少 `bn.xor w31, w31, w31`，导致 co_sim RTL/ISS 发散。
 
-| 文件 | 来源 |
-|------|------|
-| `sha3_shake.s` | `test/kyber_ver0_base/hash/sha3_shake.s`（仅 otbn/hkdf/） |
-| `mlkem_keypair_kp.s` | `test/kyber_ver0_base/mlkem768_keypair_ver0/mlkem_keypair.s` |
-| `mlkem_encap.s` | `test/kyber_ver0_base/mlkem768_encap_ver0/mlkem_encap.s` |
-| `mlkem_decap.s` | `test/kyber_ver0_base/mlkem768_decap_ver0/mlkem_decap.s` |
-| `mlkem_decap_encap.s` | `test/kyber_ver0_base/mlkem768_decap_ver0/mlkem_encap.s` |
-| `{basemul,cbd,intt,ntt,symmetric}.s` | `test/kyber_ver0_base/mlkem768_keypair_ver0/`（symmetric.s 提供 SHA3） |
-| `{pack_keys,poly,poly_gen_matrix}.s` | `test/kyber_ver0_base/mlkem768_keypair_ver0/` |
-| `pack_ciphertext.s` | `test/kyber_ver0_base/mlkem768_encap_ver0/` |
-| `p256_{shared_key,base,isoncurve_proj}.s` | `test/kyber_ver0_base/p256_shared_keys/` |
-| `sha3_shake_test.s / .exp` | `test/kyber_ver0_base/hash/` |
+### mlkem768/BUILD 重复规则 (v0.8)
 
----
+mlkem768/BUILD 第 18-19 行 `sha3_shake` 规则重复定义，导致 `bazel test ...:all` 分析失败。
 
-## 已知限制
+## 与 HW 版 (test_hybrid_kem_otbn_prompt) 差异
 
-| 项目 | 说明 |
-|------|------|
-| 指令计数阈值 | `HYBRID_KEM_INSNS_*` 当前全部为 0（跳过验证），需 OTBN 仿真器实测后填入 |
-| P-256 unmask | 布尔共享 XOR 还原在 Ibex 侧执行，生产代码应移入 OTBN 内部 |
-| checksum 验证 | 当前未启用 CRC32 checksum 验证（纯软件基线可后续添加） |
-| 模 n 拆分 | P-256 标量算术份额拆分简化实现（高位填零），需完整模 n 运算 |
-| Verilator 集成测试 | OTBN DMEM ECC 错误 (Alert 48) — 纯软件基线待修复 |
+| 项目 | HW | SW (base) |
+|------|-----|-----------|
+| ML-KEM | BNMULV_VER2 加速 | 纯软件基线指令 |
+| SHA3/HMAC | KMAC 硬件加速 | 纯软件 Keccak-f |
+| HKDF | hkdf_sha3_256.s + KMAC | 同接口，内部用 SW hmac.s |
+| P-256 | p256_base.s | 完全相同 |
+| 测试向量 | .dexp | 相同 |
