@@ -73,7 +73,6 @@ otbn_sim_test(
     srcs = ["p256_ecdh_shared_key_test.s"],
     deps = [
         "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_base_lib",
-        "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_isoncurve_lib",
         "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_isoncurve_proj_lib",
         "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_shared_key_lib",
     ],

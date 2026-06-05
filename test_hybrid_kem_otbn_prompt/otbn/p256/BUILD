@@ -8,11 +8,6 @@ otbn_library(
 )
 
 otbn_library(
-    name = "p256_isoncurve_lib",
-    srcs = ["p256_isoncurve.s"],
-)
-
-otbn_library(
     name = "p256_isoncurve_proj_lib",
     srcs = ["p256_isoncurve_proj.s"],
 )
@@ -27,7 +22,6 @@ otbn_binary(
     srcs = [
         "//test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_shared_key_test.s",
         "p256_base.s",
-        "p256_isoncurve.s",
         "p256_isoncurve_proj.s",
         "p256_shared_key.s",
     ],
