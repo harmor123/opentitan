@@ -114,59 +114,54 @@ poly_tomsg:
 
 .globl poly_getnoise_eta_1
 poly_getnoise_eta_1:
-  addi x2, x2, -8
+  addi x2, x2, -12
   sw   x11, 4(x2)
   sw   x6, 0(x2)
 
-  .irp reg,x5,x6,x7,x28,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4      /* Decrement stack pointer by 4 bytes */
-    sw \reg, 0(sp)      /* Store register value at the top of the stack */
-  .endr
-
   /* Initialize a SHAKE256 operation. */
-  add x3, x0, x10 /* input seed */
-  add x9, fp, x13   /* fp + STACK_NONCE */
-  la  x18, context
-  add x19, x0, x6 /* dmem_ptr to SHAKE256 result buffer */
+  add x3, x0, x10
+  add x9, fp, x13
+  add x20, x0, x6
 
-  add x10, x0, x18
-  li  x11, 32
-  jal x1, sha3_init 
+  /* Initialize SHAKE256 (Mode 3) */
+  addi x10, x0, 3       
+  jal  x1, kmac_init 
 
-  add x10, x0, x18 
-  add x11, x0, x3 
-  li  x12, 32
-  jal x1, sha3_update
+  /* Absorb Seed (32 bytes) */
+  add  x10, x0, x3 
+  addi x11, x0, 32
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18
-  add x11, x0, x9 
-  li  x12, 1
-  jal x1, sha3_update
+  /* Absorb Nonce (1 byte) */
+  add  x10, x0, x9 
+  addi x11, x0, 1
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18 
-  jal x1, shake_xof 
+  /* End Absorb, enter Squeeze */
+  jal  x1, kmac_process
 
-  li  x9, 0
-  LOOPI 4, 5
-    add x10, x0, x18
-    add x11, x9, x19 
-    add x12, x0, 32 
-    jal x1, shake_out
-    add x9, x9, 32
-  
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x28,x7,x6,x5
-    lw \reg, 0(sp)      /* Load value from the top of the stack into register */
-    addi sp, sp, 4     /* Increment stack pointer by 4 bytes */
-  .endr
+  /* 1 time direct squeeze + 3 times loop squeeze */
+  add  x10, x0, x20 
+  jal  x1, kmac_squeeze_32B
 
+  addi x9, x0, 32
+
+  LOOPI 3, 3
+    add  x10, x9, x20
+    jal  x1, kmac_squeeze_32B
+    addi x9, x9, 32
+
+  /* Release KMAC hardware back to IDLE */
+  jal  x1, kmac_done
+      
   lw     x10, 0(x2)
   lw     x11, 4(x2)
   bn.add w8, w0, w0
 
   jal x1, cbd2
 
-  addi x2, x2, 8
 
+  addi x2, x2, 12
   ret
 
 /*
@@ -193,59 +188,52 @@ poly_getnoise_eta_1:
 
 .globl poly_getnoise_eta_2
 poly_getnoise_eta_2:
-
-  addi x2, x2, -8
+  addi x2, x2, -12
   sw   x11, 4(x2)
-  sw   x6, 0(x2)  
-
-  .irp reg,x5,x6,x7,x28,x30,x31,x10,x11,x12,x13,x14,x15,x16
-    addi sp, sp, -4      /* Decrement stack pointer by 4 bytes */
-    sw \reg, 0(sp)      /* Store register value at the top of the stack */
-  .endr
+  sw   x6, 0(x2)
 
   /* Initialize a SHAKE256 operation. */
-  add x3, x0, x10 /* input seed */
-  add x9, fp, x13   /* fp + STACK_NONCE */
-  la  x18, context
-  add x19, x0, x6 /* dmem_ptr to SHAKE256 result buffer */
+  add x3, x0, x10
+  add x9, fp, x13
+  add x20, x0, x6
 
-  add x10, x0, x18
-  li  x11, 32
-  jal x1, sha3_init 
+  /* Initialize SHAKE256 (Mode 3) */
+  addi x10, x0, 3       
+  jal  x1, kmac_init 
 
-  add x10, x0, x18 
-  add x11, x0, x3 
-  li  x12, 32
-  jal x1, sha3_update
+  /* Absorb Seed (32 bytes) */
+  add  x10, x0, x3 
+  addi x11, x0, 32
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18
-  add x11, x0, x9 
-  li  x12, 1
-  jal x1, sha3_update
+  /* Absorb Nonce (1 byte) */
+  add  x10, x0, x9 
+  addi x11, x0, 1
+  jal  x1, keccak_send_message
 
-  add x10, x0, x18 
-  jal x1, shake_xof 
+  /* End Absorb, enter Squeeze */
+  jal  x1, kmac_process
 
-  li  x9, 0
-  LOOPI 4, 5
-    add x10, x0, x18
-    add x11, x9, x19 
-    add x12, x0, 32 
-    jal x1, shake_out
-    add x9, x9, 32
-  
-  .irp reg,x16,x15,x14,x13,x12,x11,x10,x31,x30,x28,x7,x6,x5
-    lw \reg, 0(sp)      /* Load value from the top of the stack into register */
-    addi sp, sp, 4     /* Increment stack pointer by 4 bytes */
-  .endr
+  /* 1 time direct squeeze + 3 times loop squeeze */
+  add  x10, x0, x20 
+  jal  x1, kmac_squeeze_32B
 
+  addi x9, x0, 32
+
+  LOOPI 3, 3
+    add  x10, x9, x20
+    jal  x1, kmac_squeeze_32B
+    addi x9, x9, 32
+
+  /* Release KMAC hardware back to IDLE */
+  jal  x1, kmac_done
+      
   lw     x10, 0(x2)
   lw     x11, 4(x2)
   bn.add w8, w0, w0
   jal    x1, cbd2
 
-  addi x2, x2, 8
-
+  addi x2, x2, 12
   ret
 
 /*

@@ -42,12 +42,15 @@ bazel test //test_hybrid_kem_otbn_prompt_ver0:phase2_bob_decap_test_sim_verilato
 
 | | HW (prompt) | SW (prompt_base) |
 |------|------|------|
-| ML-KEM | BNMULV_VER2 加速 | 纯软件基线指令 |
-| SHA3/HMAC | KMAC 硬件加速 | 纯软件 Keccak-f (`sha3_shake.s`) |
-| HKDF | `hkdf_sha3_256.s` + KMAC | hkdf_sha3_256.s + hmac.s (纯软件) |
-| P-256 | `p256_base.s` | 完全相同 |
-| co_sim | RTL+ISS 对比 (验证硬件改动) | 不需要 (无 RTL 改动) |
-| 测试向量 | 相同 .dexp | 相同 .dexp |
+## 三版本对比
+
+| | ver0 (纯软件) | ver1 (KMAC混合) | ver2 (硬件加速) |
+|------|------|------|------|
+| ML-KEM 指令集 | 基线 | 基线 | BNMULV_VER2 |
+| ML-KEM 哈希 | 软件 Keccak-f | KMAC 硬件 | KMAC 硬件 |
+| SHA3/HMAC | 软件 Keccak-f | KMAC 硬件 | KMAC 硬件 |
+| HKDF | 软件 HMAC | KMAC 硬件 | KMAC 硬件 |
+| P-256 | 软件 | 软件 | 软件 |
 
 ## 目录
 

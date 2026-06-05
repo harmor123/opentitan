@@ -31,22 +31,35 @@ indcpa_keypair:
   sw  x12, -24(fp)
 
   /*** hash_g: SHA3-512 ***/
-  la   x10, context
-  li   x11, 64 /* output len */
-  jal  x1, sha3_init
-  la   x10, context
-  lw   x11, -16(fp)
-  li   x12, 32 /* input len */
-  jal  x1, sha3_update
+  /* Initialize SHA3-512 (Mode 1) */
+  addi  x10, x0, 1              
+  jal   x1, kmac_init
+
+  /* Send seed (32 bytes) */
+  lw    x10, -16(fp)            /* Load seed pointer */
+  addi  x11, x0, 32             /* Length 32 */
+  jal   x1, keccak_send_message
+
+  /* Send 0x03 byte */
   addi  x11, x0, 3
-  sw    x11, -128(fp)
-  la    x10, context
-  addi  x11, fp, -128
-  addi  x12, x0, 1
-  jal   x1, sha3_update
-  la   x10, context
-  addi x11, fp, -128
-  jal  x1, sha3_final
+  sw    x11, -128(fp)           /* Store 0x03 in stack frame temporary space */
+  addi  x10, fp, -128
+  addi  x11, x0, 1              /* Length 1 */
+  jal   x1, keccak_send_message
+
+  /* End Absorb, enter Squeeze */
+  jal   x1, kmac_process
+
+  /* Extract first 32 bytes to fp-128 */
+  addi  x10, fp, -128
+  jal   x1, kmac_squeeze_32B
+
+  /* Continue extracting next 32 bytes to fp-96 */
+  addi  x10, fp, -96
+  jal   x1, kmac_squeeze_32B
+
+  /* Release KMAC hardware */
+  jal   x1, kmac_done
 
   /*** CBD skpv ***/
   li   x15, -2176 
@@ -206,31 +219,37 @@ crypto_kem_keypair:
     bn.lid x4, 0(x10++)
     bn.sid x4, 0(x11++)
 
+  add   x12, x0, x11           # x12 = sk + 2336 (x11 after LOOPI)
+  
   /*** hash_h ***/
-  la   x10, context
-  li   x11, 32
-  jal  x1, sha3_init
-  la   x10, context
-  lw   x11, -32(fp)
-  li   x12, 1184
-  jal  x1, sha3_update
-  la   x10, context
-  lw   x11, -24(fp)
-  addi x11, x11, 1184
-  addi x11, x11, 1152
-  jal  x1, sha3_final
+  /* Initialize SHA3-256 (Mode 0) */
+  addi  x10, x0, 0              
+  jal   x1, kmac_init
+
+  /* Send pk (1184 bytes) */
+  lw    x10, -32(fp)            /* Load pk pointer */
+  addi  x11, x0, 1184           /* Length 1184 */
+  jal   x1, keccak_send_message
+
+  /* End Absorb, enter Squeeze */
+  jal   x1, kmac_process
+
+  /* Squeeze 32 bytes into sk + 2336 (x12 has saved this value) */
+  add   x10, x0, x12            /* x10 = sk + 2336 */
+  jal   x1, kmac_squeeze_32B
+
+  /* Release KMAC hardware */
+  jal   x1, kmac_done
+
 
   /*** Random bytes ***/
   lw      x10, -16(fp)
   addi    x10, x10, 32 
   li      x5, 8
   bn.lid  x5, 0(x10)
-#   bn.sid  x5, 0(x11++)      # 一行或者下面存x12 等价
 
-  /* Reload sk base address and calculate z offset (1152 + 1184 + 32 = 2368) */
-  lw      x12, -24(fp)       # 从栈帧加载 sk 基地址
-  li      x6, 2368           # 用临时寄存器加载大立即数
-  add     x12, x12, x6       # x12 = sk + 2368
+  /* x12 = sk + 2368 (sk+2336 + 32) */
+  addi  x12, x12, 32         # x12 = sk + 2368
   bn.sid  x5, 0(x12++)       # 存储 z
 
   /* Free space on stack */

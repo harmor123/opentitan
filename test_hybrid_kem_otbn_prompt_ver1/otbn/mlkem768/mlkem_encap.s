@@ -261,34 +261,44 @@ crypto_kem_enc:
 
  
   /*** hash_h(pk) ***/
-  la   x10, context
-  li   x11, 32
-  jal  x1, sha3_init
-  la   x10, context
-  lw   x11, -24(fp)
-  li   x12, 1184  /***x12 is corrupted ***/
-  jal  x1, sha3_update
-  la   x10, context
-  li   x11, -1120
-  add  x11, fp, x11 
-  addi x11, x11, 32
-  jal  x1, sha3_final
+  /* Use hardware SHA3-256 (Mode 0) */
+  addi  x10, x0, 0       /* Mode 0 = SHA3-256 */
+  jal   x1, kmac_init
+
+  lw    x10, -24(fp)     /* x10 = pk pointer */
+  addi  x11, x0, 1184    /* x11 = pk length */
+  jal   x1, keccak_send_message
+
+  jal   x1, kmac_process
+
+  addi  x10, fp, -1120
+  addi  x10, x10, 32     /* x10 = output pointer (fp-1088), immediately after randombytes */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done
 
 
   /*** hash_g(randombytes||hash_h(pk)) ***/
-  la   x10, context
-  li   x11, 64
-  jal  x1, sha3_init
-  la   x10, context
-  li   x11, -1120
-  add  x11, fp, x11
-  li   x12, 64 /***x12 is corrupted ***/
-  jal  x1, sha3_update
-  la   x10, context
-  lw   x11, -20(fp)
-  jal  x1, sha3_final
+  /* Note: at fp-1120 there are exactly 32 bytes randombytes + 32 bytes hash_h(pk) = 64 bytes */
+  /* Use hardware SHA3-512 (Mode 1) */
+  addi  x10, x0, 1       /* Mode 1 = SHA3-512 */
+  jal   x1, kmac_init
 
- /* At this point, the ss memory region is: first 32 bytes = K, last 32 bytes = r */
+  addi  x10, fp, -1120   /* x10 = message pointer (randombytes || hash_h(pk)) */
+  addi  x11, x0, 64      /* x11 = message length 64 bytes */
+  jal   x1, keccak_send_message
+
+  jal   x1, kmac_process
+
+  lw    x10, -20(fp)     /* x10 = ss pointer, first 32 bytes write K */
+  jal   x1, kmac_squeeze_32B
+
+  addi  x10, x10, 32     /* x10 = ss pointer + 32, next 32 bytes write r */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done
+
+ /* At this point the ss memory area is: first 32 bytes = K, next 32 bytes = r */
   
   /*** indcpa_enc ***/
   li  x10, -1120

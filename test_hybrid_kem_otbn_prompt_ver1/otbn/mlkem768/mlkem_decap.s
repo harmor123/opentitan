@@ -145,18 +145,27 @@ crypto_kem_dec:
   bn.sid x4, 0(x13++)
 
   /*** hash_g(buf) ***/
-  la   x10, context
-  li   x11, 64
-  jal  x1, sha3_init
-  la   x10, context
-  li   x11, -4320
-  add  x11, fp, x11
-  li   x12, 64
-  jal  x1, sha3_update
-  la   x10, context
-  li   x11, -4256
-  add  x11, fp, x11 
-  jal  x1, sha3_final
+  /* Use hardware SHA3-512 (Mode 1) */
+  addi  x10, x0, 1       /* Mode 1 = SHA3-512 */
+  jal   x1, kmac_init
+
+  li    x10, -4320
+  add   x10, fp, x10     /* x10 = buf pointer */
+  addi  x11, x0, 64      /* x11 = message length 64 bytes */
+  jal   x1, keccak_send_message
+
+  jal   x1, kmac_process
+
+  li    x10, -4256
+  add   x10, fp, x10     /* x10 = output pointer (buf+64), write first 32 bytes (K') */
+  jal   x1, kmac_squeeze_32B
+
+  addi  x10, x10, 32     /* x10 = output pointer (buf+96), write last 32 bytes (r') */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done    /* Note: must be kmac_done, cannot be kmac_release */
+
+
 
   /*** indcpa_enc ***/
   li   x10, -4320
@@ -170,30 +179,29 @@ crypto_kem_dec:
   jal  x1, indcpa_enc
 
   /*** shake256(z||c,32) ***/
-  la   x10, context
-  li   x11, 32
-  jal  x1, sha3_init
+  /* Use hardware SHAKE256 (Mode 3) */
+  addi  x10, x0, 3       /* Mode 3 = SHAKE256 */
+  jal   x1, kmac_init
 
-  la   x10, context
-  lw   x11, -12(fp)
-  addi x11, x11, 32 
-  li   x12, 32
-  jal x1, sha3_update
+  lw    x10, -12(fp)     /* x10 = sk+1152 pointer */
+  addi  x10, x10, 32     /* x10 = z pointer (sk+1184) */
+  addi  x11, x0, 32      /* x11 = z length */
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  lw   x11, -20(fp)
-  li   x12, 1088
-  jal  x1, sha3_update
+  lw    x10, -20(fp)     /* x10 = ct pointer */
+  li    x11, 1088        /* x11 = ct length */
+  jal   x1, keccak_send_message
 
-  la   x10, context
-  jal  x1, shake_xof
+  jal   x1, kmac_process
 
-  la   x10, context
-  li   x11, -4256
-  add  x11, fp, x11
-  addi x11, x11, 32
-  addi x12, x0, 32
-  jal  x1, shake_out
+  li    x10, -4256
+  add   x10, fp, x10
+  addi  x10, x10, 32     /* x10 = output pointer (buf+96) */
+  jal   x1, kmac_squeeze_32B
+
+  jal   x1, kmac_done    /* Note: must be kmac_done, release hardware back to IDLE */
+ 
+
 
   /*** verify: ct == cmp ? ***/
   li      x5, 0

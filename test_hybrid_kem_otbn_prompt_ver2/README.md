@@ -40,13 +40,13 @@ test_hybrid_kem_otbn_prompt_ver2/
 
 ## 三版本对比
 
-| | ver0 (纯软件) | ver1 (混合) | ver2 (硬件加速) |
+| | ver0 (纯软件) | ver1 (KMAC混合) | ver2 (硬件加速) |
 |------|------|------|------|
-| ML-KEM | 基线指令 | 基线指令 | BNMULV_VER2 |
+| ML-KEM 指令集 | 基线 | 基线 | BNMULV_VER2 |
+| ML-KEM 哈希 | 软件 Keccak-f | KMAC 硬件 | KMAC 硬件 |
 | SHA3/HMAC | 软件 Keccak-f | KMAC 硬件 | KMAC 硬件 |
 | HKDF | 软件 HMAC | KMAC 硬件 | KMAC 硬件 |
-| P-256 | 软件 | 软件（同 ver0） | 软件（同 ver0） |
-| co_sim | 需要 | 需要 | 需要 |
+| P-256 | 软件 | 软件 | 软件 |
 
 ## 测试状态 (2026-06-05)
 

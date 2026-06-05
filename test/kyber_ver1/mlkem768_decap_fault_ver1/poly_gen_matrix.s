@@ -90,15 +90,14 @@ _aligned:
   li x20, 13
   li x18, 16 /* 1 WDR stores 16 coeffs */
   li x21, 0
-  li x7, 0   /* first-iteration flag: 0 = skip kmac_run */
 
   /* Loop until 256 coefficients have been written to the output */
 _rej_sample_loop:
   /* ─── Save live registers before squeeze ───
-   * kmac_run clobbers: x5, x6
    * kmac_squeeze_32B clobbers: x5, x6, w8, w9, w10 (reads x10)
+   * kmac_squeeze_32B internally calls kmac_run when block exhausted.
    * MUST preserve: x5 (end address), w10 (coeff_mask)
-   * x11 is SAFE (not touched by kmac_run or kmac_squeeze_32B)
+   * x11 is SAFE (not touched by kmac_squeeze_32B)
    */
   sw   x5, -44(fp)       /* Save end address */
 
@@ -109,15 +108,7 @@ _rej_sample_loop:
   li   x6, 10
   bn.sid x6, 0(x13)
 
-  /* State machine: skip kmac_run on first iteration */
-  bne  x7, x0, _run_first
-  addi x7, x0, 1
-  jal  x0, _skip_first
-_run_first:
-  jal  x1, kmac_run
-_skip_first:
-
-  /* First squeeze */
+  /* Squeeze — block boundaries handled automatically */
   addi  x10, fp, -32
   jal   x1, kmac_squeeze_32B
 

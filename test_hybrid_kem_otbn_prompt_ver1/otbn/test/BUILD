@@ -32,7 +32,7 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:poly",
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:poly_gen_matrix",
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:mlkem_keypair",
-        "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:sha3_shake",
+        "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:kmac_sha3_template",
     ],
 )
 
@@ -50,7 +50,7 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:poly",
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:poly_gen_matrix",
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:mlkem_encap",
-        "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:sha3_shake",
+        "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:kmac_sha3_template",
     ],
 )
 
@@ -69,7 +69,7 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:poly_gen_matrix",
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:mlkem_encap",
         "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:mlkem_decap",
-        "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:sha3_shake",
+        "//test_hybrid_kem_otbn_prompt_ver1/otbn/mlkem768:kmac_sha3_template",
     ],
 )
 
