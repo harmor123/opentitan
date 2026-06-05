@@ -266,7 +266,7 @@ crypto_kem_enc:
   jal  x1, sha3_init
   la   x10, context
   lw   x11, -24(fp)
-  li   x12, 1184  /***x12 被破坏 ***/
+  li   x12, 1184  /***x12 is corrupted ***/
   jal  x1, sha3_update
   la   x10, context
   li   x11, -1120
@@ -282,13 +282,13 @@ crypto_kem_enc:
   la   x10, context
   li   x11, -1120
   add  x11, fp, x11
-  li   x12, 64 /***x12 被破坏 ***/
+  li   x12, 64 /***x12 is corrupted ***/
   jal  x1, sha3_update
   la   x10, context
   lw   x11, -20(fp)
   jal  x1, sha3_final
 
- /* 此时 ss 内存区已经是：前32字节=K，后32字节=r*/
+ /* At this point, the ss memory region is: first 32 bytes = K, last 32 bytes = r */
   
   /*** indcpa_enc ***/
   li  x10, -1120

@@ -232,7 +232,7 @@ poly_frombytes:
 
 .globl unpack_pk
 unpack_pk:
-  /* 保存被调用者寄存器 */
+  /* Save callee registers */
   addi sp, sp, -8
   sw   x8, 0(sp)
 
@@ -255,7 +255,7 @@ unpack_pk:
   /* There's no need to unpack seed. Once pk is sent, client 
      only needs to unpack pk to polynomials and use the attached
      seed directly for matrix generation. */
-  /* 恢复寄存器并返回 */
+  /* Restore registers and return */
   lw   x8, 0(sp)
   addi sp, sp, 8
   ret
@@ -280,7 +280,7 @@ unpack_pk:
 
 .globl unpack_sk
 unpack_sk:
-  /* 保存被调用者寄存器 */
+  /* Save callee registers */
   addi sp, sp, -8
   sw   x8, 0(sp)
   /* Set up wide registers for input and output */
@@ -297,7 +297,7 @@ unpack_sk:
   .rept 3
     jal x1, poly_frombytes
   .endr
-  /* 恢复寄存器并返回 */
+  /* Restore registers and return */
   lw   x8, 0(sp)
   addi sp, sp, 8
   ret

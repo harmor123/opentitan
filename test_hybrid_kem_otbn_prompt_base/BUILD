@@ -1,70 +1,140 @@
-# ================================================================
-# BUILD — Hybrid KEM (ML-KEM-768 + P-256 ECDH) ver0_base baseline
-#
-# Pure software implementation: no KMAC hardware, no BN vector
-# extensions. All crypto uses software Keccak-f[1600] on OTBN.
-#
-# Targets:
-#   hybrid_kem_test   — Functional test mode (HYBRID_KEM_TEST_MODE)
-#   hybrid_kem_prod   — Production mode (TRNG entropy source)
-#
-# OTBN ISS simulation tests (fast, instruction-set verification):
-#   bazel test //test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256_ver0_test
-#
-# Ibex integration test (full-chip Verilator):
-#   bazel test //test_hybrid_kem_otbn_prompt_base:hybrid_kem_test_sim_verilator
-# ================================================================
-
-load("//rules/opentitan:defs.bzl", "opentitan_test", "EARLGREY_TEST_ENVS")
+load("//rules/opentitan:defs.bzl", "opentitan_test", "EARLGREY_TEST_ENVS", "verilator_params")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
-# ---- Functional test mode ----
+package(default_visibility = ["//visibility:public"])
+
+# ---- Standalone Tests ----
 opentitan_test(
-    name = "hybrid_kem_test",
-    srcs = [
-        "ibex/hybrid_kem.c",
-        "ibex/hybrid_kem.h",
-        "ibex/otbn_utils.h",
-    ],
-    defines = ["HYBRID_KEM_TEST_MODE"],
+    name = "test_mlkem_keypair_only",
+    srcs = ["ibex/test_mlkem_keypair_only.c"],
     exec_env = EARLGREY_TEST_ENVS,
     deps = [
-        "//hw/top/dt",
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
         "//sw/device/lib/dif:otbn",
-        "//sw/device/lib/runtime:ibex",
         "//sw/device/lib/runtime:log",
         "//sw/device/lib/testing:entropy_testutils",
         "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_keypair_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_encap_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_decap_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/p256_ecdh:p256_ecdh_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256_ver0",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_keypair",
     ],
 )
 
-# ---- Production security mode ----
 opentitan_test(
-    name = "hybrid_kem_prod",
-    srcs = [
-        "ibex/hybrid_kem.c",
-        "ibex/hybrid_kem.h",
-        "ibex/otbn_utils.h",
-    ],
+    name = "test_mlkem_encap_only",
+    srcs = ["ibex/test_mlkem_encap_only.c"],
     exec_env = EARLGREY_TEST_ENVS,
     deps = [
-        "//hw/top/dt",
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
         "//sw/device/lib/dif:otbn",
-        "//sw/device/lib/runtime:ibex",
         "//sw/device/lib/runtime:log",
         "//sw/device/lib/testing:entropy_testutils",
         "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_keypair_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_encap_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_decap_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/p256_ecdh:p256_ecdh_ver0",
-        "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256_ver0",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_encap",
+    ],
+)
+
+opentitan_test(
+    name = "test_mlkem_decap_only",
+    srcs = ["ibex/test_mlkem_decap_only.c"],
+    exec_env = EARLGREY_TEST_ENVS,
+    deps = [
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/dif:otbn",
+        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/testing:entropy_testutils",
+        "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_decap",
+    ],
+)
+
+opentitan_test(
+    name = "test_p256_only",
+    srcs = ["ibex/test_p256_only.c"],
+    exec_env = EARLGREY_TEST_ENVS,
+    deps = [
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/dif:otbn",
+        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/testing:entropy_testutils",
+        "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_ecdh_shared_key",
+    ],
+)
+
+opentitan_test(
+    name = "test_hkdf_only",
+    srcs = ["ibex/test_hkdf_only.c"],
+    exec_env = EARLGREY_TEST_ENVS,
+    deps = [
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/dif:otbn",
+        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/testing:entropy_testutils",
+        "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256",
+    ],
+)
+
+# ---- Phase 1: Key Generation ----
+opentitan_test(
+    name = "phase1_keygen_test",
+    srcs = ["ibex/phase1_keygen/phase1_keygen_test.c"],
+    exec_env = EARLGREY_TEST_ENVS,
+    deps = [
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/dif:otbn",
+        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/testing:entropy_testutils",
+        "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_keypair",
+    ],
+)
+
+# ---- Phase 2: Alice / Bob ----
+opentitan_test(
+    name = "phase2_alice_encap_test",
+    srcs = ["ibex/phase2_encap_decap/phase2_alice_encap.c"],
+    exec_env = EARLGREY_TEST_ENVS,
+    deps = [
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/dif:otbn",
+        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/testing:entropy_testutils",
+        "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_encap",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256",
+    ],
+)
+
+opentitan_test(
+    name = "phase2_bob_decap_test",
+    srcs = ["ibex/phase2_encap_decap/phase2_bob_decap.c"],
+    exec_env = EARLGREY_TEST_ENVS,
+    deps = [
+        "//hw/top_earlgrey/sw/autogen:top_earlgrey",
+        "//sw/device/lib/dif:otbn",
+        "//sw/device/lib/runtime:log",
+        "//sw/device/lib/testing:entropy_testutils",
+        "//sw/device/lib/testing:otbn_testutils",
+        "//sw/device/lib/testing/test_framework:check",
+        "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/mlkem768:mlkem768_decap",
+        "//test_hybrid_kem_otbn_prompt_base/otbn/hkdf:hkdf_sha3_256",
     ],
 )

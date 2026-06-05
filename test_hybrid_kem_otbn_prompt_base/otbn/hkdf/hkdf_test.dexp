@@ -1,0 +1,21 @@
+# import hmac, hashlib
+
+# def hkdf(salt, ikm, info, L):
+#     if not salt: salt = b'\x00' * 32
+#     prk = hmac.new(salt, ikm, hashlib.sha3_256).digest()
+    
+#     t = b''
+#     okm = b''
+#     for i in range(1, (L + 31) // 32 + 1):
+#         t = hmac.new(prk, t + info + bytes([i]), hashlib.sha3_256).digest()
+#         okm += t
+#     return okm[:L]
+
+# salt = bytes([0x0b] * 32)
+# ikm = bytes([0x0b] * 32)
+# info = bytes([0x0b] * 32)
+
+# print("final_okm: ", hkdf(salt, ikm, info, 64).hex())
+
+#final_okm: f1bcb98434b44227d15a915cb8c384520bb007c7449e0b067962db389c2b8b018e13ecc585dac7a97a818fb7c886accf387ce02bedbd4234fb8652ad9dba6b38
+final_okm: 386bba9dad5286fb3442bded2be07c38cfac86c8b78f817aa9c7da85c5ec138e018b2b9c38db6279060b9e44c707b00b5284c3b85c915ad12742b43484b9bcf1

@@ -1,9 +1,6 @@
 /*
- * Test wrapper for hmac_sha3_256 — pure software baseline (ver0_base).
- *
+ * HMAC-SHA3-256 test (pure software, no KMAC)
  * key = "key" (3 bytes), msg = "message" (7 bytes)
- * Calls hmac_sha3_256 (register-based interface, software SHA3 internally).
- * Expected HMAC-SHA3-256 output verified against Python reference.
  */
 
 .section .text.start
@@ -14,11 +11,11 @@ main:
     addi    x2, x2, -64
     bn.xor  w31, w31, w31
 
-    la      x10, test_key
-    addi    x11, x0, 3
-    la      x12, test_msg
-    addi    x13, x0, 7
-    la      x14, test_out
+    la      x10, test_key         /* key_ptr */
+    addi    x11, x0, 3             /* key_len */
+    la      x12, test_msg          /* msg_ptr */
+    addi    x13, x0, 7             /* msg_len */
+    la      x14, test_out          /* out_ptr */
     jal     x1, hmac_sha3_256
     ecall
 
@@ -30,25 +27,62 @@ stack:
     .zero 512
 stack_end:
 
-.balign 32
-.globl hmac_ipad
-hmac_ipad:
-    .zero 160
+/* ---- SW HMAC/SHA3 work buffers ---- */
 
 .balign 32
-.globl hmac_opad
-hmac_opad:
-    .zero 160
+.globl context
+context:
+    .zero 212
 
 .balign 32
-.globl hmac_inner
-hmac_inner:
+.globl rc
+rc:
+    .dword 0x0000000000000001
+    .dword 0x0000000000008082
+    .dword 0x800000000000808a
+    .dword 0x8000000080008000
+    .dword 0x000000000000808b
+    .dword 0x0000000080000001
+    .dword 0x8000000080008081
+    .dword 0x8000000000008009
+    .dword 0x000000000000008a
+    .dword 0x0000000000000088
+    .dword 0x0000000080008009
+    .dword 0x000000008000000a
+    .dword 0x000000008000808b
+    .dword 0x800000000000008b
+    .dword 0x8000000000008089
+    .dword 0x8000000000008003
+    .dword 0x8000000000008002
+    .dword 0x8000000000000080
+    .dword 0x000000000000800a
+    .dword 0x800000008000000a
+    .dword 0x8000000080008081
+    .dword 0x8000000000008080
+    .dword 0x0000000080000001
+    .dword 0x8000000080008008
+
+.balign 32
+.globl inner_hash
+inner_hash:
     .zero 32
 
 .balign 32
-.globl hmac_key_hashed
-hmac_key_hashed:
-    .zero 32
+.globl key_buf
+key_buf:
+    .zero 200
+
+.balign 32
+.globl ipad
+ipad:
+    .zero 200
+
+.balign 32
+.globl opad
+opad:
+    .zero 200
+
+/* ---- Test data ---- */
 
 .balign 32
 .globl test_key
@@ -65,78 +99,3 @@ test_msg:
 .globl test_out
 test_out:
     .zero 32
-
-/* SHA-3 context (required by sha3_shake.s) */
-.balign 32
-.globl context
-context:
-    .zero 212
-
-/* Keccak-f round constants */
-.globl rc
-.balign 32
-rc:
-    .balign 32
-    .dword 0x0000000000000001
-    .balign 32
-    .dword 0x0000000000008082
-    .balign 32
-    .dword 0x800000000000808a
-    .balign 32
-    .dword 0x8000000080008000
-    .balign 32
-    .dword 0x000000000000808b
-    .balign 32
-    .dword 0x0000000080000001
-    .balign 32
-    .dword 0x8000000080008081
-    .balign 32
-    .dword 0x8000000000008009
-    .balign 32
-    .dword 0x000000000000008a
-    .balign 32
-    .dword 0x0000000000000088
-    .balign 32
-    .dword 0x0000000080008009
-    .balign 32
-    .dword 0x000000008000000a
-    .balign 32
-    .dword 0x000000008000808b
-    .balign 32
-    .dword 0x800000000000008b
-    .balign 32
-    .dword 0x8000000000008089
-    .balign 32
-    .dword 0x8000000000008003
-    .balign 32
-    .dword 0x8000000000008002
-    .balign 32
-    .dword 0x8000000000000080
-    .balign 32
-    .dword 0x000000000000800a
-    .balign 32
-    .dword 0x800000008000000a
-    .balign 32
-    .dword 0x8000000080008081
-    .balign 32
-    .dword 0x8000000000008080
-    .balign 32
-    .dword 0x0000000080000001
-    .balign 32
-    .dword 0x8000000080008008
-
-/* ---- HMAC constants (required by hmac_sha3.s) ---- */
-
-.balign 32
-.globl const_0x36
-const_0x36:
-    .rept 40
-    .word 0x36363636
-    .endr
-
-.balign 32
-.globl const_0x5c
-const_0x5c:
-    .rept 40
-    .word 0x5c5c5c5c
-    .endr

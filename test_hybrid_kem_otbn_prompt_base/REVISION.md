@@ -15,7 +15,6 @@
 | v1.1 | 2026-05-25 | HKDF 二进制包装器 hkdf_wrapper.s：定义所有 DMEM 标签 + main 入口 |
 | v1.2 | 2026-05-25 | 移除 hkdf_integration.{c,h}：HKDF IKM 构建内联到 hybrid_kem.c 的 phase_hkdf() |
 | v1.3 | 2026-05-25 | SHA3 测试替换为 kyber_ver0_base/hash/sha3_shake_test（dexp 格式） |
-| v1.4 | 2026-05-25 | ML-KEM 统一使用 symmetric.s（sha3_shake.s 移除，避免重复符号）|
 | v1.5 | 2026-05-25 | otbn/test/ 完整测试套件：7 个 otbn_sim_test 全部通过 |
 
 ---
