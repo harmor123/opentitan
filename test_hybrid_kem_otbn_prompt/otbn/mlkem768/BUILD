@@ -18,7 +18,7 @@ otbn_library(name = "mlkem_decap_s",  srcs = ["mlkem_decap.s"],   copts = ["--bn
 otbn_binary(
     name = "mlkem768_keypair",
     srcs = [
-        "//test_hybrid_kem_paper/otbn/test:mlkem_base_keypair_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_keypair_test.s",
         "mlkem_keypair.s", "basemul.s", "cbd.s", "ntt.s",
         "pack_keys.s", "poly.s", "poly_gen_matrix.s", "kmac_sha3_template.s",
     ],
@@ -28,7 +28,7 @@ otbn_binary(
 otbn_binary(
     name = "mlkem768_encap",
     srcs = [
-        "//test_hybrid_kem_paper/otbn/test:mlkem_base_encap_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_encap_test.s",
         "mlkem_encap.s", "pack_ciphertext.s", "basemul.s", "cbd.s",
         "intt.s", "ntt.s", "pack_keys.s", "poly.s",
         "poly_gen_matrix.s", "kmac_sha3_template.s",
@@ -39,7 +39,7 @@ otbn_binary(
 otbn_binary(
     name = "mlkem768_decap",
     srcs = [
-        "//test_hybrid_kem_paper/otbn/test:mlkem_base_decap_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:mlkem_base_decap_test.s",
         "mlkem_decap.s", "mlkem_encap.s", "pack_ciphertext.s", "basemul.s",
         "cbd.s", "intt.s", "ntt.s", "pack_keys.s", "poly.s",
         "poly_gen_matrix.s", "kmac_sha3_template.s",

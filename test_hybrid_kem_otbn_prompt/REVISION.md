@@ -2,7 +2,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v1.0 | 2026-06-02 | 初始搭建: test_hybrid_kem_paper 目录, standalone chip sim 测试 |
+| v1.0 | 2026-06-02 | 重新初始搭建: test_hybrid_kem_otbn_prompt 目录, standalone chip sim 测试 |
 | v1.1 | 2026-06-03 | LOG_INFO "PASS" → "OK" 修复假阳性 |
 | v1.2 | 2026-06-03 | ML-KEM keypair/encap/decap chip sim 通过 |
 | v2.0 | 2026-06-04 | P-256 深度调试: 定位官方 vs 差异, 测试向量切换为基点 G |

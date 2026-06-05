@@ -9,7 +9,7 @@
  *       random-input testing (like otbn_mlkem_test.c does with pq-crystals).
  */
 
-#include "test_hybrid_kem_paper/ref/hybrid_kem_ref.h"
+#include "test_hybrid_kem_otbn_prompt/ref/hybrid_kem_ref.h"
 #include <string.h>
 
 /* ================================================================

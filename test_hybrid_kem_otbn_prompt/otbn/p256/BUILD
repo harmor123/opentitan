@@ -25,7 +25,7 @@ otbn_library(
 otbn_binary(
     name = "p256_ecdh_shared_key",
     srcs = [
-        "//test_hybrid_kem_paper/otbn/test:p256_ecdh_shared_key_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_shared_key_test.s",
         "p256_base.s",
         "p256_isoncurve.s",
         "p256_isoncurve_proj.s",

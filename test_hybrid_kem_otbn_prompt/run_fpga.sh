@@ -7,11 +7,11 @@
 set -e
 
 echo "=== Build Hybrid KEM test firmware ==="
-bazel build //test_hybrid_kem_paper:hybrid_kem_test
+bazel build //test_hybrid_kem_otbn_prompt:hybrid_kem_test
 
 echo "=== Run on FPGA ==="
 opentitantool --interface=cw310 --exec=console \
-    --firmware=bazel-bin/test_hybrid_kem_paper/hybrid_kem_test.elf \
+    --firmware=bazel-bin/test_hybrid_kem_otbn_prompt/hybrid_kem_test.elf \
     --exec="console" \
     --exit-success="All checks passed" \
     --exit-failure="CHECK-fail"

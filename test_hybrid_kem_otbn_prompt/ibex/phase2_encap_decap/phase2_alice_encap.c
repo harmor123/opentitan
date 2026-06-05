@@ -294,6 +294,10 @@ bool test_main(void) {
   CHECK_ARRAYS_EQ(ss_e, kExpectedSsE, sizeof(kExpectedSsE));
   LOG_INFO("Alice ECDH OK");
 
+  /* Secure wipe before next OTBN app */
+  CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
+  CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));
+
   /* ---- Step 2: ML-KEM encap → ct_m, ss_m ---- */
   LOG_INFO("=== Alice Step 2: ML-KEM Encap ===");
   CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppEncap));
@@ -315,6 +319,10 @@ bool test_main(void) {
   CHECK_ARRAYS_EQ(ct_m, kExpectedCtM, sizeof(kExpectedCtM));
   CHECK_ARRAYS_EQ(ss_m, kExpectedSsM, sizeof(kExpectedSsM));
   LOG_INFO("Alice ML-KEM Encap OK");
+
+  /* Secure wipe before next OTBN app */
+  CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
+  CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));
 
   /* ---- Step 3: HKDF(ss_e, ss_m, info="") → OKM (KEM unified) ---- */
   LOG_INFO("=== Alice Step 3: HKDF ===");

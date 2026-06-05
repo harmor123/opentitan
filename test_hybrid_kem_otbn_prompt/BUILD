@@ -29,7 +29,7 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_ecdh_shared_key",
     ],
 )
 
@@ -46,8 +46,8 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/p256:p256_ecdh_shared_key",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_keypair",
+        "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_keypair",
     ],
 )
 
@@ -64,9 +64,9 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/p256:p256_ecdh_shared_key",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_encap",
-        "//test_hybrid_kem_paper/otbn/hkdf:hkdf_sha3_256",
+        "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_encap",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256",
     ],
 )
 
@@ -83,9 +83,9 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/p256:p256_ecdh_shared_key",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_decap",
-        "//test_hybrid_kem_paper/otbn/hkdf:hkdf_sha3_256",
+        "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_decap",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256",
     ],
 )
 
@@ -101,7 +101,7 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_keypair",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_keypair",
     ],
 )
 
@@ -117,7 +117,7 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_encap",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_encap",
     ],
 )
 
@@ -133,7 +133,7 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_decap",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_decap",
     ],
 )
 
@@ -149,7 +149,7 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/hkdf:hkdf_sha3_256",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256",
     ],
 )
 
@@ -203,10 +203,10 @@ opentitan_test(
         "//sw/device/lib/testing:otbn_testutils",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_paper/otbn/p256:p256_ecdh",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_keypair",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_encap",
-        "//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_decap",
-        "//test_hybrid_kem_paper/otbn/hkdf:hkdf_sha3_256",
+        "//test_hybrid_kem_otbn_prompt/otbn/p256:p256_ecdh",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_keypair",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_encap",
+        "//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_decap",
+        "//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256",
     ],
 )

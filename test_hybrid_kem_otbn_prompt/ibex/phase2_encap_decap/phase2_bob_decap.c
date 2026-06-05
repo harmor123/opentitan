@@ -357,6 +357,10 @@ bool test_main(void) {
   CHECK_ARRAYS_EQ(ss_m, kExpectedSsM, sizeof(kExpectedSsM));
   LOG_INFO("Bob ML-KEM Decap OK");
 
+  /* Secure wipe before next OTBN app */
+  CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
+  CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));
+
   /* ---- Step 2: P-256 ECDH → ss_e ---- */
   LOG_INFO("=== Bob Step 2: P-256 ECDH ===");
   CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppP256));
@@ -383,6 +387,10 @@ bool test_main(void) {
   for (int i = 0; i < 32; ++i) ss_e[i] = x0[i] ^ x1[i];
   CHECK_ARRAYS_EQ(ss_e, kExpectedSsE, sizeof(kExpectedSsE));
   LOG_INFO("Bob ECDH OK");
+
+  /* Secure wipe before next OTBN app */
+  CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
+  CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn, kDifOtbnErrBitsNoError));
 
   /* ---- Step 3: HKDF(ss_e, ss_m, info="") → OKM (KEM unified) ---- */
   LOG_INFO("=== Bob Step 3: HKDF ===");

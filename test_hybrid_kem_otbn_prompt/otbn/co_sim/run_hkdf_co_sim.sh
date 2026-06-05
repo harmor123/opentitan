@@ -10,8 +10,8 @@ fail() { echo >&2 "FAIL: $*"; exit 1; }
 
 echo "=== HKDF-SHA3-256 OTBN co-sim (RTL vs ISS) ==="
 
-BAZEL_TARGET="//test_hybrid_kem_paper/otbn/hkdf:hkdf_sha3_256"
-ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_paper/otbn/hkdf/hkdf_sha3_256.elf"
+BAZEL_TARGET="//test_hybrid_kem_otbn_prompt/otbn/hkdf:hkdf_sha3_256"
+ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_otbn_prompt/otbn/hkdf/hkdf_sha3_256.elf"
 VOTBN="$ROOT_DIR/build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim"
 
 # Build ELF

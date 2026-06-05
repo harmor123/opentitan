@@ -5,8 +5,8 @@ SCRIPT_DIR="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(readlink -e "$SCRIPT_DIR/../../..")"
 fail() { echo >&2 "FAIL: $*"; exit 1; }
 echo "=== ML-KEM Decap OTBN co-sim ==="
-BAZEL_TARGET="//test_hybrid_kem_paper/otbn/mlkem768:mlkem768_decap"
-ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_paper/otbn/mlkem768/mlkem768_decap.elf"
+BAZEL_TARGET="//test_hybrid_kem_otbn_prompt/otbn/mlkem768:mlkem768_decap"
+ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_otbn_prompt/otbn/mlkem768/mlkem768_decap.elf"
 VOTBN="$ROOT_DIR/build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim"
 (cd "$ROOT_DIR" && ./bazelisk.sh build "$BAZEL_TARGET") || fail "bazel build"
 if [ ! -x "$VOTBN" ]; then

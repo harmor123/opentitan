@@ -13,7 +13,7 @@ Ibex (RV32)                    OTBN (BigNum Accelerator)
   │◄────────────── CHECK_ARRAYS_EQ │
 ```
 
-每个 OTBN 二进制独立加载执行，模块间直接 `load_app` 覆盖（KMAC RTL 已修复，无需 SecWipeDmem）。
+每个二进制执行后 `SecWipeDmem + wait`，匹配官方 `otbn_ecdsa_op_irq_test.c` 安全模式。
 
 ## 二、密钥派生
 
@@ -83,7 +83,7 @@ OKM = HKDF-Expand(PRK, info, L)    (KEM 统一输出, info="" 或 16B 零)
 
 ```
 Bob:   d_bob → Q_bob = d_bob * G (长期, Phase 1)
-Alice: d_alice = d_bob + 1 → Q_alice (临时, 前向安全)
+Alice: d_alice = d_bob + 1 → Q_alice (临时, KAT 确定性; 生产用真随机)
 ECDH:  d_alice * Q_bob == d_bob * Q_alice → ss_e 相同 ✅
 ```
 

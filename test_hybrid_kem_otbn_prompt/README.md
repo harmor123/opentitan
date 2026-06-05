@@ -14,7 +14,7 @@ ML-KEM-768 + P-256 ECDH + HKDF-SHA3-256 混合密钥协商系统。
 ## 目录
 
 ```
-test_hybrid_kem_paper/
+test_hybrid_kem_otbn_prompt/
 ├── README.md / IMPLEMENTATION.md / USAGE.md / REVISION.md
 ├── BUILD                              # Bazel 测试目标
 ├── ibex/
@@ -56,20 +56,20 @@ test_hybrid_kem_paper/
 
 ```bash
 # Chip Sim (完整参数)
-CHIP="--test_timeout=2000 --cache_test_results=no --sandbox_writable_path=/run/user/1000/ccache-tmp"
+CHIP="--test_timeout=2000 --cache_test_results=no --sandbox_writable_path=/run/user/1000/ccache-tmp --test_output=streamed"
 
 # 单模块
-bazel test //test_hybrid_kem_paper:test_hkdf_only_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:test_p256_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_hkdf_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_p256_only_sim_verilator $CHIP
 
 # Phase 1 + 2
-bazel test //test_hybrid_kem_paper:phase1_keygen_test_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:phase2_alice_encap_test_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:phase2_bob_decap_test_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:phase1_keygen_test_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:phase2_alice_encap_test_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:phase2_bob_decap_test_sim_verilator $CHIP
 
 # ISS
-bazel test //test_hybrid_kem_paper/otbn/test:hkdf_test --test_output=errors
-bazel test //test_hybrid_kem_paper/otbn/test:p256_ecdh_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:hkdf_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_test --test_output=errors
 
 # KAT 生成
 python3 ref/phase2/hkdf_kat_alice.py 32

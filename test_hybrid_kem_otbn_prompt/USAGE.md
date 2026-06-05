@@ -5,25 +5,25 @@
 ### ISS 测试
 
 ```bash
-bazel test //test_hybrid_kem_paper/otbn/test:p256_ecdh_test --test_output=errors
-bazel test //test_hybrid_kem_paper/otbn/test:hkdf_test --test_output=errors
-bazel test //test_hybrid_kem_paper/otbn/test:mlkem768_keypair_test --test_output=errors
-bazel test //test_hybrid_kem_paper/otbn/test:mlkem768_encap_test --test_output=errors
-bazel test //test_hybrid_kem_paper/otbn/test:mlkem768_decap_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:p256_ecdh_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:hkdf_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_keypair_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_encap_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt/otbn/test:mlkem768_decap_test --test_output=errors
 ```
 
 ### OTBN co-sim (RTL vs ISS)
 
 ```bash
 cd ~/pqc/opentitan
-chmod +x test_hybrid_kem_paper/otbn/co_sim/*.sh
-bash test_hybrid_kem_paper/otbn/co_sim/run_hkdf_co_sim.sh
-bash test_hybrid_kem_paper/otbn/co_sim/run_hmac_co_sim.sh
-bash test_hybrid_kem_paper/otbn/co_sim/run_sha3_co_sim.sh
-bash test_hybrid_kem_paper/otbn/co_sim/run_mlkem_keypair_co_sim.sh
+chmod +x test_hybrid_kem_otbn_prompt/otbn/co_sim/*.sh
+bash test_hybrid_kem_otbn_prompt/otbn/co_sim/run_hkdf_co_sim.sh
+bash test_hybrid_kem_otbn_prompt/otbn/co_sim/run_hmac_co_sim.sh
+bash test_hybrid_kem_otbn_prompt/otbn/co_sim/run_sha3_co_sim.sh
+bash test_hybrid_kem_otbn_prompt/otbn/co_sim/run_mlkem_keypair_co_sim.sh
 # ... 其他 co_sim 脚本
 # 或一键全部:
-bash test_hybrid_kem_paper/otbn/co_sim/run_all_co_sim.sh
+bash test_hybrid_kem_otbn_prompt/otbn/co_sim/run_all_co_sim.sh
 ```
 
 ### Chip Sim
@@ -33,21 +33,21 @@ CHIP="--test_timeout=2000 --cache_test_results=no \
     --sandbox_writable_path=/run/user/1000/ccache-tmp"
 
 # 单模块
-bazel test //test_hybrid_kem_paper:test_p256_only_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:test_p256_official_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:test_mlkem_keypair_only_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:test_mlkem_encap_only_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:test_mlkem_decap_only_sim_verilator $CHIP
-bazel test //test_hybrid_kem_paper:test_hkdf_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_p256_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_p256_official_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_mlkem_keypair_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_mlkem_encap_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_mlkem_decap_only_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:test_hkdf_only_sim_verilator $CHIP
 
 # Phase 1: 密钥生成 (P-256 + ML-KEM)
-bazel test //test_hybrid_kem_paper:phase1_keygen_test_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:phase1_keygen_test_sim_verilator $CHIP
 
 # Phase 2 Alice: 封装 (ECDH + Encap + HKDF)
-bazel test //test_hybrid_kem_paper:phase2_alice_encap_test_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:phase2_alice_encap_test_sim_verilator $CHIP
 
 # Phase 2 Bob: 解封装 (Decap + ECDH + HKDF)
-bazel test //test_hybrid_kem_paper:phase2_bob_decap_test_sim_verilator $CHIP
+bazel test //test_hybrid_kem_otbn_prompt:phase2_bob_decap_test_sim_verilator $CHIP
 ```
 
 过滤关键日志：`2>&1 | grep -E "(I000|CHECK|PASS|FAIL|ERROR)"`

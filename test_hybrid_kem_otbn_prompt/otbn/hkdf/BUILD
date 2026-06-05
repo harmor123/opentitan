@@ -10,7 +10,7 @@ otbn_binary(
     name = "sha3_test_bin",
     srcs = [
         "kmac_sha3_template.s",
-        "//test_hybrid_kem_paper/otbn/test:sha3_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:sha3_test.s",
     ],
 )
 
@@ -18,14 +18,14 @@ otbn_binary(
     name = "hmac_sha3_256",
     srcs = [
         "hmac_sha3.s", "kmac_sha3_template.s",
-        "//test_hybrid_kem_paper/otbn/test:hmac_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:hmac_test.s",
     ],
 )
 
 otbn_binary(
     name = "hkdf_sha3_256",
     srcs = [
-        "//test_hybrid_kem_paper/otbn/test:hkdf_test.s",
+        "//test_hybrid_kem_otbn_prompt/otbn/test:hkdf_test.s",
         "hkdf_sha3_256.s", "hmac_sha3.s", "kmac_sha3_template.s",
     ],
 )
