@@ -2186,6 +2186,8 @@ opentitan_test(
         {
             "//hw/top_earlgrey:fpga_cw310_sival": None,
             "//hw/top_earlgrey:fpga_cw310_sival_rom_ext": None,
+            "//hw/top_earlgrey:fpga_cw340_sival": None,
+            "//hw/top_earlgrey:fpga_cw340_sival_rom_ext": None,
         },
     ),
     fpga = fpga_params(
@@ -2749,6 +2751,16 @@ _KMAC_APP_ROM_LIST = [
     (
         "//sw/device/silicon_creator/rom:mask_rom_fpga_cw310_hashfile",
         "fpga_cw310_sival",
+        ["//hw/top_earlgrey"],
+    ),
+    (
+        "//sw/device/lib/testing/test_rom:test_rom_fpga_cw340_hashfile",
+        "fpga_cw340_test_rom",
+        ["//hw/top_earlgrey"],
+    ),
+    (
+        "//sw/device/silicon_creator/rom:mask_rom_fpga_cw340_hashfile",
+        "fpga_cw340_rom_with_fake_keys",
         ["//hw/top_earlgrey"],
     ),
     (
@@ -6805,6 +6817,7 @@ opentitan_test(
         EARLGREY_SILICON_OWNER_ROM_EXT_ENVS,
         {
             "//hw/top_earlgrey:fpga_cw310_sival": None,
+            "//hw/top_earlgrey:fpga_cw340_sival": None,
         },
     ),
     fpga = fpga_params(
