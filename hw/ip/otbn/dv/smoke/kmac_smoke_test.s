@@ -34,13 +34,19 @@ main:
     jal     x1, test_sha3_256_136b_plus1 /* edge: rate+1 byte, partial last word */
 
     /* ———— SHAKE tests ———— */
-    jal     x1, test_shake128_empty      
-    jal     x1, test_shake256_empty       
+    jal     x1, test_shake128_empty       /* ★ FIPS 202: pad10*1 on empty msg */
+    jal     x1, test_shake256_empty       /* ★ FIPS 202: pad10*1 on empty msg */
     jal     x1, test_shake128_msg
     jal     x1, test_shake256_msg
     jal     x1, test_shake128_64b_run
     jal     x1, test_shake128_4096b
     jal     x1, test_shake256_4096b
+
+    /* ———— cSHAKE tests (≡ SHAKE with empty customization strings) ———— */
+    jal     x1, test_cshake128_empty      /* CSHAKE128 empty → pad10*1 */
+    jal     x1, test_cshake256_empty      /* CSHAKE256 empty → pad10*1 */
+    jal     x1, test_cshake128_msg        /* CSHAKE128 8B → verify hash */
+    jal     x1, test_cshake256_msg        /* CSHAKE256 8B → verify hash */
 /*
      */
 
@@ -479,6 +485,62 @@ test_sha3_256_136b_plus1:
     jal     x1, kmac_feed
     jal     x1, kmac_process
     la      x10, sha3_256_136b_plus1_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
+/* test_cshake128_empty: cSHAKE128 empty — pad10*1 fills full rate block */
+test_cshake128_empty:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 48              /* CSHAKE128: MODE=3<<4 | STRENGTH=0(L128)<<1 */
+    jal     x1, kmac_start
+    jal     x1, kmac_process         /* triggers pad10*1 of empty msg */
+    la      x10, shake128_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
+/* test_cshake256_empty: cSHAKE256 empty — pad10*1 fills full rate block */
+test_cshake256_empty:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 52              /* CSHAKE256: MODE=3<<4 | STRENGTH=2(L256)<<1 */
+    jal     x1, kmac_start
+    jal     x1, kmac_process         /* triggers pad10*1 of empty msg */
+    la      x10, shake256_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
+/* test_cshake128_msg: cSHAKE128 (mode=3, strength=0) with 8B msg.
+   Empty customization → ≡ SHAKE128.  Verify digest matches shake128_msg. */
+test_cshake128_msg:
+    addi    x31, x1, 0               /* save ra */
+    /* CSHAKE128: MODE=3<<4 | STRENGTH=0(L128)<<1 = 48 */
+    addi    x10, x0, 48
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    /* Squeeze 32B and verify against shake128_msg expected output */
+    la      x10, shake128_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
+/* test_cshake256_msg: cSHAKE256 (mode=3, strength=2) with 8B msg.
+   Empty customization → ≡ SHAKE256.  Verify digest matches shake256_msg. */
+test_cshake256_msg:
+    addi    x31, x1, 0               /* save ra */
+    /* CSHAKE256: MODE=3<<4 | STRENGTH=2(L256)<<1 = 52 */
+    addi    x10, x0, 52
+    jal     x1, kmac_start
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, kmac_feed
+    jal     x1, kmac_process
+    /* Squeeze 32B and verify against shake256_msg expected output */
+    la      x10, shake256_out
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
     jalr    x0, x31, 0

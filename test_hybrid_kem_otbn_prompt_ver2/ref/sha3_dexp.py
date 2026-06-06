@@ -97,3 +97,10 @@ s = SHAKE128.new(data=MSG_256B).read(192)
 batches = [s[i:i+32] for i in range(0, 192, 32)]
 for i, b in enumerate(batches):
     print(f"rcx_b{i+1}: {hx(hw(b))}")
+
+# ── cSHAKE (≡ SHAKE with empty customization strings) ──
+# bytepad(encode_string("")||encode_string("")) = "", so cSHAKE = SHAKE
+print(f"cshake128_empty_out: {hx(hw(SHAKE128.new(data=b'').read(32)))}")
+print(f"cshake256_empty_out: {hx(hw(SHAKE256.new(data=b'').read(32)))}")
+print(f"cshake128_out: {hx(hw(SHAKE128.new(data=MSG_8B).read(32)))}")
+print(f"cshake256_out: {hx(hw(SHAKE256.new(data=MSG_8B).read(32)))}")

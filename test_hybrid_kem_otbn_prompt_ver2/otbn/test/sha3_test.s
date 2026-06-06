@@ -37,6 +37,12 @@ main:
 
     jal     x1, test_sha3_256_127b
 
+    /* ---- cSHAKE (≡ SHAKE with empty customization) ---- */
+    jal     x1, test_cshake128_empty
+    jal     x1, test_cshake256_empty
+    jal     x1, test_cshake128_msg
+    jal     x1, test_cshake256_msg
+
     ecall
 
 /* ==================== 基础测试函数 ==================== */
@@ -262,6 +268,61 @@ test_shake128_rate_cross:
     jal     x1, kmac_squeeze_32B   /* crosses boundary → auto-RUN inside */
     jal     x1, kmac_done
     ret
+
+/* test_cshake128_empty: cSHAKE128 empty — pad10*1 fills full rate block */
+test_cshake128_empty:
+    addi    x10, x0, 48            /* CSHAKE128: MODE=3<<4 | STRENGTH=0(L128)<<1 */
+    csrrw   x0, 0x7DB, x10
+    addi    x5, x0, 0x1D
+    csrrw   x0, 0x7DD, x5
+    jal     x1, kmac_process
+    la      x10, cshake128_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+/* test_cshake256_empty: cSHAKE256 empty — pad10*1 fills full rate block */
+test_cshake256_empty:
+    addi    x10, x0, 52            /* CSHAKE256: MODE=3<<4 | STRENGTH=2(L256)<<1 */
+    csrrw   x0, 0x7DB, x10
+    addi    x5, x0, 0x1D
+    csrrw   x0, 0x7DD, x5
+    jal     x1, kmac_process
+    la      x10, cshake256_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+/* test_cshake128_msg: cSHAKE128 (mode=3, strength=0) ≡ SHAKE128 */
+test_cshake128_msg:
+    addi    x10, x0, 48            /* CSHAKE128: MODE=3<<4 | STRENGTH=0(L128)<<1 */
+    csrrw   x0, 0x7DB, x10         /* kmac_cfg */
+    addi    x5, x0, 0x1D           /* CMD_START */
+    csrrw   x0, 0x7DD, x5
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, keccak_send_message
+    jal     x1, kmac_process
+    la      x10, cshake128_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+/* test_cshake256_msg: cSHAKE256 (mode=3, strength=2) ≡ SHAKE256 */
+test_cshake256_msg:
+    addi    x10, x0, 52            /* CSHAKE256: MODE=3<<4 | STRENGTH=2(L256)<<1 */
+    csrrw   x0, 0x7DB, x10         /* kmac_cfg */
+    addi    x5, x0, 0x1D           /* CMD_START */
+    csrrw   x0, 0x7DD, x5
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, keccak_send_message
+    jal     x1, kmac_process
+    la      x10, cshake256_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
 /* ==================== 数据段 ==================== */
 .data
 
@@ -382,3 +443,13 @@ rcx_b4:  .zero 32
 rcx_b5:  .zero 32
 .balign 32
 rcx_b6:  .zero 32
+
+/* cSHAKE output buffers (≡ SHAKE with empty customization) */
+.balign 32
+cshake128_empty_out: .zero 32
+.balign 32
+cshake256_empty_out: .zero 32
+.balign 32
+cshake128_out:  .zero 32
+.balign 32
+cshake256_out:  .zero 32

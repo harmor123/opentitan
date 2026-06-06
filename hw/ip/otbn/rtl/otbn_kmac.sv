@@ -117,6 +117,8 @@ module otbn_kmac
   logic [31:0] kmac_byte_strobe_q; // byte strobe for partial writes (csr 0x7DE)
 
   // Mode decode from kmac_cfg_q: bits[5:4] — 0=SHA3, 2=SHAKE, 3=CSHAKE (matches ISS kmac.py)
+  // cSHAKE (mode=3) treated as SHAKE — correct for empty customization strings
+  // strings are not supported and will produce incorrect results.
   logic sha3_mode;
   assign sha3_mode = (kmac_cfg_q[5:4] == 2'd0);
 
