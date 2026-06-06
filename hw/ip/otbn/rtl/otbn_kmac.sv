@@ -323,25 +323,45 @@ module otbn_kmac
   logic [DInWidth-1:0]   keccak_feed_data;
   logic                  keccak_feed_ready;
 
-  // XOR shares → plain 64-bit word for Keccak, masked by byte_strobe
-  // Only valid bytes (per YAML kmac_byte_strobe) are XORed; invalid bytes = 0
+  // Pre-computed & registered XOR for glitch suppression.
+  // All 4 WSR words are XORed in parallel from kmac_data_s0/1_no_intg
+  // (which are wire extractions from registered kmac_data_s0/1_q).
+  // The result is registered BEFORE feed_word_sel selects the active word,
+  // so the s0^s1 XOR glitch is isolated behind a register boundary.
+  // Downstream logic (mask AND, MUX, keccak_round storage XOR) sees
+  // clean registered outputs with balanced arrival times.
   logic [1:0] feed_word_sel;
   assign feed_word_sel = absorb_active ? absorb_word_cnt : '0;
-  logic [DInWidth-1:0] feed_byte_mask;
+
+  logic [DInWidth-1:0]        feed_byte_mask;
+  logic [3:0][DInWidth-1:0]   pre_xor_d, pre_xor_q;
+
+  // Parallel XOR: all 4 words computed from registered WSR data
   always_comb begin
-    // Build per-byte mask from byte_strobe for current word
+    for (int w = 0; w < 4; w++) begin
+      for (int i = 0; i < DInWidth; i++) begin
+        pre_xor_d[w][i] = kmac_data_s0_no_intg[w * DInWidth + i] ^
+                          kmac_data_s1_no_intg[w * DInWidth + i];
+      end
+    end
+  end
+
+  // Register isolates glitch from propagating to keccak_round
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      pre_xor_q <= '{default: '0};
+    end else begin
+      pre_xor_q <= pre_xor_d;
+    end
+  end
+
+  // Byte mask + word selection from registered pre_xor_q
+  always_comb begin
     feed_byte_mask = '0;
     for (int b = 0; b < (DInWidth/8); b++)
       if (kmac_byte_strobe_q[feed_word_sel * (DInWidth/8) + b])
         feed_byte_mask[b*8 +: 8] = 8'hFF;
-    // Mask: invalid bytes become 0 in the data fed to Keccak
-    keccak_feed_data = '0;
-    for (int i = 0; i < DInWidth; i++) begin
-      logic bit_val;
-      bit_val = kmac_data_s0_no_intg[feed_word_sel * DInWidth + i] ^
-                kmac_data_s1_no_intg[feed_word_sel * DInWidth + i];
-      keccak_feed_data[i] = bit_val & feed_byte_mask[i];
-    end
+    keccak_feed_data = pre_xor_q[feed_word_sel] & feed_byte_mask;
   end
 
   // Message absorption tracking
