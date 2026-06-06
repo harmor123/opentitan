@@ -536,7 +536,7 @@ module otbn_kmac
   logic [DInAddr-1:0]    keccak_feed_addr_mux;
   logic [DInWidth-1:0]   keccak_feed_data_mux;
 
-  assign keccak_feed_valid_mux = keccak_feed_valid || keccak_pad_valid;
+  assign keccak_feed_valid_mux = (keccak_feed_valid || keccak_pad_valid) && keccak_feed_ready;
   // Pad base address: partial last word → pad starts at same lane (overlap)
   logic [9:0] pad_base;
   assign pad_base = (absorb_rate_pos > 0 && last_valid_bytes != 3'd0)
@@ -554,7 +554,6 @@ module otbn_kmac
   ////////////////////////////////////////////////////////////////////////////
   logic keccak_run;
   logic keccak_complete;
-  logic keccak_ready;
   logic [Width-1:0] keccak_state [Share];
   logic keccak_sparse_err, keccak_round_err, keccak_rst_err;
 
