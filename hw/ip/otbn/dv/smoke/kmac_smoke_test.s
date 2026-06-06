@@ -1,4 +1,4 @@
-/* KMAC/SHA3 hardware smoke test -- 11 test cases
+/* KMAC/SHA3 hardware smoke test — 19 test cases
  *
  * Uses csr.yml / wsr.yml interface:
  *   0x7D9 = kmac_if_status (read: bit0=msg_rdy, bit3=digest_valid)
@@ -9,31 +9,40 @@
  *
  * MODE: 0=SHA3, 2=SHAKE
  * STRENGTH: 0=L128, 1=L224, 2=L256, 3=L384, 4=L512
+ *
+ * FIPS 202 pad10*1: both SHA3 and SHAKE MUST pad empty messages
+ *   SHA3 empty:  suffix 01 → pad  = 0x06 || 0x00… || 0x80 (full rate block)
+ *   SHAKE empty: suffix 1111 → pad = 0x1F || 0x00… || 0x80 (full rate block)
  */
 
 .section .text.start
 .globl main
 main:
 
+    /* ———— SHA3 tests ———— */
     jal     x1, test_sha3_256_empty
     jal     x1, test_sha3_512_empty
     jal     x1, test_sha3_256_msg
     jal     x1, test_sha3_512_msg
-    jal     x1, test_shake128_msg
-    jal     x1, test_shake256_msg
     jal     x1, test_sha3_256_32b
     jal     x1, test_sha3_256_33b
     jal     x1, test_sha3_256_35b
     jal     x1, test_sha3_256_64b
-    jal     x1, test_shake128_64b_run
     jal     x1, test_sha3_256_2048b
+    jal     x1, test_sha3_256_127b
+    jal     x1, test_sha3_256_136b       /* edge: exact rate block, pad into new block */
+    jal     x1, test_sha3_256_136b_plus1 /* edge: rate+1 byte, partial last word */
+
+    /* ———— SHAKE tests ———— */
+    jal     x1, test_shake128_empty      
+    jal     x1, test_shake256_empty       
+    jal     x1, test_shake128_msg
+    jal     x1, test_shake256_msg
+    jal     x1, test_shake128_64b_run
     jal     x1, test_shake128_4096b
     jal     x1, test_shake256_4096b
-    jal     x1, test_sha3_256_127b
- /*   jal     x1, test_sha3_256_136b       
-    jal     x1, test_sha3_256_136b_plus1 
-*/
-     
+/*
+     */
 
 
     bn.xor  w0, w0, w0
@@ -232,6 +241,35 @@ test_sha3_512_empty:
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
     jalr    x0, x31, 0               /* return via saved ra */
+
+/* ———— SHAKE empty-message tests (FIPS 202: pad10*1 required for all messages) ———— */
+
+/* cfg: MODE=SHAKE(2) STRENGTH=L128(0) EN=1 => 0x21
+ * SHAKE-128 empty: 1111 || pad10*1 → 0x1F || 0x00×165 || 0x80 (168 bytes = full rate block)
+ * No data is fed — kmac_process triggers pad10*1 directly from StMsgFeed → StPad */
+test_shake128_empty:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x21            /* SHAKE128: mode=2(SHAKE), strength=0(L128) */
+    jal     x1, kmac_start
+    /* ★ NO kmac_feed call — empty message */
+    jal     x1, kmac_process         /* triggers pad10*1 of empty msg → full rate block */
+    la      x10, shake128_empty_out
+    jal     x1, kmac_squeeze_32B     /* squeeze first 256 bits from padded-empty state */
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
+
+/* cfg: MODE=SHAKE(2) STRENGTH=L256(2) EN=1 => 0x25
+ * SHAKE-256 empty: 1111 || pad10*1 → 0x1F || 0x00×133 || 0x80 (136 bytes = full rate block) */
+test_shake256_empty:
+    addi    x31, x1, 0               /* save ra */
+    addi    x10, x0, 0x25            /* SHAKE256: mode=2(SHAKE), strength=2(L256) */
+    jal     x1, kmac_start
+    /* ★ NO kmac_feed call — empty message */
+    jal     x1, kmac_process
+    la      x10, shake256_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    jalr    x0, x31, 0
 
 test_sha3_256_msg:
     addi    x31, x1, 0               /* save ra */
@@ -490,6 +528,13 @@ shake128_out:         .zero 32
 
 .balign 32
 shake256_out:         .zero 32
+
+/* SHAKE empty-message output buffers (FIPS 202 expected values computed from reference impl) */
+.balign 32
+shake128_empty_out:   .zero 32   /* SHAKE128("") first 256 bits */
+
+.balign 32
+shake256_empty_out:   .zero 32   /* SHAKE256("") first 256 bits */
 
 /* edge test specific output buffer */
 .balign 32

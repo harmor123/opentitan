@@ -15,6 +15,8 @@ main:
     /* ---- 基础测试 ---- */
     jal     x1, test_sha3_256_empty
     jal     x1, test_sha3_512_empty
+    jal     x1, test_shake128_empty
+    jal     x1, test_shake256_empty
     jal     x1, test_sha3_256_msg
     jal     x1, test_sha3_512_msg
     jal     x1, test_shake128_msg
@@ -56,6 +58,26 @@ test_sha3_512_empty:
     jal     x1, kmac_squeeze_32B
     /* SHA3-512 digest=64B=8 lanes, rate=9 lanes, 无需 RUN */
     addi    x10, x10, 32
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+/* FIPS 202: SHAKE empty — pad10*1 with domain suffix 1111 fills entire rate block */
+test_shake128_empty:
+    addi    x10, x0, 2             /* Mode 2: SHAKE128 */
+    jal     x1, kmac_init
+    /* ★ No keccak_send_message — empty message triggers pad10*1 directly */
+    jal     x1, kmac_process
+    la      x10, shake128_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_shake256_empty:
+    addi    x10, x0, 3             /* Mode 3: SHAKE256 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, shake256_empty_out
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
     ret
@@ -299,6 +321,13 @@ shake128_out:         .zero 32
 
 .balign 32
 shake256_out:         .zero 32
+
+/* SHAKE empty-message output buffers (FIPS 202 pad10*1) */
+.balign 32
+shake128_empty_out:   .zero 32
+
+.balign 32
+shake256_empty_out:   .zero 32
 
 /* 边缘测试专用输出缓冲区 */
 .balign 32

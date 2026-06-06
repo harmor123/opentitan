@@ -374,8 +374,10 @@ class Kmac():
 
         if msg_len == 0 and mode == KmacMode.SHA3:
             pad_words = self._keccak_rate_words
-        elif msg_len == 0:
-            return 0
+        elif msg_len == 0 and mode != KmacMode.SHA3:
+            # FIPS 202: SHAKE empty also requires pad10*1 filling the entire rate block
+            # (domain suffix 1111 → 0x1F instead of 01 → 0x06)
+            pad_words = self._keccak_rate_words
         elif pos == 0:
             pad_words = self._keccak_rate_words
         else:

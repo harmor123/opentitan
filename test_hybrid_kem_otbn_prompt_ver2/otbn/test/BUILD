@@ -89,3 +89,12 @@ otbn_sim_test(
     ],
     dexp = "hkdf_test.dexp",
 )
+
+otbn_sim_test(
+    name = "sha3_test",
+    srcs = ["sha3_test.s"],
+    deps = [
+        "//test_hybrid_kem_otbn_prompt_ver2/otbn/hkdf:kmac_sha3_lib",
+    ],
+    dexp = "sha3_test.dexp",
+)
