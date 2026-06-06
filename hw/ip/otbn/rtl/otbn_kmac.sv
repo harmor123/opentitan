@@ -616,15 +616,15 @@ module otbn_kmac
                                            prim_mubi_pkg::MuBi4False)
   );
 
-  // Process counter — decrements in StProcessing, matches ISS KECCAK_PROCESS_CYCLES (96)
+  // Process counter — decrements in StProcessing, matches ISS KECCAK_PROCESS_CYCLES (96).
+  // Only set on StPad→StProcessing. SHAKE RUN enters StProcessing from StSqueeze
+  // and relies on keccak_done_q alone — exits as soon as keccak-f completes.
   logic [$clog2(ProcessCycles+1)-1:0] process_cnt_q;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni)                                    process_cnt_q <= '0;
     else if (st_q == StPad && pad_cnt == pad_words_needed)
       process_cnt_q <= ProcessCycles;  // 96, matches ISS KECCAK_PROCESS_CYCLES
-    else if (st_q == StSqueeze && cmd_run && !sha3_mode)
-      process_cnt_q <= ProcessCycles;  // SHAKE RUN: full keccak round
     else if (process_cnt_q > 0)
       process_cnt_q <= process_cnt_q - 1'b1;
   end
