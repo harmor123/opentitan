@@ -35,9 +35,9 @@ module otbn_core
   // Fix KMAC squeeze masking to zero for DV trace comparison.
   // Enable keccak-f χ-step DOM masking (requires KmacDomWidth=800 Trivium in otbn_rnd).
   // 0 = unmasked (25 cycles/keccak-f, functional test), 1 = DOM masked (97 cycles, production SCA).
-  parameter bit EnMaskingOtnb = 1'b0,
+  parameter bit EnMaskingOtnb = 1'b1,
   // Aligned with SecFixMaiOpSeq: 1 = deterministic (DV), 0 = normal (SCA).
-  parameter bit SecFixKmacMasking = 1'b1,
+  parameter bit SecFixKmacMasking = 1'b0,
 
   // Masking accelerator is not present. Useful for resource-bound targets only.
   parameter bit FeatStubMai = 1'b0,
@@ -1183,7 +1183,8 @@ module otbn_core
     );
   end
 
-  // KMAC instantiation (always present)
+  // KMAC instantiation — gated by SYN_NO_KMAC for A/B area measurement.
+  `ifndef SYN_NO_KMAC
   otbn_kmac #(
     .EnMasking(EnMaskingOtnb),
     .SecFixKmacMasking(SecFixKmacMasking)
@@ -1219,6 +1220,18 @@ module otbn_core
     .kmac_dom_rand_advance_o(kmac_dom_rand_advance),
     .kmac_state_err_o        (kmac_state_err)
   );
+  `else
+  // Synthesis baseline: KMAC removed. Tie off all outputs.
+  assign ispr_kmac_ctrl_rdata_o      = '0;
+  assign ispr_kmac_if_status_rdata_o = '0;
+  assign ispr_kmac_status_rdata_o    = '0;
+  assign ispr_kmac_intr_rdata_o      = '0;
+  assign ispr_kmac_error_rdata_o     = '0;
+  assign ispr_kmac_data_s0_rdata_o   = '0;
+  assign ispr_kmac_data_s1_rdata_o   = '0;
+  assign kmac_dom_rand_advance_o     = 1'b0;
+  assign kmac_state_err_o            = 1'b0;
+  `endif
 
   otbn_rnd #(
     .RndCnstUrndPrngSeed(RndCnstUrndPrngSeed)

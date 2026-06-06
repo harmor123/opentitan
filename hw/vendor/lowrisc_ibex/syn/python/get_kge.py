@@ -51,13 +51,20 @@ def get_kge(report_path, weighted_dict):
         data = line.split()
         if not data:
             continue
-        weight = weighted_dict.get(data[0])
-        if weight is not None:
-            try:
-                ge += float(data[1]) * weight
-            except (IndexError, ValueError):
-                raise RuntimeError('{}:{} Cell {} matched but was misformatted'
-                                   .format(report_path, line_idx + 1, data[0]))
+        # Search ALL fields for a known cell name (robust across Yosys versions).
+        # FLATTEN=0 produces per-submodule sections; each cell belongs to exactly
+        # one submodule, so summing across all sections is correct.
+        for i, field in enumerate(data):
+            weight = weighted_dict.get(field)
+            if weight is not None:
+                # The count is always the first numeric field before the cell name,
+                # or simply the first field (Yosys >=0.30: "COUNT AREA NAME").
+                try:
+                    ge += float(data[0]) * weight
+                except (IndexError, ValueError):
+                    raise RuntimeError('{}:{} Cell {} matched but was misformatted'
+                                       .format(report_path, line_idx + 1, field))
+                break
     print("Area in kGE = ", round(ge/1000, 2))
 
 
