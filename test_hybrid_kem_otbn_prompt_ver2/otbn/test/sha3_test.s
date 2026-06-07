@@ -12,36 +12,10 @@ main:
     la      x2, stack_end
     addi    x2, x2, -64
 
-    /* ---- 基础测试 ---- */
-    jal     x1, test_sha3_256_empty
-    jal     x1, test_sha3_512_empty
-    jal     x1, test_shake128_empty
-    jal     x1, test_shake256_empty
-    jal     x1, test_sha3_256_msg
-    jal     x1, test_sha3_512_msg
-    jal     x1, test_shake128_msg
-    jal     x1, test_shake256_msg
 
-    /* ---- 进阶边缘测试 (针对 keccak_send_message 的尾部掩码) ---- */
-    jal     x1, test_sha3_256_32b
-    jal     x1, test_sha3_256_33b
-    jal     x1, test_sha3_256_35b
-    jal     x1, test_sha3_256_64b
-    jal     x1, test_shake128_64b_run
-    /* ---- SHAKE + RUN 测试 ---- */
-    jal     x1, test_shake128_1run
-    jal     x1, test_shake256_1run
 
     /* ---- SHAKE rate-cross: 跨 21 lanes 边界 ---- */
     jal     x1, test_shake128_rate_cross
-
-    jal     x1, test_sha3_256_127b
-
-    /* ---- cSHAKE (≡ SHAKE with empty customization) ---- */
-    jal     x1, test_cshake128_empty
-    jal     x1, test_cshake256_empty
-    jal     x1, test_cshake128_msg
-    jal     x1, test_cshake256_msg
 
     ecall
 

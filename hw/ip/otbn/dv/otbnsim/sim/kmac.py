@@ -172,6 +172,7 @@ class Kmac():
     _en_dom_masking: bool = True
     _absorbed_msg_bytes: bytearray = bytearray()  # buffer of absorbed msg bytes for SHAKE RUN
     _skip_absorb_decrement: bool = False  # skip decrement after PROCESS set_next
+    _auto_trig_pending: bool = False  # auto-trigger keccak in progress (masked timing fix)
 
     def __init__(self, csrs: CSRFile, wsrs: WSRFile,
                  en_dom_masking: bool = True) -> None:
@@ -209,6 +210,8 @@ class Kmac():
         if self._keccak_round_ctr.value and not self._skip_absorb_decrement:
             self._keccak_round_ctr.decrement()
         self._skip_absorb_decrement = False
+        if self._auto_trig_pending and not self._keccak_round_ctr._next_val:
+            self._auto_trig_pending = False  # auto-trigger complete
 
         # csrrs reads CSR before _step_fsm updates it — 1-cycle skew.
         # Pre-set SQUEEZE when counter is about to hit 0 so Phase 2 sees it.
@@ -224,10 +227,15 @@ class Kmac():
         kmac_msg_send = self._csrs.KMAC_MSG_SEND.read_unsigned()
         if kmac_msg_send and self._csrs.KMAC_MSG_SEND._pending_write:
             kmac_msg_send = 0
+        counter_done = not self._keccak_round_ctr.value
+        if self._auto_trig_pending and not self._keccak_round_ctr._next_val:
+            counter_done = True
         self._csrs.KMAC_IF_STATUS.update_msg_write_rdy(
             self._state == KmacState.MSG_FEED and not kmac_msg_send
             and not self._kmac_msg_send_words_left.value
-            and not self._keccak_round_ctr.value)
+            and counter_done)
+        if counter_done:
+            self._auto_trig_pending = False
 
         return
 
@@ -286,7 +294,7 @@ class Kmac():
         # Reset dirty bits each cycle
         self._wsrs.KMAC_DATA.clean_shares()
 
-        # Invalidate digest data if both shares were read
+        # Invalidate digest data if both shares were read.
         if self._wsrs.KMAC_DATA.all_shares_read():
             self._csrs.KMAC_IF_STATUS.clr_digest_valid()
             self._wsrs.KMAC_DATA.mark_all_unread()
@@ -464,6 +472,8 @@ class Kmac():
                 self._keccak_round_ctr.end_cycle()  # commit immediately
                 self._keccak_absorbed_cnt.set_next(0)
                 self._skip_absorb_decrement = True
+                if self._en_dom_masking:
+                    self._auto_trig_pending = True
             # else: partial word at last position; leave absorbed_cnt
             # at rate_words so _calc_pad_cycles detects the partial fill
 
@@ -580,7 +590,7 @@ class Kmac():
                                f"{KMAC_WORD_BITS} unsigned bits.")
 
         if self._en_dom_masking:
-            urnd_val = self._wsrs.URND.read_current_cycle()
+            urnd_val = self._wsrs.URND.read_unsigned()
             rand64 = urnd_val & ((1 << KMAC_WORD_BITS) - 1)
             share0 = data ^ rand64
             share1 = rand64
@@ -659,3 +669,4 @@ class Kmac():
         self._data_share_read = [False, False]
         # Buffer of absorbed message bytes (used to recreate SHAKE sponge on RUN).
         self._absorbed_msg_bytes = bytearray()
+        self._auto_trig_pending = False
