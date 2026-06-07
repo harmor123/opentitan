@@ -17,14 +17,15 @@ VOTBN="$ROOT_DIR/build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim"
 # Build ELF
 (cd "$ROOT_DIR" && ./bazelisk.sh build "$BAZEL_TARGET") || fail "bazel build"
 
-# Build Verilator if needed
+# OTBN_EN_MASKING env var aligned with ISS: 1=SCA masked, 0=DV plain
+EN_MASKING=${OTBN_EN_MASKING:-0}
 if [ ! -x "$VOTBN" ]; then
-  echo "Building Verilator..."
-  (cd "$ROOT_DIR" &&
+  echo "Building Verilator simulation..."
+  (cd $ROOT_DIR &&
    fusesoc --cores-root=. run --target=sim --setup --build \
-     --flag=bnmulv_ver2 \
      --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
-     --make_options="-j$(nproc)") || fail "Verilator build"
+     --EnMaskingOtnb="$EN_MASKING" \
+     --make_options="-j$(nproc)" || fail "HW Sim build failed")
 fi
 
 RUN_LOG=$(mktemp)

@@ -261,12 +261,15 @@ class Kmac():
                     self._absorb(i)
                     self._keccak_absorbed_cnt.end_cycle()
                 # If rate filled, extend keccak counter for RTL serial absorption.
-                # For words>1: add words-1 extra feed cycles.
-                # For words=1: the single word still takes 1 feed cycle.
+                # Masked mode (97cy keccak): even words=1 needs +1 feed delay.
+                # Unmasked mode (25cy keccak): original words>1 logic is correct.
                 ctr_after = self._keccak_round_ctr.value
                 if ctr_after > ctr_before:
-                    self._keccak_round_ctr.set_next(
-                        ctr_after + (words - 1 if words > 1 else 1))
+                    if self._en_dom_masking:
+                        self._keccak_round_ctr.set_next(
+                            ctr_after + (words - 1 if words > 1 else 1))
+                    elif words > 1:
+                        self._keccak_round_ctr.set_next(ctr_after + words - 1)
                     self._keccak_round_ctr.end_cycle()
                 # Signal absorption delay: RTL feeds 1 word/cycle.
                 self._kmac_msg_send_words_left.set_next(words)
@@ -577,12 +580,7 @@ class Kmac():
                                f"{KMAC_WORD_BITS} unsigned bits.")
 
         if self._en_dom_masking:
-            # Use previous-cycle committed URND value.  RTL latches squeeze mask
-            # at entering_squeeze/advance_word (posedge), capturing the value
-            # before the current cycle's Trivium advance.  ISS URND.step()
-            # (advance) runs before kmac.step(), so read_current_cycle() would
-            # return post-advance value — one step ahead of RTL.
-            urnd_val = self._wsrs.URND.read_unsigned()
+            urnd_val = self._wsrs.URND.read_current_cycle()
             rand64 = urnd_val & ((1 << KMAC_WORD_BITS) - 1)
             share0 = data ^ rand64
             share1 = rand64

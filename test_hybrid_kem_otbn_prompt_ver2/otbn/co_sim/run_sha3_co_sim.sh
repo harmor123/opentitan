@@ -10,11 +10,17 @@ BAZEL_TARGET="//test_hybrid_kem_otbn_prompt_ver2/otbn/hkdf:sha3_test_bin"
 ELF="$ROOT_DIR/bazel-bin/test_hybrid_kem_otbn_prompt_ver2/otbn/hkdf/sha3_test_bin.elf"
 VOTBN="$ROOT_DIR/build/lowrisc_ip_otbn_top_sim_0.1/sim-verilator/Votbn_top_sim"
 (cd "$ROOT_DIR" && ./bazelisk.sh build "$BAZEL_TARGET") || fail "bazel build"
+# OTBN_EN_MASKING env var aligned with ISS: 1=SCA masked, 0=DV plain
+EN_MASKING=${OTBN_EN_MASKING:-0}
 if [ ! -x "$VOTBN" ]; then
-  (cd "$ROOT_DIR" && fusesoc --cores-root=. run --target=sim --setup --build \
-    --flag=bnmulv_ver2 --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
-    --make_options="-j$(nproc)") || fail "Verilator build"
+  echo "Building Verilator simulation..."
+  (cd $ROOT_DIR &&
+   fusesoc --cores-root=. run --target=sim --setup --build \
+     --mapping=lowrisc:prim_generic:all:0.1 lowrisc:ip:otbn_top_sim \
+     --EnMaskingOtnb="$EN_MASKING" \
+     --make_options="-j$(nproc)" || fail "HW Sim build failed")
 fi
+
 RUN_LOG=$(mktemp)
 trap "rm -f $RUN_LOG" EXIT
 timeout 120s "$VOTBN" --load-elf="$ELF" 2>&1 | tee "$RUN_LOG" || true
