@@ -25,10 +25,10 @@ StepRes = Tuple[Optional[OTBNInsn], List[Trace]]
 
 class OTBNSim:
     def __init__(self) -> None:
-        # SEC_FIX_KMAC_MASKING=1 → SCA mode (2-share URND masking)
-        # unset/empty/"0" → DV deterministic (matches RTL EnMasking=0)
-        en_sca_masking = os.environ.get('SEC_FIX_KMAC_MASKING', '') == '1'
-        self.state = OTBNState(en_sca_masking=en_sca_masking)
+        # OTBN_EN_MASKING=1 → RTL EnMasking=1 (SCA: DOM + URND squeeze, 97 cycles)
+        # unset/0      → RTL EnMasking=0 (DV: plain keccak, zero squeeze, 25 cycles)
+        en_mask = os.environ.get('OTBN_EN_MASKING', '') == '1'
+        self.state = OTBNState(en_dom_masking=en_mask)
         self.program: List[OTBNInsn] = []
         self.loop_warps: LoopWarps = {}
         self.stats: Optional[ExecutionStats] = None

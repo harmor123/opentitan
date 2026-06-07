@@ -248,6 +248,23 @@ module otbn_rnd import otbn_pkg::*;
   logic [KmacDomWidth-1:0] kmac_dom_prng_data;
   logic [KmacDomWidth-1:0] kmac_dom_prng_permuted;
 
+  // Independent self-seed for KMAC DOM Trivium — avoids deadlock with
+  // main URND Trivium (which waits for urnd_advance before seed_done).
+  logic [2:0] kmac_dom_seed_cnt;
+  logic       kmac_dom_seed_en;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      kmac_dom_seed_cnt <= '0;
+      kmac_dom_seed_en  <= 1'b0;
+    end else if (kmac_dom_seed_cnt < 3'd4) begin
+      kmac_dom_seed_cnt <= kmac_dom_seed_cnt + 1'b1;
+      kmac_dom_seed_en  <= (kmac_dom_seed_cnt == 3'd2);
+    end else begin
+      kmac_dom_seed_en <= 1'b0;
+    end
+  end
+
+  logic kmac_dom_seed_done;
   prim_trivium #(
     .BiviumVariant         (1'b1),
     .OutputWidth           (KmacDomWidth),
@@ -259,14 +276,14 @@ module otbn_rnd import otbn_pkg::*;
     .rst_ni,
     .en_i                (kmac_dom_rand_advance_i),
     .allow_lockup_i      (1'b0),
-    .seed_en_i           (seed_en_q),                // Same seed moment as URND
-    .seed_done_o         (),                          // Not used
-    .seed_req_o          (),                          // No independent EDN requests
+    .seed_en_i           (seed_en_q || kmac_dom_seed_en),
+    .seed_done_o         (kmac_dom_seed_done),
+    .seed_req_o          (),
     .seed_ack_i          (1'b1),
     .seed_key_i          ('0),
     .seed_iv_i           ('0),
     .seed_state_full_i   ('0),
-    .seed_state_partial_i(edn_urnd_i.edn_bus),       // Same EDN data as URND
+    .seed_state_partial_i(edn_urnd_i.edn_bus),
     .key_o               (kmac_dom_prng_data),
     .err_o               ()
   );
@@ -326,7 +343,13 @@ module otbn_rnd import otbn_pkg::*;
   end
 
   // Outputs
-  assign kmac_dom_rand_valid_o = urnd_reseed_ack_q;  // Valid after first seed
+  // Valid after KMAC DOM Trivium completes its own seeding
+  logic kmac_dom_rand_valid_q;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) kmac_dom_rand_valid_q <= 1'b0;
+    else if (kmac_dom_seed_done) kmac_dom_rand_valid_q <= 1'b1;
+  end
+  assign kmac_dom_rand_valid_o = kmac_dom_rand_valid_q;
   assign kmac_dom_rand_data_o  = kmac_dom_rand_data_q;
   assign kmac_dom_rand_aux_o   = kmac_dom_rand_data_q[KmacDomWidth-1];
 

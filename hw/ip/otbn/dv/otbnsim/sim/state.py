@@ -78,14 +78,14 @@ class InitSecWipeState(IntEnum):
 
 
 class OTBNState:
-    def __init__(self, en_sca_masking: bool = False) -> None:
+    def __init__(self, en_dom_masking: bool = False) -> None:
         """Initialize OTBN state.
 
         Args:
-            en_sca_masking: If True, KMAC squeeze uses URND-based 2-share masking
-                (matches RTL SecFixKmacMasking=0, production SCA mode).
-                If False, squeeze outputs plaintext (matches RTL SecFixKmacMasking=1,
-                deterministic DV mode).  Default False (DV) for dexp test matching.
+            en_dom_masking: If True, enables DOM 2-share Keccak masking (4 cycles/round)
+                and URND squeeze masking (production SCA mode, RTL EnMasking=1).
+                If False, plain Keccak (1 cycle/round) and zero squeeze
+                (DV test mode, RTL EnMasking=0).
         """
         self.gprs = GPRs()
         self.wdrs = RegFile('w', 256, 32)
@@ -93,7 +93,7 @@ class OTBNState:
         self.ext_regs = OTBNExtRegs()
         self.wsrs = WSRFile(self.ext_regs)
         self.csrs = CSRFile(self.wsrs)
-        self.kmac = Kmac(self.csrs, self.wsrs, en_sca_masking=en_sca_masking)
+        self.kmac = Kmac(self.csrs, self.wsrs, en_dom_masking=en_dom_masking)
 
         self.pc = 0
         self._pc_next_override: Optional[int] = None

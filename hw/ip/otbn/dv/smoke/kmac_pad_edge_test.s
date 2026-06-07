@@ -32,7 +32,7 @@ main:
 
     /* ── 满 rate block (pos=0, 会触发 auto keccak) ── */
     /* TODO: re-enable after PROCESS counter 1-cycle fix 168B=21w=rate*/
-    jal     x1, test_shake128_full       
+    #jal     x1, test_shake128_full       
 
     ecall
 

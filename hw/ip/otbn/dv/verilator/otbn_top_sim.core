@@ -28,6 +28,10 @@ filesets:
     file_type: vlt
 
 parameters:
+  EnMaskingOtnb:
+    datatype: int
+    paramtype: vlogparam
+    default: 0
   MAC_ADDER:
     datatype: str
     paramtype: vlogdefine
@@ -61,6 +65,7 @@ targets:
     <<: *default_target
     default_tool: verilator
     parameters:
+      - EnMaskingOtnb
       - MAC_ADDER
       - ALU_ADDER
     tools:

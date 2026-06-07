@@ -10,7 +10,7 @@ import secrets
 from .csr import CSRFile
 from .wsr import WSRFile
 
-# Timing constants (masked defaults; instance attributes override when en_sca_masking=False)
+# Timing constants (masked defaults; instance attributes override when en_dom_masking=False)
 KECCAK_ROUNDS = 24
 KECCAK_ROUND_CYCLES = 4  # per RTL CyclesPerRound when EnMasking=1
 KECCAK_PROCESS_CYCLES = KECCAK_ROUNDS * KECCAK_ROUND_CYCLES  # 96
@@ -168,15 +168,18 @@ class Kmac():
     _flush_cycle: bool
     _err_sw_cmd_seq: bool
     _err_sw_mode_strength: bool
-    _en_sca_masking: bool = True  # URND masking for squeeze (False = zero mask for DV)
+    # RTL EnMasking: controls DOM masking + squeeze URND (SCA vs DV mode)
+    _en_dom_masking: bool = True
     _absorbed_msg_bytes: bytearray = bytearray()  # buffer of absorbed msg bytes for SHAKE RUN
     _skip_absorb_decrement: bool = False  # skip decrement after PROCESS set_next
 
-    def __init__(self, csrs: CSRFile, wsrs: WSRFile, en_sca_masking: bool = True) -> None:
-        self._en_sca_masking = en_sca_masking
-        self._keccak_round_cycles = 4 if en_sca_masking else 1
+    def __init__(self, csrs: CSRFile, wsrs: WSRFile,
+                 en_dom_masking: bool = True) -> None:
+        self._en_dom_masking = en_dom_masking
+        self._keccak_round_cycles = 4 if en_dom_masking else 1
         self._keccak_process_cycles = KECCAK_ROUNDS * self._keccak_round_cycles  # 96 or 24
         self._keccak_absorb_cycles = self._keccak_process_cycles + 1  # 97 or 25
+        self._process_offset = 1 if en_dom_masking else 1
         self.on_start(csrs, wsrs)
         self._reset_state()
 
@@ -258,9 +261,12 @@ class Kmac():
                     self._absorb(i)
                     self._keccak_absorbed_cnt.end_cycle()
                 # If rate filled, extend keccak counter for RTL serial absorption.
+                # For words>1: add words-1 extra feed cycles.
+                # For words=1: the single word still takes 1 feed cycle.
                 ctr_after = self._keccak_round_ctr.value
-                if ctr_after > ctr_before and words > 1:
-                    self._keccak_round_ctr.set_next(ctr_after + words - 1)
+                if ctr_after > ctr_before:
+                    self._keccak_round_ctr.set_next(
+                        ctr_after + (words - 1 if words > 1 else 1))
                     self._keccak_round_ctr.end_cycle()
                 # Signal absorption delay: RTL feeds 1 word/cycle.
                 self._kmac_msg_send_words_left.set_next(words)
@@ -318,7 +324,8 @@ class Kmac():
                     # rem = ongoing keccak + pad cycles for current rate block.
                     # _calc_pad_cycles replaces the hardcoded rem=17 hack.
                     rem = self._keccak_round_ctr.value + self._calc_pad_cycles(mode)
-                    self._keccak_round_ctr.set_next(self._keccak_process_cycles + rem + 1)
+                    self._keccak_round_ctr.set_next(
+                        self._keccak_process_cycles + rem + self._process_offset)
                     self._state_next = KmacState.PROCESSING
                     self._skip_absorb_decrement = True
 
@@ -569,9 +576,13 @@ class Kmac():
             raise RuntimeError(f"Data value {hex(data)} doesn't fit in "
                                f"{KMAC_WORD_BITS} unsigned bits.")
 
-        if self._en_sca_masking:
-            # Use ISS URND PRNG current-cycle value (matches RTL continuous wire)
-            urnd_val = self._wsrs.URND.read_current_cycle()
+        if self._en_dom_masking:
+            # Use previous-cycle committed URND value.  RTL latches squeeze mask
+            # at entering_squeeze/advance_word (posedge), capturing the value
+            # before the current cycle's Trivium advance.  ISS URND.step()
+            # (advance) runs before kmac.step(), so read_current_cycle() would
+            # return post-advance value — one step ahead of RTL.
+            urnd_val = self._wsrs.URND.read_unsigned()
             rand64 = urnd_val & ((1 << KMAC_WORD_BITS) - 1)
             share0 = data ^ rand64
             share1 = rand64

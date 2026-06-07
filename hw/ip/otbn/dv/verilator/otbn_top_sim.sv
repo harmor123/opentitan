@@ -14,6 +14,8 @@ module otbn_top_sim (
   parameter int ImemSizeByte = otbn_reg_pkg::OTBN_IMEM_SIZE;
   // Size of the data memory, in bytes
   parameter int DmemSizeByte = otbn_reg_pkg::OTBN_DMEM_SIZE + otbn_pkg::DmemScratchSizeByte;
+  // OTBN KMAC DOM masking: 0=DV plain (25cyc), 1=SCA masked (97cyc)
+  parameter bit EnMaskingOtnb = 1'b0;
 
   localparam int ImemAddrWidth = prim_util_pkg::vbits(ImemSizeByte);
   localparam int DmemAddrWidth = prim_util_pkg::vbits(DmemSizeByte);
@@ -74,7 +76,7 @@ module otbn_top_sim (
     .DmemSizeByte             ( DmemSizeByte ),
     .SecMuteUrnd              ( 1'b0         ),
     .SecSkipUrndReseedAtStart ( 1'b0         ),
-    .SecFixKmacMasking        ( 1'b1         )  // DV: fixed zero mask, aligned with SecFixMaiOpSeq
+    .EnMaskingOtnb            ( EnMaskingOtnb )
   ) u_otbn_core (
     .clk_i                       ( IO_CLK                     ),
     .rst_ni                      ( IO_RST_N                   ),
