@@ -137,9 +137,9 @@ OT_DEP_SOURCES=(
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_prince.sv
     # ★ 额外依赖 — 官方脚本遗漏的模块
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_trivium.sv
-    # ★ KMAC 依赖
-    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/keccak_round.sv
-    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/keccak_2share.sv
+    # ★ KMAC 依赖 (已移至 rtl/kmac/)
+    "$LR_SYNTH_SRC_DIR"/rtl/kmac/keccak_round.sv
+    "$LR_SYNTH_SRC_DIR"/rtl/kmac/keccak_2share.sv
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_keccak.sv
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_dom_and_2share.sv
 )
@@ -156,8 +156,8 @@ OT_DEP_PACKAGES=(
     "$LR_SYNTH_SRC_DIR"/../prim_generic/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../keymgr/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../otp_ctrl/rtl/*_pkg.sv
-    # ★ KMAC pkg
-    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/*_pkg.sv
+    # ★ KMAC pkg (已移至 rtl/kmac/)
+    "$LR_SYNTH_SRC_DIR"/rtl/kmac/*_pkg.sv
 )
 
 #-------------------------------------------------------------------------

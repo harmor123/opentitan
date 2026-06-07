@@ -12,6 +12,7 @@ filesets:
       - lowrisc:prim:util
       - lowrisc:prim:lfsr
       - lowrisc:prim:trivium
+      - lowrisc:prim:prim_dom_and_2share
       - lowrisc:prim:cipher_pkg
       - lowrisc:prim:mubi
       - lowrisc:prim:crc32
@@ -22,8 +23,9 @@ filesets:
       - lowrisc:ip:edn_pkg
       - lowrisc:ip:otbn_pkg
       - lowrisc:prim:onehot_check
-      - lowrisc:ip:kmac_pkg
     files:
+      - rtl/kmac/sha3_pkg.sv
+      - rtl/kmac/kmac_pkg.sv
       - rtl/otbn_controller.sv
       - rtl/otbn_decoder.sv
       - rtl/otbn_predecode.sv
@@ -41,6 +43,8 @@ filesets:
       - rtl/otbn_mac_bignum.sv
       - rtl/otbn_mai.sv
       - rtl/otbn_kmac.sv
+      - rtl/kmac/keccak_round.sv
+      - rtl/kmac/keccak_2share.sv
       - rtl/otbn_mask_accelerator.sv
       - rtl/otbn_mod_result_selector.sv
       # ver2 bn_vec_core modules (enabled by BNMULV_VER2)

@@ -35,9 +35,9 @@ module otbn_core
   // Fix KMAC squeeze masking to zero for DV trace comparison.
   // Enable keccak-f χ-step DOM masking (requires KmacDomWidth=800 Trivium in otbn_rnd).
   // 0 = unmasked (25 cycles/keccak-f, functional test), 1 = DOM masked (97 cycles, production SCA).
-  parameter bit EnMaskingOtnb = 1'b1,
+  parameter bit EnMaskingOtnb = 1'b0,
   // Aligned with SecFixMaiOpSeq: 1 = deterministic (DV), 0 = normal (SCA).
-  parameter bit SecFixKmacMasking = 1'b0,
+  parameter bit SecFixKmacMasking = 1'b1,
 
   // Masking accelerator is not present. Useful for resource-bound targets only.
   parameter bit FeatStubMai = 1'b0,

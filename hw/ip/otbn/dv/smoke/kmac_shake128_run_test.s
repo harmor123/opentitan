@@ -98,9 +98,10 @@ kmac_feed_done:
 kmac_process:
     addi    x5, x0, 0x2E
     csrrw   x0, 0x7DD, x5
+    addi    x6, x0, 8               /* DIGEST_VALID mask */
 kmac_proc_wait:
-    csrrs   x5, 0xFC2, x0
-    andi    x5, x5, 0x4
+    csrrs   x5, 0x7d9, x0           /* kmac_if_status */
+    and     x5, x5, x6
     beq     x5, x0, kmac_proc_wait
     ret
 
@@ -108,11 +109,11 @@ _ensure_digest:
     csrrs   x5, 0x7d9, x0
     andi    x5, x5, 0x8
     bne     x5, x0, _ed_ret
-    addi    x3, x1, 0               /* save x1 (return addr) */
-    addi    x4, x6, 0               /* save x6 (DIGEST_VALID mask) */
+    addi    x3, x1, 0
+    addi    x4, x6, 0
     jal     x1, kmac_run
-    addi    x6, x4, 0               /* restore mask */
-    addi    x1, x3, 0               /* restore return addr */
+    addi    x6, x4, 0
+    addi    x1, x3, 0
 _ed_ret:
     jalr    x0, x1, 0
 

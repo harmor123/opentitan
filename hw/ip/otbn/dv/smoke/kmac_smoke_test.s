@@ -134,13 +134,14 @@ kmac_feed_mask_done:
 kmac_feed_done:
     ret
 
-/* kmac_process: send PROCESS=0x2E, wait squeeze */
+/* kmac_process: send PROCESS=0x2E, wait DIGEST_VALID */
 kmac_process:
     addi    x5, x0, 0x2E
     csrrw   x0, 0x7DD, x5
+    addi    x6, x0, 8               /* DIGEST_VALID mask */
 kmac_proc_wait:
-    csrrs   x5, 0xFC2, x0
-    andi    x5, x5, 0x4
+    csrrs   x5, 0x7d9, x0           /* kmac_if_status */
+    and     x5, x5, x6
     beq     x5, x0, kmac_proc_wait
     ret
 
