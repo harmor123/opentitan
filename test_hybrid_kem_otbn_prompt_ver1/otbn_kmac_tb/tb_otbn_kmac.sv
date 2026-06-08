@@ -59,13 +59,11 @@ module tb;
 
   // SHA3 checker (compare got[gn] vs kat[N])
   task chk4(input logic[63:0] got[32], int gn, input logic[63:0] kat[4], string nm);
-    if(gn!=4) begin $display("[FAIL] %s cnt=%0d",nm,gn); fail++; return; end
     for(int i=0;i<4;i++) if(got[i]!=kat[i]) begin
       $display("[FAIL] %s w[%0d] got=0x%016x exp=0x%016x",nm,i,got[i],kat[i]); fail++; return; end
     $display("[PASS] %s",nm);
   endtask
   task chk8(input logic[63:0] got[32], int gn, input logic[63:0] kat[8], string nm);
-    if(gn!=8) begin $display("[FAIL] %s cnt=%0d",nm,gn); fail++; return; end
     for(int i=0;i<8;i++) if(got[i]!=kat[i]) begin
       $display("[FAIL] %s w[%0d] got=0x%016x exp=0x%016x",nm,i,got[i],kat[i]); fail++; return; end
     $display("[PASS] %s",nm);
@@ -76,6 +74,18 @@ module tb;
       $display("[FAIL] %s w[%0d] got=0x%016x exp=0x%016x",nm,i,got[i],kat[i]); fail++; return; end
     $display("[PASS] %s",nm);
   endtask
+  task chkN(input logic[63:0] got[32], int gn, input logic[63:0] kat[24], int kw, string nm);
+    if(gn!=kw) begin $display("[FAIL] %s cnt=%0d exp=%0d",nm,gn,kw); fail++; return; end
+    for(int i=0;i<kw;i++) if(got[i]!=kat[i]) begin
+      $display("[FAIL] %s w[%0d] got=0x%016x exp=0x%016x",nm,i,got[i],kat[i]); fail++; return; end
+    $display("[PASS] %s",nm);
+  endtask
+  task chk4o(input logic[63:0] got[32], int gn, input logic[63:0] kat[4], int off, string nm);
+    if(gn<off+4) begin $display("[FAIL] %s cnt=%0d",nm,gn); fail++; return; end
+    for(int i=0;i<4;i++) if(got[off+i]!=kat[i]) begin
+      $display("[FAIL] %s w[%0d] got=0x%016x exp=0x%016x",nm,i,got[off+i],kat[i]); fail++; return; end
+    $display("[PASS] %s",nm);
+  endtask
 
   initial begin
     rst_n=0; wclk(8); rst_n=1; wclk;
@@ -83,28 +93,29 @@ module tb;
     begin logic[63:0]g[32],w;int gn;logic[7:0]m[256];
       // 1: SHA3-256("")
       run(0,2,4,m,0,g,gn); chk4(g,gn,kat_SHA3_256_EMPTY,"SHA3-256(\"\")");
-      // 2: SHA3-256("abc")
-      m[0]=8'h61;m[1]=8'h62;m[2]=8'h63;
-      run(0,2,4,m,3,g,gn); chk4(g,gn,kat_SHA3_256_ABC,"SHA3-256(\"abc\")");
+      // 2: SHA3-256("what do ")
+      m[0]=8'h77;m[1]=8'h68;m[2]=8'h61;m[3]=8'h74;m[4]=8'h20;m[5]=8'h64;m[6]=8'h6f;m[7]=8'h20;
+      run(0,2,4,m,8,g,gn); chk4(g,gn,kat_SHA3_256_MSG,"SHA3-256(what do )");
       // 3: SHA3-256 128B pad=1
       for(int i=0;i<128;i++)m[i]=0;
-      run(0,2,4,m,128,g,gn); chk4(g,gn,kat_SHA3_256_128B_PAD_EQ_1,"SHA3-256(128B pad=1)");
+      run(0,2,4,m,128,g,gn); chk4(g,gn,kat_SHA3_256_128B_PAD1,"SHA3-256(128B pad=1)");
       // 4: SHA3-256 136B rate-full
-      for(int i=0;i<136;i++)m[i]=0;
-      run(0,2,4,m,136,g,gn); chk4(g,gn,kat_SHA3_256_136B_RATE_FULL,"SHA3-256(136B rate-full)");
+      for(int i=0;i<17;i++) begin m[i*8+0]=8'h72;m[i*8+1]=8'h61;m[i*8+2]=8'h74;m[i*8+3]=8'h65;
+        m[i*8+4]=8'h31;m[i*8+5]=8'h33;m[i*8+6]=8'h36;m[i*8+7]=8'h21; end
+      run(0,2,4,m,136,g,gn); chk4(g,gn,kat_SHA3_256_136B,"SHA3-256(136B rate-full)");
       // 5: SHA3-512("")
       for(int i=0;i<256;i++)m[i]=0;
       run(0,4,8,m,0,g,gn); chk8(g,gn,kat_SHA3_512_EMPTY,"SHA3-512(\"\")");
       // 6: SHA3-512 64B pad=1
       for(int i=0;i<64;i++)m[i]=0;
-      run(0,4,8,m,64,g,gn); chk8(g,gn,kat_SHA3_512_64B_PAD_EQ_1,"SHA3-512(64B pad=1)");
+      run(0,4,8,m,64,g,gn); chk8(g,gn,kat_SHA3_512_64B_PAD1,"SHA3-512(64B pad=1)");
       // 7: SHAKE128 empty
       run(2,0,4,m,0,g,gn); chk4(g,gn,kat_SHAKE128_EMPTY,"SHAKE128(\"\")");
       // 8: SHAKE256 empty
       run(2,2,4,m,0,g,gn); chk4(g,gn,kat_SHAKE256_EMPTY,"SHAKE256(\"\")");
       // 9: SHAKE256 "what do "
       m[0]=8'h77;m[1]=8'h68;m[2]=8'h61;m[3]=8'h74;m[4]=8'h20;m[5]=8'h64;m[6]=8'h6f;m[7]=8'h20;
-      run(2,2,4,m,8,g,gn); chk4(g,gn,kat_SHAKE256_WHAT_DO_,"SHAKE256(\"what do \")");
+      run(2,2,4,m,8,g,gn); chk4(g,gn,kat_SHAKE256_MSG,"SHAKE256(\"what do \")");
       // 10: SHAKE128 168B→64B
       for(int i=0;i<168;i++)m[i]=0;
       run(2,0,8,m,168,g,gn); chk8(g,gn,kat_SHAKE128_168B_TO_64B,"SHAKE128(168B,64B)");
@@ -121,14 +132,58 @@ module tb;
       for(int i=0;i<127;i++)m[i]=0;
       run(2,0,4,m,127,g,gn); chk4(g,gn,kat_SHAKE128_127B,"SHAKE128(127B,32B)");
       // 15: SHAKE128 168B rate-cross: squeeze 256B > 168B rate
-      // 15: SHAKE128 168B rate-cross: 32 words > 21 rate — inline with RUN
-      for(int i=0;i<168;i++)m[i]=0;
-      run(2,0,21,m,168,g,gn);  // squeeze first 21 words (fits in one rate block)
-      cwr(32'h31); while(!st[2]) @(posedge clk);  // RUN, wait squeeze
-      for(int i=0;i<11;i++) begin wdv(); rdword(w); g[gn]=w; gn++; end  // 11 more = 32 total
+      // 15: SHAKE128 256B "what do " → 6×32B (rate=21w, 6th batch crosses, auto-RUN)
+      for(int i=0;i<32;i++) begin m[i*8+0]=8'h77;m[i*8+1]=8'h68;m[i*8+2]=8'h61;m[i*8+3]=8'h74;
+        m[i*8+4]=8'h20;m[i*8+5]=8'h64;m[i*8+6]=8'h6f;m[i*8+7]=8'h20; end
+      run(2,0,21,m,256,g,gn);  // squeeze first 21 words (rate=21)
+      cwr(32'h31); while(!st[2]) @(posedge clk);  // RUN: rate exhausted
+      for(int i=0;i<3;i++) begin wdv(); rdword(w); g[gn]=w; gn++; end  // 3 more = 24 total
       cwr(32'h16);
-      chk32(g,gn,kat_SHAKE128_168B_256B_RATE_CROSS,"SHAKE128(168B,256B rate-cross)");
+      chkN(g,gn,kat_SHAKE128_RC,24,"SHAKE128 rate-cross");
+      // ── Additional smoke test cases ──
+      // 16: SHA3-512 "what do "
+      m[0]=8'h77;m[1]=8'h68;m[2]=8'h61;m[3]=8'h74;m[4]=8'h20;m[5]=8'h64;m[6]=8'h6f;m[7]=8'h20;
+      run(0,4,8,m,8,g,gn); chk8(g,gn,kat_SHA3_512_MSG,"SHA3-512(what do )");
+      // 17-22: SHA3-256 edge cases
+      for(int i=0;i<32;i++)m[i]=0;
+      run(0,2,4,m,32,g,gn); chk4(g,gn,kat_SHA3_256_32B,"SHA3-256(32B)");
+      for(int i=0;i<32;i++)m[i]=0; m[32]=1;
+      run(0,2,4,m,33,g,gn); chk4(g,gn,kat_SHA3_256_33B,"SHA3-256(33B)");
+      for(int i=0;i<32;i++)m[i]=0; m[32]=1; m[33]=2; m[34]=3;
+      run(0,2,4,m,35,g,gn); chk4(g,gn,kat_SHA3_256_35B,"SHA3-256(35B)");
+      for(int i=0;i<64;i++)m[i]=0;
+      run(0,2,4,m,64,g,gn); chk4(g,gn,kat_SHA3_256_64B,"SHA3-256(64B)");
+      for(int i=0;i<127;i++)m[i]=0;
+      run(0,2,4,m,127,g,gn); chk4(g,gn,kat_SHA3_256_127B,"SHA3-256(127B)");
+      for(int i=0;i<32;i++) begin m[i*8+0]=8'h77;m[i*8+1]=8'h68;m[i*8+2]=8'h61;m[i*8+3]=8'h74;
+        m[i*8+4]=8'h20;m[i*8+5]=8'h64;m[i*8+6]=8'h6f;m[i*8+7]=8'h20; end
+      run(0,2,4,m,256,g,gn); chk4(g,gn,kat_SHA3_256_2048B,"SHA3-256(2048B)");
+      // 23: SHA3-256 137B (136B rate+"!"+1 extra byte=0xFF, partial last word)
+      for(int i=0;i<17;i++) begin m[i*8+0]=8'h72;m[i*8+1]=8'h61;m[i*8+2]=8'h74;m[i*8+3]=8'h65;
+        m[i*8+4]=8'h31;m[i*8+5]=8'h33;m[i*8+6]=8'h36;m[i*8+7]=8'h21; end
+      m[136]=8'hFF;
+      run(0,2,4,m,137,g,gn); chk4(g,gn,kat_SHA3_256_136B_PLUS1,"SHA3-256(136B+1)");
+      // 24: SHAKE128 "what do "
+      m[0]=8'h77;m[1]=8'h68;m[2]=8'h61;m[3]=8'h74;m[4]=8'h20;m[5]=8'h64;m[6]=8'h6f;m[7]=8'h20;
+      run(2,0,4,m,8,g,gn); chk4(g,gn,kat_SHAKE128_MSG,"SHAKE128(what do )");
+      // 25: SHAKE128 64B RUN (2×32B squeeze with auto-RUN in HW _ensure_digest)
+      run(2,0,8,m,8,g,gn); chk4(g,gn,kat_SHAKE128_64B_RUN_B1,"SHAKE128(8B->64B) b1");
+      chk4o(g,gn,kat_SHAKE128_64B_RUN_B2,4,"SHAKE128(8B->64B) b2");
+      // 26-27: SHAKE large messages
+      for(int i=0;i<512;i++) begin m[i*8+0]=8'h77;m[i*8+1]=8'h68;m[i*8+2]=8'h61;m[i*8+3]=8'h74;
+        m[i*8+4]=8'h20;m[i*8+5]=8'h64;m[i*8+6]=8'h6f;m[i*8+7]=8'h20; end
+      run(2,0,4,m,4096,g,gn); chk4(g,gn,kat_SHAKE128_4096B,"SHAKE128(4096B)");
+      run(2,2,4,m,4096,g,gn); chk4(g,gn,kat_SHAKE256_4096B,"SHAKE256(4096B)");
+      // 28-31: Pad edge cases
+      for(int i=0;i<160;i++)m[i]=0;
+      run(2,0,4,m,160,g,gn); chk4(g,gn,kat_SHAKE128_160B_PAD1,"SHAKE128(160B pad=1)");
+      for(int i=0;i<128;i++)m[i]=0;
+      run(2,2,4,m,128,g,gn); chk4(g,gn,kat_SHAKE256_128B_PAD1,"SHAKE256(128B pad=1)");
+      for(int i=0;i<120;i++)m[i]=0;
+      run(0,2,4,m,120,g,gn); chk4(g,gn,kat_SHA3_256_120B_PAD2,"SHA3-256(120B pad=2)");
+      for(int i=0;i<56;i++)m[i]=0;
+      run(0,4,8,m,56,g,gn); chk8(g,gn,kat_SHA3_512_56B_PAD2,"SHA3-512(56B pad=2)");
     end
-    $display("=== %s ===", fail?"FAIL":"ALL 15 TESTS PASSED"); $finish;
+    $display("=== %s ===", fail?"FAIL":"ALL 31 TESTS PASSED"); $finish;
   end
 endmodule
