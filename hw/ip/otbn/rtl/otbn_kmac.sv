@@ -874,52 +874,52 @@ module otbn_kmac
     else         st_q <= st_d;
   end
 
-  // logic [7:0] msg_send_cnt;
-  // always_ff @(posedge clk_i or negedge rst_ni) begin
-  //   if (!rst_ni) msg_send_cnt <= '0;
-  //   else if (st_q == StIdle) msg_send_cnt <= '0;
-  //   else if (ispr_kmac_msg_send_wr_i) msg_send_cnt <= msg_send_cnt + 1'b1;
-  // end
+  logic [7:0] msg_send_cnt;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) msg_send_cnt <= '0;
+    else if (st_q == StIdle) msg_send_cnt <= '0;
+    else if (ispr_kmac_msg_send_wr_i) msg_send_cnt <= msg_send_cnt + 1'b1;
+  end
 
-  // // KMAC event trace — enabled for masked-mode debug
-  // always_ff @(posedge clk_i) begin
-  //   if (st_q != st_d)
-  //     $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d  pcnt=%0d",
-  //              $time, st_q, st_d, absorb_total, absorb_rate_pos,
-  //              pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt,
-  //              process_cnt_q);
-  //   if (ispr_kmac_msg_send_wr_i)
-  //     $display("[KMAC] t=%0t MSG_SEND received  msgs=%0d",
-  //              $time, msg_send_cnt);
-  //   if (keccak_feed_valid_mux)
-  //     $display("[KMAC] t=%0t FEED  addr=%0d  data=0x%016x  src=%s",
-  //              $time, keccak_feed_addr_mux, keccak_feed_data_mux,
-  //              keccak_feed_valid ? "msg" : "pad");
-  //   if (sqz_write_en && st_q == StSqueeze)
-  //     $display("[KMAC] t=%0t SQUEEZE word[%0d]=0x%016x  mask=0x%016x  s0=0x%016x  s1=0x%016x  rdy=%0d both=%0d adv=%0d dv=%0d",
-  //              $time, sqz_eff_idx, sqz_word_64, sqz_mask_64,
-  //              sqz_data_s0_plain[63:0], sqz_data_s1_plain[63:0],
-  //              sqz_rdy, both_shares_read,
-  //              advance_word, digest_valid_s);
-    // if (keccak_run)
-    //   $display("[KMAC] t=%0t KECCAK_RUN  st=%0d  pcnt=%0d  rand_v=%0d  state_lane0=0x%016x",
-    //            $time, st_q, process_cnt_q, kmac_dom_rand_valid_i, keccak_state[0][63:0]);
-    // if (keccak_complete)
-    //   $display("[KMAC] t=%0t KECCAK_DONE  st=%0d  pcnt=%0d  done_q=%0d  state_lane0=0x%016x",
-    //            $time, st_q, process_cnt_q, keccak_done_q, keccak_state[0][63:0]);
-    // // Track rand_valid during StProcessing to see if keccak_round is stuck
-    // if (st_q == StProcessing && process_cnt_q > 0)
-    //   $display("[KMAC] t=%0t PROC  pcnt=%0d  rand_v=%0d  done_q=%0d",
-    //            $time, process_cnt_q, kmac_dom_rand_valid_i, keccak_done_q);
-    // if (st_q == StSqueeze && st_d == StSqueeze && digest_valid_s == 0)
-    //   $display("[KMAC] t=%0t ** DV=0 in SQUEEZE: both=%0d  sqz=%0d  s0_rd=%0d  s1_rd=%0d  sqz_rdy=%0d",
-    //            $time, both_shares_read, sqz_word_idx, s0_read_q, s1_read_q, sqz_rdy);
-    // // CSR 0x7D9 read tracking — show when if_status is sampled
-    // if (st_q == StProcessing || st_q == StSqueeze)
-    //   $display("[KMAC] t=%0t STATUS  st=%0d  st_d=%0d  dv=%0d  pcnt=%0d  done_q=%0d  idle=%0d absorb=%0d squeeze=%0d",
-    //            $time, st_q, st_d, digest_valid_s, process_cnt_q, keccak_done_q,
-    //            idle_s, absorb_s, squeeze_s);
-  // end
+  // KMAC event trace — enabled for masked-mode debug
+  always_ff @(posedge clk_i) begin
+    if (st_q != st_d)
+      $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d  pcnt=%0d",
+               $time, st_q, st_d, absorb_total, absorb_rate_pos,
+               pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt,
+               process_cnt_q);
+    if (ispr_kmac_msg_send_wr_i)
+      $display("[KMAC] t=%0t MSG_SEND received  msgs=%0d",
+               $time, msg_send_cnt);
+    if (keccak_feed_valid_mux)
+      $display("[KMAC] t=%0t FEED  addr=%0d  data=0x%016x  src=%s",
+               $time, keccak_feed_addr_mux, keccak_feed_data_mux,
+               keccak_feed_valid ? "msg" : "pad");
+    if (sqz_write_en && st_q == StSqueeze)
+      $display("[KMAC] t=%0t SQUEEZE word[%0d]=0x%016x  mask=0x%016x  s0=0x%016x  s1=0x%016x  rdy=%0d both=%0d adv=%0d dv=%0d",
+               $time, sqz_eff_idx, sqz_word_64, sqz_mask_64,
+               sqz_data_s0_plain[63:0], sqz_data_s1_plain[63:0],
+               sqz_rdy, both_shares_read,
+               advance_word, digest_valid_s);
+    if (keccak_run)
+      $display("[KMAC] t=%0t KECCAK_RUN  st=%0d  pcnt=%0d  rand_v=%0d  state_lane0=0x%016x",
+               $time, st_q, process_cnt_q, kmac_dom_rand_valid_i, keccak_state[0][63:0]);
+    if (keccak_complete)
+      $display("[KMAC] t=%0t KECCAK_DONE  st=%0d  pcnt=%0d  done_q=%0d  state_lane0=0x%016x",
+               $time, st_q, process_cnt_q, keccak_done_q, keccak_state[0][63:0]);
+    // Track rand_valid during StProcessing to see if keccak_round is stuck
+    if (st_q == StProcessing && process_cnt_q > 0)
+      $display("[KMAC] t=%0t PROC  pcnt=%0d  rand_v=%0d  done_q=%0d",
+               $time, process_cnt_q, kmac_dom_rand_valid_i, keccak_done_q);
+    if (st_q == StSqueeze && st_d == StSqueeze && digest_valid_s == 0)
+      $display("[KMAC] t=%0t ** DV=0 in SQUEEZE: both=%0d  sqz=%0d  s0_rd=%0d  s1_rd=%0d  sqz_rdy=%0d",
+               $time, both_shares_read, sqz_word_idx, s0_read_q, s1_read_q, sqz_rdy);
+    // CSR 0x7D9 read tracking — show when if_status is sampled
+    if (st_q == StProcessing || st_q == StSqueeze)
+      $display("[KMAC] t=%0t STATUS  st=%0d  st_d=%0d  dv=%0d  pcnt=%0d  done_q=%0d  idle=%0d absorb=%0d squeeze=%0d",
+               $time, st_q, st_d, digest_valid_s, process_cnt_q, keccak_done_q,
+               idle_s, absorb_s, squeeze_s);
+  end
 
 
   // Pad counter

@@ -53,6 +53,10 @@ bazel test //test_hybrid_kem_otbn_prompt_ver1:phase2_alice_encap_test_sim_verila
 bazel test //test_hybrid_kem_otbn_prompt_ver1:phase2_bob_decap_test_sim_verilator $CHIP
 ```
 
+### 掩码模式
+```bash
+OTBN_EN_MASKING=1 hw/ip/otbn/dv/smoke/run_kmac_shake128_run.sh 
+```
 ## 三版本对比
 
 | | ver0 (纯软件) | ver1 (KMAC混合) | ver2 (硬件加速) |

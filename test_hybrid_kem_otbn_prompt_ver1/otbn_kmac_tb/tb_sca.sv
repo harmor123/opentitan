@@ -1,5 +1,5 @@
 // otbn_kmac standalone testbench — Verilator 5.x
-//   __ENMASK__ is replaced by run_tb.sh: 0=DV, 1=SCA
+//   1 is replaced by run_tb.sh: 0=DV, 1=SCA
 module tb;
   import otbn_pkg::*;
   logic clk=0, rst_n=0;
@@ -38,7 +38,7 @@ module tb;
   end
   always @(posedge clk) if(dadv) ddat<=dom_prng_out;
 
-  otbn_kmac #(.EnMasking(__ENMASK__)) dut(
+  otbn_kmac #(.EnMasking(1)) dut(
     .clk_i(clk), .rst_ni(rst_n), .urnd_data_i(urnd),
     .sec_wipe_kmac_i(sw), .sec_wipe_running_i(sr),
     .ispr_kmac_ctrl_wr_i(cw), .ispr_kmac_ctrl_wdata_i(cwd),
