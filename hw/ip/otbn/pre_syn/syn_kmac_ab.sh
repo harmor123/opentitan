@@ -137,9 +137,8 @@ OT_DEP_SOURCES=(
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_prince.sv
     # ★ 额外依赖 — 官方脚本遗漏的模块
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_trivium.sv
-    # ★ KMAC 依赖 (已移至 rtl/kmac/)
-    "$LR_SYNTH_SRC_DIR"/rtl/kmac/keccak_round.sv
-    "$LR_SYNTH_SRC_DIR"/rtl/kmac/keccak_2share.sv
+    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/keccak_round.sv
+    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/keccak_2share.sv
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_keccak.sv
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/prim_dom_and_2share.sv
 )
@@ -156,12 +155,11 @@ OT_DEP_PACKAGES=(
     "$LR_SYNTH_SRC_DIR"/../prim_generic/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../keymgr/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../otp_ctrl/rtl/*_pkg.sv
-    # ★ KMAC pkg (已移至 rtl/kmac/)
-    "$LR_SYNTH_SRC_DIR"/rtl/kmac/*_pkg.sv
+    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/*_pkg.sv
 )
 
 #-------------------------------------------------------------------------
-# Convert OpenTitan dependency sources (identical to official)            ★ unchanged
+# Convert OpenTitan dependency sources (identical to official)            
 #-------------------------------------------------------------------------
 for file in "${OT_DEP_SOURCES[@]}"; do
     module=`basename -s .sv $file`
@@ -234,14 +232,14 @@ for file in "$LR_SYNTH_SRC_DIR"/rtl/*.sv; do
 done
 
 #-------------------------------------------------------------------------
-# run Yosys synthesis (official)                                          ★ unchanged
+# run Yosys synthesis (official)                                          
 #-------------------------------------------------------------------------
 yosys -c ./tcl/yosys_run_synth.tcl |& teelog syn || {
     error "Failed to synthesize RTL with Yosys"
 }
 
 #-------------------------------------------------------------------------
-# run static timing analysis (official)                                   ★ unchanged
+# run static timing analysis (official)                                   
 #-------------------------------------------------------------------------
 if [[ $LR_SYNTH_TIMING_RUN == 1 ]] ; then
     sta ./tcl/sta_run_reports.tcl |& teelog sta || {
@@ -251,7 +249,7 @@ if [[ $LR_SYNTH_TIMING_RUN == 1 ]] ; then
 fi
 
 #-------------------------------------------------------------------------
-# report kGE number (official)                                            ★ unchanged
+# report kGE number (official)                                            
 #-------------------------------------------------------------------------
 python/get_kge.py $LR_SYNTH_CELL_LIBRARY_PATH $LR_SYNTH_OUT_DIR/reports/area.rpt
 

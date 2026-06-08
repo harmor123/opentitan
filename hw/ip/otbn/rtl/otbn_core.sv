@@ -1231,7 +1231,8 @@ module otbn_core
   `endif
 
   otbn_rnd #(
-    .RndCnstUrndPrngSeed(RndCnstUrndPrngSeed)
+    .RndCnstUrndPrngSeed(RndCnstUrndPrngSeed),
+    .EnMasking(EnMaskingOtnb)
   ) u_otbn_rnd (
     .clk_i,
     .rst_ni,
