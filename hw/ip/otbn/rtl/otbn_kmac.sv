@@ -311,7 +311,8 @@ module otbn_kmac
       kmac_intr_q <= '0;
     end else begin
       if (kmac_state_err_o || cmd_sequence_err_q || wsr_write_err_q ||
-          cfg_integrity_err || pad_cnt_err || process_cnt_err || sqz_idx_err)
+          cfg_integrity_err || pad_cnt_err || process_cnt_err || sqz_idx_err ||
+          msg_intg_violation)
         kmac_intr_q[0] <= 1'b1;
       else if (ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[0])
         kmac_intr_q[0] <= 1'b0;
@@ -384,12 +385,36 @@ module otbn_kmac
     if (kmac_data_s1_wr_en) kmac_data_s1_q <= kmac_data_s1_d;
   end
 
+  // SECDED integrity error signals per WSR word (8 words for WLEN=256)
+  logic [BaseWordsPerWLEN-1:0] wsr_intg_errs_s0, wsr_intg_errs_s1;
+
   for (genvar i = 0; i < BaseWordsPerWLEN; i++) begin : g_wsr_rd
     assign ispr_kmac_data_s0_rdata_o[i*39+:39] = kmac_data_s0_q[i*39+:39];
     assign ispr_kmac_data_s1_rdata_o[i*39+:39] = kmac_data_s1_q[i*39+:39];
-    assign kmac_data_s0_no_intg[i*32+:32]      = kmac_data_s0_q[i*39+:32];
-    assign kmac_data_s1_no_intg[i*32+:32]      = kmac_data_s1_q[i*39+:32];
+
+    // SECDED decode: extract 32-bit data from 39-bit ECC-protected word.
+    // Replaces raw extraction: kmac_data_s0_q[i*39+:32]
+    prim_secded_inv_39_32_dec u_s0_dec (
+      .data_i    (kmac_data_s0_q[i*39+:39]),
+      .data_o    (kmac_data_s0_no_intg[i*32+:32]),
+      .syndrome_o(),
+      .err_o     (wsr_intg_errs_s0[i])
+    );
+    prim_secded_inv_39_32_dec u_s1_dec (
+      .data_i    (kmac_data_s1_q[i*39+:39]),
+      .data_o    (kmac_data_s1_no_intg[i*32+:32]),
+      .syndrome_o(),
+      .err_o     (wsr_intg_errs_s1[i])
+    );
   end
+
+  // Message integrity violation: SECDED error detected on active WSR data.
+  // Only reported when data is actually being consumed by keccak.
+  logic wsr_intg_err;
+  logic msg_intg_violation;
+  assign wsr_intg_err       = (|wsr_intg_errs_s0) || (|wsr_intg_errs_s1);
+  assign msg_intg_violation = wsr_intg_err && absorb_active &&
+                               !absorb_hold_q && !keccak_run_pending_q;
 
   ////////////////////////////////////////////////////////////////////////////
   // Message Absorption
@@ -1158,7 +1183,16 @@ module otbn_kmac
   // Only secure wipe errors trigger this path.
   // Sticky W1C errors (cmd_sequence, wsr_write) only feed kmac_intr + kmac_if_status.
   ////////////////////////////////////////////////////////////////////////////
-  assign kmac_state_err_o = pad_cnt_err || process_cnt_err || sqz_idx_err ||
+  // Message integrity error (SECDED violation on WSR data) — latched
+  logic msg_intg_err_q, msg_intg_err_d;
+  assign msg_intg_err_d = sec_wipe_kmac_i ? 1'b0 :
+                          msg_intg_violation ? 1'b1 : msg_intg_err_q;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) msg_intg_err_q <= 1'b0;
+    else         msg_intg_err_q <= msg_intg_err_d;
+  end
+
+  assign kmac_state_err_o = msg_intg_err_q || pad_cnt_err || process_cnt_err || sqz_idx_err ||
                              ((sec_wipe_kmac_data_s0_i | sec_wipe_kmac_data_s1_i) &
                               ~sec_wipe_running_i);
 
