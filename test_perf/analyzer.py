@@ -145,21 +145,25 @@ def report_latest(db: DBManager) -> str:
             row += f"{_fmt(gcyc)}{_pct(gcyc, total_cyc[v]):>8}"
         lines.append(row)
 
-    # ── [5] 加速比（相邻版本对比） ──
-    if len(vers) >= 2:
-        for i in range(1, len(vers)):
-            prev, curr = vers[i-1], vers[i]
-            lines.append(f"\n{C_BOLD}[5] 加速比: {curr} vs {prev}{C_END}\n" + SEP)
-            for op in all_ops:
-                prev_c = data[prev].get(op, {}).get("cycles") or 1
-                curr_c = data[curr].get(op, {}).get("cycles") or 0
-                row = _pad(f"  {_label(op)}", LABEL_W)
-                row += f"  {_speedup(prev_c, curr_c)}  {_delta(curr_c, prev_c)}"
+    # ── [5] 加速比（同掩码配置内，相邻版本对比） ──
+    # 分组：unmasked（无 _masked 后缀） vs masked（有 _masked 后缀）
+    vers_unmasked = [v for v in vers if not v.endswith("_masked")]
+    vers_masked   = [v for v in vers if v.endswith("_masked")]
+    for chain_label, chain in [("(unmasked)", vers_unmasked), ("(masked)", vers_masked)]:
+        if len(chain) >= 2:
+            for i in range(1, len(chain)):
+                prev, curr = chain[i-1], chain[i]
+                lines.append(f"\n{C_BOLD}[5] 加速比 {chain_label}: {curr} vs {prev}{C_END}\n" + SEP)
+                for op in all_ops:
+                    prev_c = data[prev].get(op, {}).get("cycles") or 1
+                    curr_c = data[curr].get(op, {}).get("cycles") or 0
+                    row = _pad(f"  {_label(op)}", LABEL_W)
+                    row += f"  {_speedup(prev_c, curr_c)}  {_delta(curr_c, prev_c)}"
+                    lines.append(row)
+                pt = totals[prev]["cyc"]; ct = totals[curr]["cyc"]
+                row = _pad("  TOTAL", LABEL_W)
+                row += f"  {_speedup(pt, ct)}  {_delta(ct, pt)}"
                 lines.append(row)
-            pt = totals[prev]["cyc"]; ct = totals[curr]["cyc"]
-            row = _pad("  TOTAL", LABEL_W)
-            row += f"  {_speedup(pt, ct)}  {_delta(ct, pt)}"
-            lines.append(row)
 
     # ── [6] 吞吐量 ──
     lines.append(f"\n{C_BOLD}[6] 吞吐量 @100MHz (ops/sec){C_END}\n" + SEP)
@@ -222,7 +226,54 @@ def report_latest(db: DBManager) -> str:
                 bar = "█" * int(cnt / max_n * 20) + "░" * (20 - int(cnt / max_n * 20))
                 lines.append(f"    {_pad(short, 52)} {cnt:>6}×  {bar}")
 
+    # ── [10] 掩码 vs 非掩码对比 ──
+    _append_masked_comparison(lines, vers, data, all_ops, totals)
+
     return "\n".join(lines)
+
+
+def _append_masked_comparison(lines, vers, data, all_ops, totals):
+    """[10] 掩码 vs 非掩码对比：配对 unmasked/masked 版本并生成对比表。"""
+    pairs = []
+    for v in vers:
+        if v.endswith("_masked"):
+            base = v[:-7]  # "ver2_masked" → "ver2"
+            if base in vers:
+                pairs.append((base, v))
+    if not pairs:
+        return
+
+    lines.append(f"\n{C_BOLD}[10] 掩码 vs 非掩码对比 (DOM 24→96 cy/Keccak-f){C_END}\n" + SEP)
+    hdr = _pad("  操作", LABEL_W)
+    for base, masked in pairs:
+        hdr += f"{_pad(masked+' Δcyc', VAL_W)}{_pad(masked+' Δ%', 9)}"
+    lines.append(hdr)
+
+    for op in all_ops:
+        row = _pad(f"  {_label(op)}", LABEL_W)
+        for base, masked in pairs:
+            base_c = data[base].get(op, {}).get("cycles") or 0
+            mask_c = data[masked].get(op, {}).get("cycles") or 0
+            if base_c:
+                d = mask_c - base_c
+                dpct = d / base_c * 100
+                row += f"{_fmt(d)}{dpct:>+7.1f}%  "
+            else:
+                row += f"{_fmt(mask_c)}     —  "
+        lines.append(row)
+
+    # TOTAL 行
+    tr = _pad("  TOTAL", LABEL_W)
+    for base, masked in pairs:
+        bc = totals[base]["cyc"]
+        mc = totals[masked]["cyc"]
+        if bc:
+            d = mc - bc
+            dpct = d / bc * 100
+            tr += f"{_fmt(d)}{dpct:>+7.1f}%  "
+        else:
+            tr += f"{_fmt(mc)}     —  "
+    lines.append(tr)
 
 
 def report_history(db: DBManager, version: str) -> str:

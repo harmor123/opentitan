@@ -9,9 +9,9 @@
 .section .text.start
 .globl main
 main:
-    jal     x1, test_shake128_1run
-    jal     x1, test_shake128_3run
-    jal     x1, test_shake256_1run
+   # jal     x1, test_shake128_1run
+  #  jal     x1, test_shake128_3run
+   # jal     x1, test_shake256_1run
     jal     x1, test_shake128_rate_cross
 
     bn.xor  w0, w0, w0

@@ -63,6 +63,8 @@ python test_perf/main.py report --db test_perf/db/v0_full_1.db -o test_perf/repo
 | [6] | **吞吐量 @100MHz** | ops/sec | 每秒能执行多少次操作。越高越好 | 100M / cycles |
 | [7] | **Top-10 指令明细** | 条 / % | 最热指令。bn.rshi/xor 占大头 = Keccak 密集；csrrs 多 = KMAC 轮询 | trace 指令名统计 |
 | [8] | **指令类别分布** | 条 / % | 宏观视角：BN ALU 多 = 软件算法；Ctrl Flow 多 = 硬件驱动 | 68 条 OTBN 指令 → 10 大类，按版本汇总 |
+| [9] | **函数调用热点** | × / 函数名 | 最热函数。`_ensure_digest` 多 = KMAC 轮询；`mul_modp` 多 = P-256 密集型 | ISS 函数调用统计 |
+| [10] | **掩码 vs 非掩码对比** | Δ cycles / Δ% | DOM 掩码的**真实性能代价**。自动配对 `verX`↔`verX_masked`，无 masked 数据时自动跳过 | `analyer.py` 自动检测 `_masked` 后缀 |
 
 ### 代码尺寸影响因素
 
@@ -108,10 +110,20 @@ test_perf/
 
 ```yaml
 versions:
-  - name: "ver0"
-    label: "纯软件"
+  - name: "ver2"
+    label: "硬件加速"
     targets:                          # bazel otbn_binary 目标
-      sha3:  "//test_hybrid_kem_otbn_prompt_ver0/otbn/hkdf:sha3_shake"
+      sha3:  "//test_hybrid_kem_otbn_prompt_ver2/otbn/hkdf:sha3_test_bin"
+      ...
+    tests: [sha3, hmac, hkdf, p256, mlkem_keypair, mlkem_encap, mlkem_decap]
+
+  # 掩码变体: 通过 env 注入 OTBN_EN_MASKING=1 → DOM Keccak (97cy) + URND squeeze
+  - name: "ver2_masked"
+    label: "硬件加速 (masked)"
+    env:
+      OTBN_EN_MASKING: "1"            # 任意环境变量，ISS 读取
+    targets:                          # 与 unmasked 共享相同 targets
+      sha3:  "//test_hybrid_kem_otbn_prompt_ver2/otbn/hkdf:sha3_test_bin"
       ...
     tests: [sha3, hmac, hkdf, p256, mlkem_keypair, mlkem_encap, mlkem_decap]
 
@@ -119,17 +131,24 @@ timeout: 120
 database: "db/perf_results.db"
 ```
 
-增加新版本只需追加一项。
+增加新版本只需追加一项。`env` 字段可选，用于注入 ISS 运行时的环境变量。
 
 ## 命令一览
 
 | 命令 | 说明 |
 |------|------|
 | `run` | 运行测试，每次跑一次（ISS 确定）。`-V` 版本, `-t` 测试, `--db` 指定库 |
-| `report` | 最新横向对比报告（8 维度）。`-o report.txt` 保存纯文本 |
+| `run -V ver2,ver2_masked` | 同一版本跑 unmasked + masked，一键对比 |
+| `report` | 最新横向对比报告（10 维度）。`-o report.txt` 保存纯文本 |
 | `history -v ver0` | ver0 全部历史，每次 cycle/instr 变化 |
 | `delete --id N` | 删除指定记录（级联删除指标） |
 | `delete -v ver0 --before 2026-01-01` | 删除历史数据 |
+
+## 注意事项
+
+- **`ver2_masked` 修复**: `main.py` 中 `"ver2" in ver["name"]`（而非 `==`）确保 masked 版本正确加载 ver2 指令集（`insns-ver2.yml`）。若新增 `verX_masked` 变体，确认 `bnv` 赋值逻辑正确。
+- **env 字段**: config 中通过 `env: {OTBN_EN_MASKING: "1"}` 注入掩码模式，`main.py` 自动设置/恢复环境变量，无需手动 `export`。
+- **ISS 缓存**: 每次 `run_iss` 调用前按 `__file__` 路径清除 `sys.modules` 中所有 otbn/otbnsim/shared/serialize 模块，确保 `BNMULV_VER` 和 `OTBN_EN_MASKING` 切换生效。
 
 ## 数据库表结构
 
@@ -145,6 +164,31 @@ CREATE TABLE metrics (
     imem INTEGER, dmem INTEGER,
     instr_categories TEXT, instr_freqs TEXT);
 ```
+
+## 掩码 vs 非掩码对比
+
+掩码通过环境变量 `OTBN_EN_MASKING=1` 注入 ISS（`sim.py` → `state.py` → `kmac.py`），Keccak-f 从 24→96 cycles。config 中通过 `env` 字段声明，`main.py` 自动设置/恢复环境变量，无需手动 `export`。
+
+```bash
+# 一键跑 ver2 的 unmasked + masked 对比
+python main.py run -V ver2,ver2_masked
+
+# 报告自动包含 [10] 掩码 vs 非掩码对比
+python main.py report
+```
+
+报告示例：
+```
+[10] 掩码 vs 非掩码对比 (DOM 24→96 cy/Keccak-f)
+────────────────────────────────────────────────────────
+  操作                    ver2_masked Δcyc  ver2_masked Δ%
+  ML-KEM KeyGen                  +3,096       +4.2%
+  ML-KEM Encap                   +3,168       +4.0%
+  P-256 ECDH                         +0        0.0%
+  TOTAL                           +7,209       +0.8%
+```
+
+> **原理**：KMAC 是独立硬件，Keccak-f 与 OTBN 指令流并行执行。OTBN 只在需要 digest 数据且 KMAC 未 ready 时才 stall。因此 4× Keccak-f 延迟对 ML-KEM 端到端性能的影响仅 ~4%。
 
 ## Phase 1/2 全流程测试
 

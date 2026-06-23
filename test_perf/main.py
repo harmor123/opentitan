@@ -132,17 +132,27 @@ def _get_elf_sizes(elf_path: str) -> dict:
     return sizes
 
 
-def run_iss(elf_path: str, test_name: str, bnmulv: str = "") -> dict | None:
+def run_iss(elf_path: str, test_name: str, bnmulv: str = "",
+            env: dict | None = None) -> dict | None:
     """直接调用 StandaloneSim API，获取 ExecutionStatAnalyzer 全量指标。"""
     import importlib, sys
     if bnmulv:
         os.environ["BNMULV_VER"] = bnmulv
     else:
         os.environ.pop("BNMULV_VER", None)
-    # 清除缓存，否则切换版本时 decode 模块不变
-    for mod in list(sys.modules):
-        if "otbn" in mod or "otbnsim" in mod:
-            sys.modules.pop(mod, None)
+    # 设置额外环境变量 (如 OTBN_EN_MASKING=1)，用完后恢复旧值
+    env_backup = {}
+    if env:
+        for k, v in env.items():
+            env_backup[k] = os.environ.get(k)
+            os.environ[k] = v
+    # 清除缓存，否则切换版本时 decode 模块不变。
+    # 按模块文件路径匹配（而非 Python dotted name），覆盖 shared/serialize 等间接依赖。
+    importlib.invalidate_caches()
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, '__file__', '') or ''
+        if any(x in f for x in ('otbn', 'otbnsim', 'shared', 'serialize')):
+            sys.modules.pop(name, None)
     from hw.ip.otbn.dv.otbnsim.sim.standalonesim import StandaloneSim
     from hw.ip.otbn.dv.otbnsim.sim.load_elf import load_elf
     from hw.ip.otbn.dv.otbnsim.sim.stats import ExecutionStatAnalyzer
@@ -156,7 +166,6 @@ def run_iss(elf_path: str, test_name: str, bnmulv: str = "") -> dict | None:
 
     sim.start(True)
     sim.run(False, None)
-
 
     raw = {"operation": test_name, "imem": 0, "dmem": 0,
            "instr_freqs": {}, "instr_categories": {}, "func_calls": {}}
@@ -179,6 +188,12 @@ def run_iss(elf_path: str, test_name: str, bnmulv: str = "") -> dict | None:
     logger.info("[%s] cycles=%s  ins=%s  stalls=%s  imem=%s  dmem=%s",
                 test_name, raw.get("cycles", "?"), raw.get("instructions", "?"),
                 raw.get("stalls", "?"), raw.get("imem", "?"), raw.get("dmem", "?"))
+    # 恢复环境变量
+    for k, v in (env or {}).items():
+        if env_backup.get(k) is not None:
+            os.environ[k] = env_backup[k]
+        else:
+            os.environ.pop(k, None)
     return raw
 
 
@@ -257,8 +272,9 @@ def run_single_test(ver: dict, test_name: str, timeout: int = 120) -> dict | Non
     elf = bazel_build(target)
     if elf is None:
         return None
-    bnv = "2" if ver["name"] == "ver2" else ""
-    return run_iss(str(elf), test_name, bnmulv=bnv)
+    bnv = "2" if "ver2" in ver["name"] else ""
+    return run_iss(str(elf), test_name, bnmulv=bnv,
+                   env=ver.get("env"))
 
 
 def cmd_run(config, version_filter="", test_filter="", db_path=""):
