@@ -892,93 +892,86 @@ module otbn_mac_bignum
   // an instruction.
   // For a regular multiplication shift_acc only applies to the new value written to the
   // accumulator.
-`ifdef BNMULV
-  // BNMULV result selection (matches paper2: always_comb drives operation_result_o directly)
   always_comb begin
-    unique case (operation_i.mulv)
-      1'b0: begin
-        operation_result_o = acc_merged | adder_result_blanked;
-      end
-      default: begin
+    operation_result_o = acc_merged | adder_result_blanked;  // default: MULQACC
+`ifdef BNMULV
+    if (operation_i.mulv) begin
 `ifdef BNMULV_ACCH
-        unique case (operation_i.exec_mode)
-          2'b00: begin  // plain mulv
-            if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
-              operation_result_o = {adder_result[384 + 64*operation_i.sel +: 64],
-                                    adder_result[256 + 64*operation_i.sel +: 64],
-                                    adder_result[128 + 64*operation_i.sel +: 64],
-                                    adder_result[      64*operation_i.sel +: 64]};
-            end else begin  // 16-bit mode (16H)
-              operation_result_o = {adder_result[448 + 32*operation_i.sel +: 32],
-                                    adder_result[384 + 32*operation_i.sel +: 32],
-                                    adder_result[320 + 32*operation_i.sel +: 32],
-                                    adder_result[256 + 32*operation_i.sel +: 32],
-                                    adder_result[192 + 32*operation_i.sel +: 32],
-                                    adder_result[128 + 32*operation_i.sel +: 32],
-                                    adder_result[ 64 + 32*operation_i.sel +: 32],
-                                    adder_result[      32*operation_i.sel +: 32]};
-            end
+      unique case (operation_i.exec_mode)
+        2'b00: begin  // plain mulv
+          if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
+            operation_result_o = {adder_result[384 + 64*operation_i.sel +: 64],
+                                  adder_result[256 + 64*operation_i.sel +: 64],
+                                  adder_result[128 + 64*operation_i.sel +: 64],
+                                  adder_result[      64*operation_i.sel +: 64]};
+          end else begin  // 16-bit mode (16H)
+            operation_result_o = {adder_result[448 + 32*operation_i.sel +: 32],
+                                  adder_result[384 + 32*operation_i.sel +: 32],
+                                  adder_result[320 + 32*operation_i.sel +: 32],
+                                  adder_result[256 + 32*operation_i.sel +: 32],
+                                  adder_result[192 + 32*operation_i.sel +: 32],
+                                  adder_result[128 + 32*operation_i.sel +: 32],
+                                  adder_result[ 64 + 32*operation_i.sel +: 32],
+                                  adder_result[      32*operation_i.sel +: 32]};
           end
-          2'b01: begin  // .acc variant: interleave operand_a with adder result
-            if (operation_i.data_type == 1'b1) begin  // 32-bit mode
-              if (operation_i.sel == 1'b0) begin
-                operation_result_o = {operand_a_blanked[224+:32], adder_result[384+:32],
-                                      operand_a_blanked[160+:32], adder_result[256+:32],
-                                      operand_a_blanked[ 96+:32], adder_result[128+:32],
-                                      operand_a_blanked[ 32+:32], adder_result[  0+:32]};
-              end else begin
-                operation_result_o = {adder_result[384+64+:32], operand_a_blanked[192+:32],
-                                      adder_result[256+64+:32], operand_a_blanked[128+:32],
-                                      adder_result[128+64+:32], operand_a_blanked[ 64+:32],
-                                      adder_result[  0+64+:32], operand_a_blanked[  0+:32]};
-              end
-            end else begin  // 16-bit mode (.lo, exec_mode=01)
-              // With ACCH: all 16 products available, take product LOWER halves
-              operation_result_o = {adder_result[480+:16], adder_result[448+:16],
-                                    adder_result[416+:16], adder_result[384+:16],
-                                    adder_result[352+:16], adder_result[320+:16],
-                                    adder_result[288+:16], adder_result[256+:16],
-                                    adder_result[224+:16], adder_result[192+:16],
-                                    adder_result[160+:16], adder_result[128+:16],
-                                    adder_result[ 96+:16], adder_result[ 64+:16],
-                                    adder_result[ 32+:16], adder_result[  0+:16]};
+        end
+        2'b01: begin  // .acc variant: interleave operand_a with adder result
+          if (operation_i.data_type == 1'b1) begin  // 32-bit mode
+            if (operation_i.sel == 1'b0) begin
+              operation_result_o = {operand_a_blanked[224+:32], adder_result[384+:32],
+                                    operand_a_blanked[160+:32], adder_result[256+:32],
+                                    operand_a_blanked[ 96+:32], adder_result[128+:32],
+                                    operand_a_blanked[ 32+:32], adder_result[  0+:32]};
+            end else begin
+              operation_result_o = {adder_result[384+64+:32], operand_a_blanked[192+:32],
+                                    adder_result[256+64+:32], operand_a_blanked[128+:32],
+                                    adder_result[128+64+:32], operand_a_blanked[ 64+:32],
+                                    adder_result[  0+64+:32], operand_a_blanked[  0+:32]};
             end
+          end else begin  // 16-bit mode (.lo, exec_mode=01)
+            // With ACCH: all 16 products available, take product LOWER halves
+            operation_result_o = {adder_result[480+:16], adder_result[448+:16],
+                                  adder_result[416+:16], adder_result[384+:16],
+                                  adder_result[352+:16], adder_result[320+:16],
+                                  adder_result[288+:16], adder_result[256+:16],
+                                  adder_result[224+:16], adder_result[192+:16],
+                                  adder_result[160+:16], adder_result[128+:16],
+                                  adder_result[ 96+:16], adder_result[ 64+:16],
+                                  adder_result[ 32+:16], adder_result[  0+:16]};
           end
-          default: begin  // exec_mode 10 (.hi) / 11
-            if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
-              if (operation_i.sel == 1'b0) begin
-                operation_result_o = {operand_a_blanked[224+:32], adder_result[416+:32],
-                                      operand_a_blanked[160+:32], adder_result[288+:32],
-                                      operand_a_blanked[ 96+:32], adder_result[160+:32],
-                                      operand_a_blanked[ 32+:32], adder_result[ 32+:32]};
-              end else begin
-                operation_result_o = {adder_result[416+64+:32], operand_a_blanked[192+:32],
-                                      adder_result[288+64+:32], operand_a_blanked[128+:32],
-                                      adder_result[160+64+:32], operand_a_blanked[ 64+:32],
-                                      adder_result[ 32+64+:32], operand_a_blanked[  0+:32]};
-              end
-            end else begin  // 16-bit mode (16H)
-              operation_result_o = {adder_result[496+:16], adder_result[464+:16],
-                                    adder_result[432+:16], adder_result[400+:16],
-                                    adder_result[368+:16], adder_result[336+:16],
-                                    adder_result[304+:16], adder_result[272+:16],
-                                    adder_result[240+:16], adder_result[208+:16],
-                                    adder_result[176+:16], adder_result[144+:16],
-                                    adder_result[112+:16], adder_result[ 80+:16],
-                                    adder_result[ 48+:16], adder_result[ 16+:16]};
+        end
+        default: begin  // exec_mode 10 (.hi) / 11
+          if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
+            if (operation_i.sel == 1'b0) begin
+              operation_result_o = {operand_a_blanked[224+:32], adder_result[416+:32],
+                                    operand_a_blanked[160+:32], adder_result[288+:32],
+                                    operand_a_blanked[ 96+:32], adder_result[160+:32],
+                                    operand_a_blanked[ 32+:32], adder_result[ 32+:32]};
+            end else begin
+              operation_result_o = {adder_result[416+64+:32], operand_a_blanked[192+:32],
+                                    adder_result[288+64+:32], operand_a_blanked[128+:32],
+                                    adder_result[160+64+:32], operand_a_blanked[ 64+:32],
+                                    adder_result[ 32+64+:32], operand_a_blanked[  0+:32]};
             end
+          end else begin  // 16-bit mode (16H)
+            operation_result_o = {adder_result[496+:16], adder_result[464+:16],
+                                  adder_result[432+:16], adder_result[400+:16],
+                                  adder_result[368+:16], adder_result[336+:16],
+                                  adder_result[304+:16], adder_result[272+:16],
+                                  adder_result[240+:16], adder_result[208+:16],
+                                  adder_result[176+:16], adder_result[144+:16],
+                                  adder_result[112+:16], adder_result[ 80+:16],
+                                  adder_result[ 48+:16], adder_result[ 16+:16]};
           end
-        endcase
+        end
+      endcase
 `else
-        // Without ACCH: result is 256-bit, use directly
-        operation_result_o = adder_result[WLEN-1:0];
+      // Without ACCH: result is 256-bit, use directly
+      operation_result_o = adder_result[WLEN-1:0];
 `endif
-      end
-    endcase
+    end
+`endif
   end
-`else
-  assign operation_result_o = acc_merged | adder_result_blanked;
-`endif
   assign operation_valid_o  = predec_i.operation_valid_raw &
 `ifdef BNMULV
                                (predec_i.mac_en | operation_i.mulv);
