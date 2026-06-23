@@ -402,24 +402,17 @@ module otbn_mac_bignum
     endcase
   end
 
-  otbn_vec_multiplier u_vec_multiplier (
-    .operand_a_i(mul_op_a),
-    .operand_b_i(mul_op_b),
-    .elen_i     (predec_i.elen),
-    .result_o   (mul_res)
-  );
-
 `ifdef BNMULV
-  ///////////////////////////////////
-  // BNMULV: unified multiplier   //
-  ///////////////////////////////////
-  // unified_mul replaces otbn_vec_multiplier for bn.mulv instructions.
+  ////////////////////////////////////////////////////////////////
+  // BNMULV: unified multiplier replaces otbn_vec_multiplier   //
+  // for ALL operations (MULQACC via MODE_64, MULV via MODE_32/16). //
+  ////////////////////////////////////////////////////////////////
 `ifdef BNMULV_ACCH
   logic [2*WLEN-1:0] bnmulv_mul_res;
 `else
   logic [WLEN-1:0]   bnmulv_mul_res;
 `endif
-  unified_mul u_bnmulv_mul (
+  otbn_mul_unified u_mul (
     .word_mode  ({operation_i.mulv, operation_i.data_type}),
     .word_sel_A (operation_i.op_a_qw_sel_raw),
     .word_sel_B (operation_i.op_b_elem0_sel_raw[2:1]),
@@ -432,10 +425,20 @@ module otbn_mac_bignum
     .lane_word_16(operation_i.lane_word_16),
     .A          (operand_a_blanked),
     .B          (operand_b_blanked),
-    .data_type_64_shift(operation_i.pre_acc_shift_imm),
+    .data_type_64_shift(operation_i.mulv ? operation_i.pre_acc_shift_imm : 2'd0),
     .result     (bnmulv_mul_res)
   );
-`endif // BNMULV
+  // MULQACC (mulv=0): MODE_64 result at [127:0] feeds Montgomery C/TMP path.
+  // MULV   (mulv=1): bnmulv_mul_res used directly by mul_res_shifted.
+  assign mul_res = bnmulv_mul_res[127:0];
+`else
+  otbn_vec_multiplier u_vec_multiplier (
+    .operand_a_i(mul_op_a),
+    .operand_b_i(mul_op_b),
+    .elen_i     (predec_i.elen),
+    .result_o   (mul_res)
+  );
+`endif
 
   //////////////////////////////////////////////////////////
   // Multiplier result handling for vectorized Montgomery //
@@ -573,14 +576,10 @@ module otbn_mac_bignum
 `endif
 
 `ifdef BNMULV
-  // BNMULV: use configurable MAC_ADDER (buffer_bit or towards_mac_adder)
   vec_type_e mac_adder_mode;
   assign mac_adder_mode = operation_i.mulv ? (operation_i.data_type == 1'b0 ? VecType_s32 : VecType_d64) : VecType_v256;
 
-  `ifndef MAC_ADDER
-    `define MAC_ADDER buffer_bit
-  `endif
-  `MAC_ADDER u_mac_adder (
+  otbn_adder_buffer_bit u_mac_adder (
     .A        (adder_op_a[WLEN-1:0]),
     .B        (adder_op_b[WLEN-1:0]),
     .word_mode(mac_adder_mode),
@@ -589,7 +588,7 @@ module otbn_mac_bignum
     .cout     ()
   );
 `ifdef BNMULV_ACCH
-  `MAC_ADDER u_mac_adder_h (
+  otbn_adder_buffer_bit u_mac_adder_h (
     .A        (adder_op_a[WLEN+:WLEN]),
     .B        (adder_op_b[WLEN+:WLEN]),
     .word_mode(operation_i.data_type == 1'b0 ? VecType_s32 : VecType_d64),
