@@ -21,9 +21,6 @@ bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_hkdf_co_sim.sh
 bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_hmac_co_sim.sh
 bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_sha3_co_sim.sh
 bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_mlkem_keypair_co_sim.sh
-# ... 其他 co_sim 脚本
-# 或一键全部:
-bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_all_co_sim.sh
 ```
 
 ### Chip Sim

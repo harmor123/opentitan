@@ -598,17 +598,13 @@ module otbn_mac_bignum
   );
 `endif
 `else
-  otbn_vec_adder #(
-    .LVLEN(WLEN),
-    .LVChunkLEN(QWLEN)
-  ) u_vec_adder (
-    .operand_a_i       (adder_op_a),
-    .operand_b_i       (adder_op_b),
-    .operand_b_invert_i(1'b0), // always add, never subtract
-    .carries_in_i      ('0),
-    .use_ext_carry_i   (predec_i.adder_carry_sel),
-    .sum_o             (adder_result),
-    .carries_out_o     (/* unused */)
+  otbn_adder_buffer_bit u_mac_adder (
+    .A        (adder_op_a),
+    .B        (adder_op_b),
+    .word_mode(|predec_i.adder_carry_sel ? VecType_d64 : VecType_v256),
+    .cin      (1'b0),
+    .res      (adder_result),
+    .cout     ()
   );
 `endif
 
