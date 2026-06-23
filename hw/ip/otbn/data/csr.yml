@@ -102,33 +102,40 @@
 - name: kmac_if_status
   address: 0x7d9
   doc: |
-    Write a 1 to bits 1 or 2 to clear the error bits.
-    KMAC_IF_STATUS is a CSR that exposes status information for the OTBN-KMAC interface.
+    KMAC_IF_STATUS exposes status and sticky error information for the OTBN-KMAC interface.
+    Bits 1 and 2 are W1C (Write-1-to-Clear) via the kmac_intr (0x7DA) write port.
   bits:
     0: MSG_WRITE_RDY indicates whether the KMAC_DATA_S0/1 WSR is ready for the next word.
-    1: MSG_SEND_ERROR (W1C) indicates whether an error occurred after issuing a message send command.
-    2: MSG_WRITE_ERROR (W1C) indicates whether an error occurred after writing to the KMAC_DATA_S0/1 WSR.
+    1: CMD_SEQUENCE_ERROR (W1C) indicates a command was issued while the FSM was not ready for it.
+    2: WSR_WRITE_ERROR (W1C) indicates a write to KMAC_DATA_S0/1, KMAC_CFG, or KMAC_BYTE_STROBE occurred while the FSM was not ready to accept it.
     3: DIGEST_VALID indicates whether the 64 bit word in KMAC_DATA_S0/1 WSR is valid.
     31-4: Reserved. Always reads as 0. Any write is ignored.
 
 - name: kmac_intr
   address: 0x7da
   doc: |
-    KMAC_INTR is a CSR that exposes the KMAC_ERROR interrupt of the KMAC HWIP.
+    KMAC_INTR exposes the KMAC_ERROR interrupt and serves as the W1C clear port
+    for kmac_if_status (0x7D9) sticky error bits. Write 1 to a bit to clear the
+    corresponding error.
   bits:
-    0: KMAC_ERROR (W1C) indicates whether an error occurred in the KMAC HWIP.
-    31-1: Reserved. Always reads as 0. Any write is ignored.
+    0: KMAC_ERROR (W1C). Set by HW on any error. Write 1 to clear.
+    1: W1C clear for CMD_SEQUENCE_ERROR (kmac_if_status bit 1).
+    2: W1C clear for WSR_WRITE_ERROR (kmac_if_status bit 2).
+    31-3: Reserved. Always reads as 0. Any write is ignored.
 
 - name: kmac_cfg
   address: 0x7db
   doc: |
-    A configuration register for the KMAC interface.
-    The encodings for the fields are equivalent to the encodings for the CFG_SHADOWED register in the KMAC HWIP.
+    Configuration register for the KMAC interface. Software writes the lower 6-bit
+    config to bits[5:0]; hardware auto-computes the inverted copy in bits[21:16]
+    for FI redundancy (cfg_integrity_err fires if they mismatch).
   bits:
-    0: KMAC_EN enables keyed operation in the KMAC HWIP (kmac_en = 0/1).
-    3-1: STRENGTH allows OTBN to select the desired security strength (kstrength = L128 / L224 / L256 / L384 / L512).
-    5-4: MODE allows OTBN to set the KMAC hashing mode (mode = SHAKE / cSHAKE / SHA3).
-    31-6: Reserved. Always reads as 0. Any write is ignored.
+    0: Reserved. Always reads as 0. Any write is ignored.
+    3-1: STRENGTH selects the security strength (L128=0 / L224=1 / L256=2 / L384=3 / L512=4).
+    5-4: MODE selects the hashing mode (SHA3=0 / SHAKE=2 / cSHAKE=3).
+    15-6: Reserved.
+    21-16: CFG_INV (= ~{MODE, STRENGTH, EN_XOF}). Hardware auto-generated on write.
+    31-22: Reserved. Always reads as 0. Any write is ignored.
 
 - name: kmac_msg_send
   address: 0x7dc

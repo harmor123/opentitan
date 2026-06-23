@@ -1,60 +1,41 @@
-// Copyright lowRISC contributors (OpenTitan project).
-// Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
-
-// OTBN KMAC (Keccak/SHA3) interface
 //
-// Provides masked (2-share) KMAC/SHA3 access for OTBN programs.
-// Follows the same CSR/WSR integration pattern as otbn_mai.sv.
-//
-// Instantiates keccak_round.sv from rtl/kmac/ for the actual
-// Keccak-f[1600] permutation with 24 rounds.
+// OTBN SHA3/SHAKE hardware accelerator with DOM-masked keccak-f[1600].
+// Reuses keccak_round.sv and keccak_2share.sv from OpenTitan KMAC HWIP
+// (hw/ip/kmac/rtl/), unmodified.
 
 `include "prim_assert.sv"
 
 module otbn_kmac
   import otbn_pkg::*;
 #(
-  // Enable SCA-hardened 2-share DOM masking inside keccak_round.
-  // When 1: DOM masked keccak-f (97 cycles) + URND squeeze masking (SCA production).
-  // When 0: plain keccak-f (25 cycles) + zero squeeze masking (DV test).
-  parameter bit    EnMasking          = 1'b0,
-  // Keccak state width (fixed at 1600 for SHA3/SHAKE)
-  parameter int    Width          = 1600,
-  // Derived
-  localparam int   W             = Width / 25,
-  localparam int   L             = $clog2(W),
-  localparam int   MaxRound      = 12 + 2 * L,
-  localparam int   RndW          = $clog2(MaxRound + 1),
-  localparam int   Share         = EnMasking ? 2 : 1
+  parameter bit    EnMasking  = 1'b0,   // DOM masking: 1 = 2-share (SCA), 0 = plain (DV)
+  parameter int    Width      = 1600,
+  localparam int   W          = Width / 25,
+  localparam int   L          = $clog2(W),
+  localparam int   MaxRound   = 12 + 2 * L,
+  localparam int   RndW       = $clog2(MaxRound + 1),
+  localparam int   Share      = EnMasking ? 2 : 1
 ) (
   input  logic clk_i,
   input  logic rst_ni,
-
-  // URND-based randomness (SCA countermeasure, same pattern as MAI)
   input  logic [UrndLen-1:0] urnd_data_i,
 
-  // Secure wipe
   input  logic sec_wipe_kmac_i,
   input  logic sec_wipe_running_i,
 
-  // CSR write ports
   input  logic        ispr_kmac_ctrl_wr_i,
   input  logic [31:0] ispr_kmac_ctrl_wdata_i,
-  input  logic        ispr_kmac_msg_send_wr_i,     // kmac_msg_send (0x7DC)
-  input  logic        ispr_kmac_byte_strobe_wr_i,  // kmac_byte_strobe (0x7DE)
-
-  // CSR write — kmac_intr (W1C)
+  input  logic        ispr_kmac_msg_send_wr_i,
+  input  logic        ispr_kmac_byte_strobe_wr_i,
   input  logic        ispr_kmac_intr_wr_i,
 
-  // CSR read ports
   output logic [31:0] ispr_kmac_ctrl_rdata_o,
   output logic [31:0] ispr_kmac_if_status_rdata_o,
   output logic [31:0] ispr_kmac_status_rdata_o,
   output logic [31:0] ispr_kmac_intr_rdata_o,
   output logic [31:0] ispr_kmac_error_rdata_o,
 
-  // WSR write ports (IsprKmacDataS0 / IsprKmacDataS1)
   input  logic               ispr_kmac_data_s0_wr_i,
   input  logic               sec_wipe_kmac_data_s0_i,
   input  logic [ExtWLEN-1:0] ispr_kmac_data_s0_wdata_i,
@@ -62,46 +43,37 @@ module otbn_kmac
   input  logic               sec_wipe_kmac_data_s1_i,
   input  logic [ExtWLEN-1:0] ispr_kmac_data_s1_wdata_i,
 
-  // WSR read ports
   output logic [ExtWLEN-1:0] ispr_kmac_data_s0_rdata_o,
   output logic [ExtWLEN-1:0] ispr_kmac_data_s1_rdata_o,
 
-  // ISPR read strobes (for auto-advance on share read)
-  input  logic               ispr_kmac_data_s0_rd_i,
-  input  logic               ispr_kmac_data_s1_rd_i,
+  input  logic ispr_kmac_data_s0_rd_i,
+  input  logic ispr_kmac_data_s1_rd_i,
 
-  // KMAC DOM masking randomness (800b, from otbn_rnd dedicated Trivium)
-  // Only used when EnMasking=1.  Hardwired to 0 when EnMasking=0 (test mode).
-  input  logic                        kmac_dom_rand_valid_i,
-  input  logic [Width/2-1:0]          kmac_dom_rand_data_i,
-  input  logic                        kmac_dom_rand_aux_i,
-  output logic                        kmac_dom_rand_advance_o,
+  input  logic               kmac_dom_rand_valid_i,
+  input  logic [Width/2-1:0] kmac_dom_rand_data_i,
+  input  logic               kmac_dom_rand_aux_i,
+  output logic               kmac_dom_rand_advance_o,
 
-  // Error
   output logic kmac_state_err_o
 );
 
-  ////////////////////////////////////////////////////////////////////////////
-  // Local parameters
-  ////////////////////////////////////////////////////////////////////////////
-  // Keccak timing: 1 cycle/round unmasked, 4 with DOM masking
-  localparam int KeccakRounds   = 24;
-  localparam int CyclesPerRound  = EnMasking ? 4 : 1;
-  localparam int ProcessCycles   = KeccakRounds * CyclesPerRound;  // 24 or 96
+  ////////////////
+  // Parameters //
+  ////////////////
+  localparam int KeccakRounds  = 24;
+  localparam int CyclesPerRound = EnMasking ? 4 : 1;
+  localparam int ProcessCycles  = KeccakRounds * CyclesPerRound;
 
-  localparam int DInWidth  = 64;
-  localparam int DInEntry  = Width / DInWidth;  // 1600/64 = 25
-  localparam int DInAddr   = $clog2(DInEntry);  // 5 bits
+  localparam int DInWidth = 64;
+  localparam int DInEntry = Width / DInWidth;
+  localparam int DInAddr  = $clog2(DInEntry);
 
-  ////////////////////////////////////////////////////////////////////////////
-  // FSM States (sparse encoding, HD≥3, 8 states)
-  ////////////////////////////////////////////////////////////////////////////
-  // Encoding generated with:
+  ///////////
+  // FSM //
+  ///////////
+  // Sparse encoding, HD >= 3.  Generated with:
   // $ ./util/design/sparse-fsm-encode.py --language=sv \
   //     --seed 42 --distance 3 --states 8 --bits 8
-  //
-  // Minimum Hamming distance: 3
-  // Maximum Hamming distance: 6
   localparam int KmacStateWidth = 8;
   typedef enum logic [KmacStateWidth-1:0] {
     StIdle            = 8'b00011100,
@@ -115,32 +87,22 @@ module otbn_kmac
   } kmac_st_e;
   kmac_st_e st_q, st_d;
 
-  ////////////////////////////////////////////////////////////////////////////
-  // CSR Interface (field positions per csr.yml)
-  ////////////////////////////////////////////////////////////////////////////
-  // kmac_cfg (0x7DB): bit[0]=KMAC_EN, bits[3:1]=STRENGTH, bits[5:4]=MODE
-  // kmac_cmd (0x7DD): bits[5:0]=CMD (START=0x1D, PROCESS=0x2E, RUN=0x31, DONE=0x16)
-  // kmac_if_status (0x7D9): bit[0]=MSG_WRITE_RDY, bit[3]=DIGEST_VALID
-  // kmac_status (0xFC2): bit[0]=SHA3_IDLE, bit[1]=SHA3_ABSORB, bit[2]=SHA3_SQUEEZE
+  //////////////////
+  // CSR / WSR   //
+  //////////////////
 
-  // Separate CFG (mode/strength, preserved) and CMD (auto-cleared) registers.
-  // CFG is stored in two redundant copies for FI protection:
-  //   cfg_lower  = {mode, strength} in bits[5:0]
-  //   cfg_upper  = ~cfg_lower in bits[21:16] (inverted, offset by 16)
-  logic [5:0] kmac_cfg_lower_q;     // lower copy (active config)
-  logic [5:0] kmac_cfg_upper_q;     // upper copy (= ~lower, for FI detection)
-  logic [31:0] kmac_ctrl_q;        // last write value (for readback)
-  logic [31:0] kmac_byte_strobe_q; // byte strobe for partial writes (csr 0x7DE)
+  // CFG: dual-redundant for FI protection. upper = ~lower, hw auto-generated.
+  logic [5:0]  kmac_cfg_lower_q;
+  logic [5:0]  kmac_cfg_upper_q;
+  logic [31:0] kmac_ctrl_q;
+  logic [31:0] kmac_byte_strobe_q;
 
-  // FI: config integrity check — upper must be bitwise inverse of lower
   logic cfg_integrity_err;
   assign cfg_integrity_err = (kmac_cfg_lower_q != ~kmac_cfg_upper_q);
 
-  // Mode decode from cfg_lower_q: bits[5:4] — 0=SHA3, 2=SHAKE, 3=CSHAKE
   logic sha3_mode;
   assign sha3_mode = (kmac_cfg_lower_q[5:4] == 2'd0);
 
-  // Strength decode from cfg_lower_q: bits[3:1]
   logic [8:0] digest_bits;
   always_comb begin
     unique case (kmac_cfg_lower_q[3:1])
@@ -153,19 +115,16 @@ module otbn_kmac
     endcase
   end
 
-  // Command decode from write data when ctrl_wr=1, from reg otherwise.
-  // CRITICAL: kmac_ctrl_q uses NBA, so during the write cycle it still has the old value.
+  // Command decode: START=0x1D, PROCESS=0x2E, RUN=0x31, DONE=0x16
   logic [5:0] kmac_cmd_eff;
   assign kmac_cmd_eff = ispr_kmac_ctrl_wr_i ? ispr_kmac_ctrl_wdata_i[5:0] : kmac_ctrl_q[5:0];
 
-  // Command signals — raw (same-cycle) and delayed (1 cycle, matches ISS timing)
   logic cmd_start_raw, cmd_process_raw, cmd_run_raw, cmd_done_raw;
   assign cmd_start_raw   = (kmac_cmd_eff == 6'h1D);
   assign cmd_process_raw = (kmac_cmd_eff == 6'h2E);
   assign cmd_run_raw     = (kmac_cmd_eff == 6'h31);
   assign cmd_done_raw    = (kmac_cmd_eff == 6'h16);
 
-  // Delayed by 1 cycle to match ISS kmac.step() timing
   logic cmd_start, cmd_process, cmd_run, cmd_done;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -181,11 +140,9 @@ module otbn_kmac
     end
   end
 
-  // wipe_configuration: asserted during StSecWipeClearing to clear internal state
   logic wipe_configuration;
   assign wipe_configuration = (st_q == StSecWipeClearing);
 
-  // CSR write — cfg/cmd only (msg_send/byte_strobe use dedicated ports)
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       kmac_cfg_lower_q <= '0;
@@ -199,8 +156,6 @@ module otbn_kmac
       logic is_cmd;
       is_cmd = (ispr_kmac_ctrl_wdata_i[5:0] inside {6'h1D, 6'h2E, 6'h31, 6'h16});
       if (!is_cmd) begin
-        // Hardware auto-generates the inverted upper copy (FI redundancy).
-        // SW only writes the lower 6 bits; upper is computed automatically.
         kmac_cfg_lower_q <= ispr_kmac_ctrl_wdata_i[5:0];
         kmac_cfg_upper_q <= ~ispr_kmac_ctrl_wdata_i[5:0];
       end
@@ -210,7 +165,6 @@ module otbn_kmac
     end
   end
 
-  // Byte strobe: dedicated port from IsprKmacByteStrobe
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni)
       kmac_byte_strobe_q <= 32'hFFFF_FFFF;
@@ -221,77 +175,60 @@ module otbn_kmac
   end
   assign ispr_kmac_ctrl_rdata_o = kmac_ctrl_q;
 
-  // Status bits (YAML: kmac_status 0xFC2)
-  // SHA3_IDLE[0], SHA3_ABSORB[1], SHA3_SQUEEZE[2]
+  // Status / if_status
   logic idle_s, absorb_s, squeeze_s;
   assign idle_s    = (st_q == StIdle);
   assign absorb_s  = (st_q == StMsgFeed) || (st_q == StPad) || (st_q == StProcessing);
   assign squeeze_s = (st_q == StSqueeze) && (process_cnt_q == '0);
 
-  // kmac_if_status (0x7D9) bits
   logic msg_rdy_s, digest_valid_s;
-  // msg_write_rdy per csr.yml: WSR is ready when in MSG_FEED, no active
-  // absorption, Keccak not processing, and no run pending (one-hot constraint).
-  // keccak_complete: allow back-to-back feed without a 1-cycle stall
-  // after an auto-triggered keccak permutation (rate-full absorb).
-  assign msg_rdy_s       = (st_q == StMsgFeed) && !absorb_active &&
-                           (!absorb_hold_q || keccak_complete) &&
-                           !keccak_run_pending_q &&
-                           !process_pending_q;
-  // DIGEST_VALID: word available and not yet fully read.
-  // Gated with (st_d == StSqueeze) to prevent false-1 during state transitions
-  // (e.g. RUN where st_q is still StSqueeze but we're leaving for StProcessing).
-  assign digest_valid_s  = (st_q == StSqueeze) && (st_d == StSqueeze) &&
-                           !both_shares_read && (sqz_word_idx < digest_words);
+  assign msg_rdy_s = (st_q == StMsgFeed) && !absorb_active &&
+                     (!absorb_hold_q || keccak_complete) &&
+                     !keccak_run_pending_q && !process_pending_q;
+  // st_d gating prevents false DIGEST_VALID during RUN→StProcessing transition
+  assign digest_valid_s = (st_q == StSqueeze) && (st_d == StSqueeze) &&
+                          !both_shares_read && (sqz_word_idx < digest_words);
 
-  // kmac_status (0xFC2): bit[0]=SHA3_IDLE, bit[1]=SHA3_ABSORB, bit[2]=SHA3_SQUEEZE
   logic [31:0] kmac_status_q;
   always_comb begin
-    kmac_status_q       = '0;
-    kmac_status_q[0]    = idle_s;
-    kmac_status_q[1]    = absorb_s;
-    kmac_status_q[2]    = squeeze_s;
+    kmac_status_q    = '0;
+    kmac_status_q[0] = idle_s;
+    kmac_status_q[1] = absorb_s;
+    kmac_status_q[2] = squeeze_s;
   end
-  // if_status: msg_write_rdy[0], cmd_sequence_err[1], wsr_write_err[2], digest_valid[3]
+
   logic [31:0] kmac_if_status;
   always_comb begin
-    kmac_if_status = '0;
-    kmac_if_status[0] = msg_rdy_s;               // MSG_WRITE_RDY (properly gated)
-    kmac_if_status[1] = cmd_sequence_err_q;      // CMD_SEQUENCE_ERROR (W1C sticky)
-    kmac_if_status[2] = wsr_write_err_q;         // WSR_WRITE_ERROR (W1C sticky)
-    kmac_if_status[3] = digest_valid_s;          // DIGEST_VALID (per YAML)
+    kmac_if_status    = '0;
+    kmac_if_status[0] = msg_rdy_s;
+    kmac_if_status[1] = cmd_sequence_err_q;
+    kmac_if_status[2] = wsr_write_err_q;
+    kmac_if_status[3] = digest_valid_s;
   end
   assign ispr_kmac_if_status_rdata_o = kmac_if_status;
-  assign ispr_kmac_status_rdata_o = kmac_status_q;
+  assign ispr_kmac_status_rdata_o   = kmac_status_q;
 
-  ////////////////////////////////////////////////////////////////////////////
-  // Sticky W1C error bits (FI hardening: error latched until SW clears)
-  ////////////////////////////////////////////////////////////////////////////
+  /////////////
+  // Errors //
+  /////////////
+
+  // Sticky W1C: latched until SW clears via kmac_intr write
   logic cmd_sequence_err_q, cmd_sequence_err_d;
   logic wsr_write_err_q,   wsr_write_err_d;
 
-  logic clear_cmd_sequence_err;
-  logic clear_wsr_write_err;
-
-  // W1C clear: SW writes 1 to the corresponding bit in kmac_intr (0x7DA).
-  // bit[0]: clear KMAC_ERROR (kmac_intr)
-  // bit[1]: clear CMD_SEQUENCE_ERROR (kmac_if_status)
-  // bit[2]: clear WSR_WRITE_ERROR    (kmac_if_status)
+  logic clear_cmd_sequence_err, clear_wsr_write_err;
   assign clear_cmd_sequence_err = ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[1];
   assign clear_wsr_write_err    = ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[2];
 
-  // Sticky error update: sec_wipe clears, violation sets, W1C clears
   assign cmd_sequence_err_d = sec_wipe_kmac_i        ? 1'b0 :
                               unexpected_cmd          ? 1'b1 :
-                              clear_cmd_sequence_err  ? 1'b0 :
-                                                       cmd_sequence_err_q;
+                              clear_cmd_sequence_err  ? 1'b0 : cmd_sequence_err_q;
 
   assign wsr_write_err_d = sec_wipe_kmac_i            ? 1'b0 :
                            (wsr_write_violation ||
                             cfg_write_violation ||
                             strb_write_violation)      ? 1'b1 :
-                           clear_wsr_write_err         ? 1'b0 :
-                                                         wsr_write_err_q;
+                           clear_wsr_write_err         ? 1'b0 : wsr_write_err_q;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -303,8 +240,6 @@ module otbn_kmac
     end
   end
 
-  // kmac_intr (0x7DA): bit[0]=KMAC_ERROR (W1C per csr.yml)
-  // Software writes 1 to bit 0 to clear.  Set by HW on any error.
   logic [31:0] kmac_intr_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -322,8 +257,7 @@ module otbn_kmac
   end
   assign ispr_kmac_intr_rdata_o = kmac_intr_q;
 
-  // kmac_error (0xFC3): bits[7:0]=ERROR_CODE (read-only per csr.yml)
-  // Sticky: latches the first error code. Cleared by sec_wipe.
+  // latches first error code; cleared by sec_wipe
   logic [31:0] kmac_error_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -332,18 +266,18 @@ module otbn_kmac
       kmac_error_q <= '0;
     end else if (kmac_error_q == '0) begin
       if (kmac_state_err_o)
-        kmac_error_q[7:0] <= 8'h08;            // ERR_SW_CMD_SEQUENCE (sec_wipe)
+        kmac_error_q[7:0] <= 8'h08;
       else if (cmd_sequence_err_q)
-        kmac_error_q[7:0] <= 8'h08;            // ERR_SW_CMD_SEQUENCE
+        kmac_error_q[7:0] <= 8'h08;
       else if (wsr_write_err_q)
-        kmac_error_q[7:0] <= 8'h01;            // ERR_SW_MSG_WRITE
+        kmac_error_q[7:0] <= 8'h01;
     end
   end
   assign ispr_kmac_error_rdata_o = kmac_error_q;
 
-  ////////////////////////////////////////////////////////////////////////////
-  // URND-based masking (SCA countermeasure — same pattern as MAI)
-  ////////////////////////////////////////////////////////////////////////////
+  ///////////
+  // URND //
+  ///////////
   localparam int unsigned KmacUrndRsvdWidth = UrndLen - ExtWLEN;
   typedef struct packed {
     logic [KmacUrndRsvdWidth-1:0] rsvd;
@@ -351,21 +285,18 @@ module otbn_kmac
   } kmac_ispr_urnd_t;
 
   kmac_ispr_urnd_t kmac_ispr_urnd;
-  logic            unused_kmac_urnd;
-
-  assign kmac_ispr_urnd = urnd_data_i;
+  logic unused_kmac_urnd;
+  assign kmac_ispr_urnd   = urnd_data_i;
   assign unused_kmac_urnd = ^kmac_ispr_urnd.rsvd;
 
-  ////////////////////////////////////////////////////////////////////////////
-  // WSR Data Path (2-share masked transport)
-  ////////////////////////////////////////////////////////////////////////////
+  //////////
+  // WSR //
+  //////////
   logic [ExtWLEN-1:0] kmac_data_s0_q, kmac_data_s1_q;
   logic [ExtWLEN-1:0] kmac_data_s0_d, kmac_data_s1_d;
   logic               kmac_data_s0_wr_en, kmac_data_s1_wr_en;
-
   logic [WLEN-1:0]    kmac_data_s0_no_intg, kmac_data_s1_no_intg;
 
-  // Write enables
   assign kmac_data_s0_wr_en = ispr_kmac_data_s0_wr_i | sec_wipe_kmac_data_s0_i | sqz_write_en;
   assign kmac_data_s1_wr_en = ispr_kmac_data_s1_wr_i | sec_wipe_kmac_data_s1_i | sqz_write_en;
 
@@ -387,15 +318,13 @@ module otbn_kmac
     if (kmac_data_s1_wr_en) kmac_data_s1_q <= kmac_data_s1_d;
   end
 
-  // SECDED integrity error signals per WSR word (8 words for WLEN=256)
+  // SECDED decode: 39-bit ECC → 32-bit data
   logic [BaseWordsPerWLEN-1:0] wsr_intg_errs_s0, wsr_intg_errs_s1;
 
   for (genvar i = 0; i < BaseWordsPerWLEN; i++) begin : g_wsr_rd
     assign ispr_kmac_data_s0_rdata_o[i*39+:39] = kmac_data_s0_q[i*39+:39];
     assign ispr_kmac_data_s1_rdata_o[i*39+:39] = kmac_data_s1_q[i*39+:39];
 
-    // SECDED decode: extract 32-bit data from 39-bit ECC-protected word.
-    // Replaces raw extraction: kmac_data_s0_q[i*39+:32]
     prim_secded_inv_39_32_dec u_s0_dec (
       .data_i    (kmac_data_s0_q[i*39+:39]),
       .data_o    (kmac_data_s0_no_intg[i*32+:32]),
@@ -410,8 +339,6 @@ module otbn_kmac
     );
   end
 
-  // Message integrity violation: SECDED error detected on active WSR data.
-  // Only reported when data is actually being consumed by keccak.
   logic wsr_intg_err;
   logic msg_intg_violation;
   assign wsr_intg_err       = (|wsr_intg_errs_s0) || (|wsr_intg_errs_s1);
@@ -653,46 +580,35 @@ module otbn_kmac
                                  pad_word;
 
   ////////////////////////////////////////////////////////////////////////////
-  // Keccak Round Core
-  ////////////////////////////////////////////////////////////////////////////
+  ////////////
+  // Keccak //
+  ////////////
   logic keccak_run;
   logic keccak_complete;
   logic [Width-1:0] keccak_state [Share];
   logic keccak_sparse_err, keccak_round_err, keccak_rst_err;
 
-  // KMAC DOM masking randomness mux: EnMasking=0 → tie to 0 (test mode),
-  // EnMasking=1 → forward from dedicated 800b Trivium (production SCA).
-  logic                        kmac_rand_valid;
-  logic [Width/2-1:0]          kmac_rand_data;
-  logic                        kmac_rand_aux;
-  logic                        kmac_rand_update, kmac_rand_consumed;
+  logic               kmac_rand_valid;
+  logic [Width/2-1:0] kmac_rand_data;
+  logic               kmac_rand_aux;
+  logic               kmac_rand_update, kmac_rand_consumed;
 
   if (!EnMasking) begin : gen_kmac_rand_tie_off
-    // Test mode: keccak-f runs unmasked, no randomness needed.
-    // Tie all rand ports to 0 and suppress advance requests.
-    assign kmac_rand_valid  = 1'b0;
-    assign kmac_rand_data   = '0;
-    assign kmac_rand_aux    = 1'b0;
-    // Unused advance signals — tie off
-    logic unused_kmac_rand_update;
-    logic unused_kmac_rand_consumed;
+    assign kmac_rand_valid = 1'b0;
+    assign kmac_rand_data  = '0;
+    assign kmac_rand_aux   = 1'b0;
+    logic unused_kmac_rand_update, unused_kmac_rand_consumed;
     assign unused_kmac_rand_update   = kmac_rand_update;
     assign unused_kmac_rand_consumed = kmac_rand_consumed;
   end else begin : gen_kmac_rand_connected
-    // Production SCA mode: forward 800b randomness from dedicated Trivium.
-    assign kmac_rand_valid  = kmac_dom_rand_valid_i;
-    assign kmac_rand_data   = kmac_dom_rand_data_i;
-    assign kmac_rand_aux    = kmac_dom_rand_aux_i;
+    assign kmac_rand_valid = kmac_dom_rand_valid_i;
+    assign kmac_rand_data  = kmac_dom_rand_data_i;
+    assign kmac_rand_aux   = kmac_dom_rand_aux_i;
   end
 
-  // Advance the DOM PRNG when keccak_round signals consumption or update.
   assign kmac_dom_rand_advance_o = kmac_rand_update | kmac_rand_consumed;
 
-  // data_i port is parameterized by Share. Verilator 4.210 does not support
-  // '{} assignment patterns for parameterized unpacked arrays, so we use
-  // Feed message only into share0 in masked mode; XORing the same plaintext
-  // into both shares would cancel out: (s0^msg)^(s1^msg) = s0^s1 (no change).
-  // By feeding only share0: (s0^msg)^s1 = (s0^s1)^msg — correct invariant.
+  // Feed only share0: (s0^msg)^s1 = (s0^s1)^msg
   logic [DInWidth-1:0] keccak_feed_data_arr [Share];
   assign keccak_feed_data_arr[0] = keccak_feed_data_mux;
   if (Share > 1) begin : gen_feed_s1_zero
@@ -728,10 +644,7 @@ module otbn_kmac
                                            prim_mubi_pkg::MuBi4False)
   );
 
-  // Process counter — decrements in StProcessing, matches ISS KECCAK_PROCESS_CYCLES (96).
-  // Only set on StPad→StProcessing. SHAKE RUN enters StProcessing from StSqueeze
-  // and relies on keccak_done_q alone — exits as soon as keccak-f completes.
-  // SEC_CM: CTR.REDUN — hardened via prim_count.
+  // Process counter (prim_count hardened). Set on Pad→Processing; 0 for SHAKE RUN.
   localparam int ProcessCntW = $clog2(ProcessCycles+1);
   logic [ProcessCntW-1:0] process_cnt_q;
   logic process_cnt_err;
@@ -754,11 +667,10 @@ module otbn_kmac
     .err_o     (process_cnt_err)
   );
 
-  // Keccak state clear on START (reset internal state for new hash operation)
   logic keccak_clear;
   assign keccak_clear = (st_q == StIdle) && (st_d == StMsgFeed);
 
-  // Latch keccak_complete until FSM leaves StProcessing, clear on re-entry
+  // latch keccak_complete across StProcessing→StSqueeze transition
   logic keccak_done_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) keccak_done_q <= 1'b0;
@@ -768,15 +680,11 @@ module otbn_kmac
     else if (st_q != StProcessing) keccak_done_q <= 1'b0;
   end
 
-  ////////////////////////////////////////////////////////////////////////////
-  // Squeeze — YAML streaming interface (64-bit words, auto-advance on read)
-  ////////////////////////////////////////////////////////////////////////////
-  // Per wsr.yml: digest data provided in chunks of 64 bits at a time.
-  //   bits[63:0]   = current 64-bit digest word
-  //   bits[255:64] = 0 (reads return zero; digest only via low word)
-  // Hardware auto-advances to the next word when both shares are read.
+  /////////////
+  // Squeeze //
+  /////////////
 
-  // Digest size in 64-bit words. SHA3: fixed per strength; SHAKE: per batch.
+  // Digest size in 64-bit words.
   logic [4:0] digest_words;
   always_comb begin
     if (!sha3_mode) begin
@@ -792,7 +700,7 @@ module otbn_kmac
     end
   end
 
-  // ISPR read tracking — auto-advance when both shares read (YAML wsr.yml)
+  // auto-advance when both shares read
   logic s0_read_q, s1_read_q;
   logic both_shares_read;
   assign both_shares_read = s0_read_q && s1_read_q;
@@ -848,28 +756,19 @@ module otbn_kmac
     .err_o     (sqz_idx_err)
   );
 
-  // Squeeze ready: word available and not yet fully read.
-  // st_d == StSqueeze gates off squeeze during transition cycles (e.g. RUN)
-  // where st_q is still StSqueeze but st_d is already StProcessing, preventing
-  // a squeeze write that coincides with keccak_run corrupting the state readout.
+  // st_d gating prevents squeeze write coinciding with keccak_run during RUN transition
   logic sqz_rdy;
   assign sqz_rdy = (st_q == StSqueeze) && (st_d == StSqueeze) &&
                    !both_shares_read && (sqz_word_idx < digest_words);
 
-  // Effective word index: advance writes the NEXT word immediately
   logic [4:0] sqz_eff_idx;
   assign sqz_eff_idx = advance_word ? (sqz_word_idx + 1'b1) : sqz_word_idx;
 
-  // Write new word to WSR when squeeze is ready, or during advance
   logic sqz_write_en;
   assign sqz_write_en = sqz_rdy ||
       (advance_word && (sqz_word_idx + 1'b1 < digest_words));
 
-  // Extract current 64-bit word from Keccak state lane.
-  // In masked mode (EnMasking=1), the Keccak state is DOM 2-share masked.
-  // We must XOR share0 ^ share1 to recover the logical plaintext lane value.
-  // The resulting plaintext is then re-encoded with URND masking (below)
-  // for protected transport over the WSR bus interface.
+  // Unmask DOM state: s0^s1 → plaintext, then re-mask with URND for WSR transport
   logic [63:0] sqz_word_64;
   if (EnMasking) begin : gen_sqz_unmask
     assign sqz_word_64 = keccak_state[0][sqz_eff_idx * 64 +: 64] ^
@@ -878,13 +777,10 @@ module otbn_kmac
     assign sqz_word_64 = keccak_state[0][sqz_eff_idx * 64 +: 64];
   end
 
-  // Build 256-bit WSR plaintext: only bits[63:0] carry data (YAML spec)
   logic [WLEN-1:0] sqz_word_plain;
   assign sqz_word_plain = {{(WLEN-64){1'b0}}, sqz_word_64};
 
-  // SCA masking: URND-based 2-share split when EnMasking=1, zero for DV.
-  // Mask is latched per squeeze word: bn.wsrr reads s0 and s1 in separate
-  // cycles, so the mask must stay stable between those two reads.
+  // URND mask latched per word — stable across bn.wsrr s0/s1 reads
   logic [63:0] sqz_mask_64;
   if (EnMasking) begin : gen_sqz_mask_urnd
     logic [63:0] sqz_mask_q;
@@ -898,9 +794,7 @@ module otbn_kmac
     assign sqz_mask_64 = '0;
   end
 
-  // 2-share encoding with SECDED ECC integrity bits (same as MAI pattern)
-  logic [WLEN-1:0] sqz_data_s0_plain;
-  logic [WLEN-1:0] sqz_data_s1_plain;
+  logic [WLEN-1:0] sqz_data_s0_plain, sqz_data_s1_plain;
   assign sqz_data_s0_plain = {{(WLEN-64){1'b0}}, sqz_word_64 ^ sqz_mask_64};
   assign sqz_data_s1_plain = {{(WLEN-64){1'b0}}, sqz_mask_64};
 
