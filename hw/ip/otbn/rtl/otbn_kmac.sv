@@ -94,22 +94,24 @@ module otbn_kmac
   localparam int DInAddr   = $clog2(DInEntry);  // 5 bits
 
   ////////////////////////////////////////////////////////////////////////////
-  // FSM States (sparse encoding, HD≥3)
+  // FSM States (sparse encoding, HD≥3, 8 states)
   ////////////////////////////////////////////////////////////////////////////
   // Encoding generated with:
   // $ ./util/design/sparse-fsm-encode.py --language=sv \
-  //     --seed 42 --distance 3 --states 6 --bits 8
+  //     --seed 42 --distance 3 --states 8 --bits 8
   //
   // Minimum Hamming distance: 3
   // Maximum Hamming distance: 6
   localparam int KmacStateWidth = 8;
   typedef enum logic [KmacStateWidth-1:0] {
-    StIdle       = 8'b00011100,
-    StMsgFeed    = 8'b00000110,
-    StPad        = 8'b10111101,
-    StProcessing = 8'b00100011,
-    StSqueeze    = 8'b11100100,
-    StTermError  = 8'b10001011
+    StIdle            = 8'b00011100,
+    StMsgFeed         = 8'b00000110,
+    StPad             = 8'b10111101,
+    StProcessing      = 8'b00100011,
+    StSqueeze         = 8'b11100100,
+    StTermError       = 8'b10001011,
+    StSecWipeClearing = 8'b10010111,
+    StSecWipeDone     = 8'b01110010
   } kmac_st_e;
   kmac_st_e st_q, st_d;
 
@@ -121,21 +123,27 @@ module otbn_kmac
   // kmac_if_status (0x7D9): bit[0]=MSG_WRITE_RDY, bit[3]=DIGEST_VALID
   // kmac_status (0xFC2): bit[0]=SHA3_IDLE, bit[1]=SHA3_ABSORB, bit[2]=SHA3_SQUEEZE
 
-  // Separate CFG (mode/strength, preserved) and CMD (auto-cleared) registers
-  logic [31:0] kmac_cfg_q;         // persists across command writes
+  // Separate CFG (mode/strength, preserved) and CMD (auto-cleared) registers.
+  // CFG is stored in two redundant copies for FI protection:
+  //   cfg_lower  = {mode, strength} in bits[5:0]
+  //   cfg_upper  = ~cfg_lower in bits[21:16] (inverted, offset by 16)
+  logic [5:0] kmac_cfg_lower_q;     // lower copy (active config)
+  logic [5:0] kmac_cfg_upper_q;     // upper copy (= ~lower, for FI detection)
   logic [31:0] kmac_ctrl_q;        // last write value (for readback)
   logic [31:0] kmac_byte_strobe_q; // byte strobe for partial writes (csr 0x7DE)
 
-  // Mode decode from kmac_cfg_q: bits[5:4] — 0=SHA3, 2=SHAKE, 3=CSHAKE (matches ISS kmac.py)
-  // cSHAKE (mode=3) treated as SHAKE — correct for empty customization strings
-  // strings are not supported and will produce incorrect results.
-  logic sha3_mode;
-  assign sha3_mode = (kmac_cfg_q[5:4] == 2'd0);
+  // FI: config integrity check — upper must be bitwise inverse of lower
+  logic cfg_integrity_err;
+  assign cfg_integrity_err = (kmac_cfg_lower_q != ~kmac_cfg_upper_q);
 
-  // Strength decode from kmac_cfg_q: bits[3:1]
+  // Mode decode from cfg_lower_q: bits[5:4] — 0=SHA3, 2=SHAKE, 3=CSHAKE
+  logic sha3_mode;
+  assign sha3_mode = (kmac_cfg_lower_q[5:4] == 2'd0);
+
+  // Strength decode from cfg_lower_q: bits[3:1]
   logic [8:0] digest_bits;
   always_comb begin
-    unique case (kmac_cfg_q[3:1])
+    unique case (kmac_cfg_lower_q[3:1])
       3'd0: digest_bits = 128;
       3'd1: digest_bits = 224;
       3'd2: digest_bits = 256;
@@ -173,19 +181,27 @@ module otbn_kmac
     end
   end
 
+  // wipe_configuration: asserted during StSecWipeClearing to clear internal state
+  logic wipe_configuration;
+  assign wipe_configuration = (st_q == StSecWipeClearing);
+
   // CSR write — cfg/cmd only (msg_send/byte_strobe use dedicated ports)
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      kmac_cfg_q  <= '0;
-      kmac_ctrl_q <= '0;
-    end else if (sec_wipe_kmac_i) begin
-      kmac_cfg_q  <= '0;
-      kmac_ctrl_q <= '0;
+      kmac_cfg_lower_q <= '0;
+      kmac_cfg_upper_q <= '0;
+      kmac_ctrl_q      <= '0;
+    end else if (sec_wipe_kmac_i || wipe_configuration) begin
+      kmac_cfg_lower_q <= '0;
+      kmac_cfg_upper_q <= '0;
+      kmac_ctrl_q      <= '0;
     end else if (ispr_kmac_ctrl_wr_i) begin
       logic is_cmd;
       is_cmd = (ispr_kmac_ctrl_wdata_i[5:0] inside {6'h1D, 6'h2E, 6'h31, 6'h16});
-      if (!is_cmd)
-        kmac_cfg_q <= ispr_kmac_ctrl_wdata_i;
+      if (!is_cmd) begin
+        kmac_cfg_lower_q <= ispr_kmac_ctrl_wdata_i[5:0];
+        kmac_cfg_upper_q <= ispr_kmac_ctrl_wdata_i[21:16];
+      end
       kmac_ctrl_q <= ispr_kmac_ctrl_wdata_i;
     end else begin
       kmac_ctrl_q[5:0] <= '0;
@@ -294,7 +310,7 @@ module otbn_kmac
     end else if (sec_wipe_kmac_i) begin
       kmac_intr_q <= '0;
     end else begin
-      if (kmac_state_err_o || cmd_sequence_err_q || wsr_write_err_q)
+      if (kmac_state_err_o || cmd_sequence_err_q || wsr_write_err_q || cfg_integrity_err)
         kmac_intr_q[0] <= 1'b1;
       else if (ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[0])
         kmac_intr_q[0] <= 1'b0;
@@ -534,7 +550,7 @@ module otbn_kmac
   // Rate (block size) in 64-bit words, derived from strength
   logic [4:0] rate_words;
   always_comb begin
-    unique case (kmac_cfg_q[3:1])
+    unique case (kmac_cfg_lower_q[3:1])
       3'd0: rate_words = 21;  // L128:  1344 bits
       3'd1: rate_words = 18;  // L224:  1152 bits
       3'd2: rate_words = 17;  // L256:  1088 bits
@@ -725,7 +741,7 @@ module otbn_kmac
     if (!sha3_mode) begin
       digest_words = {1'b0, rate_words};  // SHAKE: full block per batch
     end else begin
-      unique case (kmac_cfg_q[3:1])
+      unique case (kmac_cfg_lower_q[3:1])
         3'd1: digest_words = 5'd4;   // L224
         3'd2: digest_words = 5'd4;   // L256
         3'd3: digest_words = 5'd6;   // L384
@@ -853,6 +869,26 @@ module otbn_kmac
   ////////////////////////////////////////////////////////////////////////////
   // FSM
   ////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////
+  // Secure wipe detection (latched until wipe sequence completes)
+  ////////////////////////////////////////////////////////////////////////////
+  logic sec_wipe_detected_q, sec_wipe_detected_d;
+  logic sec_wipe_detected;
+  logic sec_wipe_complete;
+
+  // sec_wipe_kmac_i is a level signal; latch it so we don't miss a pulse
+  // during an active session.
+  assign sec_wipe_detected = sec_wipe_kmac_i || sec_wipe_detected_q;
+
+  assign sec_wipe_detected_d = sec_wipe_kmac_i  ? 1'b1 :
+                               sec_wipe_complete ? 1'b0 :
+                                                   sec_wipe_detected_q;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) sec_wipe_detected_q <= 1'b0;
+    else         sec_wipe_detected_q <= sec_wipe_detected_d;
+  end
+
   logic unexpected_cmd;  // asserted when a command is issued in the wrong state
   // Use cmd_*_raw (not cmd_*) for unexpected_cmd detection.  cmd_*_raw reflects
   // what SW actually issued THIS cycle.  cmd_* is 1-cycle-delayed and can
@@ -860,105 +896,113 @@ module otbn_kmac
   // false-positive unexpected_cmd assertions.
 
   always_comb begin
-    st_d           = st_q;
-    keccak_run     = 1'b0;
-    unexpected_cmd = 1'b0;
+    st_d              = st_q;
+    keccak_run        = 1'b0;
+    unexpected_cmd    = 1'b0;
+    sec_wipe_complete = 1'b0;
 
     unique case (st_q)
       StIdle: begin
-        // Only START is valid in Idle
-        if (cmd_process_raw || cmd_run_raw || cmd_done_raw)
-          unexpected_cmd = 1'b1;
-        if (cmd_start) st_d = StMsgFeed;
+        if (sec_wipe_detected) begin
+          st_d = StSecWipeClearing;
+        end else begin
+          if (cmd_process_raw || cmd_run_raw || cmd_done_raw)
+            unexpected_cmd = 1'b1;
+          if (cmd_start) st_d = StMsgFeed;
+        end
       end
 
       StMsgFeed: begin
-        // Only PROCESS allowed (msg_send is separate), no simultaneous msg_send+PROCESS
-        if (cmd_start_raw || cmd_run_raw || cmd_done_raw)
-          unexpected_cmd = 1'b1;
-        if (ispr_kmac_msg_send_wr_i && cmd_process_raw)
-          unexpected_cmd = 1'b1;
-
-        // Trigger keccak permutation one cycle after the last feed of a
-        // rate block (keccak_round requires valid_i and run_i to be one-hot).
-        if (keccak_run_pending_q)
-          keccak_run = 1'b1;
-
-        // Deferred PROCESS: auto-triggered keccak has just completed.
-        // process_pending_q was set when cmd_process arrived during an
-        // in-progress keccak (rate-full auto-trigger).  Now that keccak
-        // is done we can safely enter padding.
-        if (process_pending_q && !absorb_hold_q && !keccak_run_pending_q) begin
-          if (absorb_total == 0)
+        if (sec_wipe_detected && !absorb_active && !keccak_run_pending_q) begin
+          // Gracefully end message phase: discard pending data, go to wipe
+          st_d = StSecWipeClearing;
+        end else begin
+          if (cmd_start_raw || cmd_run_raw || cmd_done_raw)
+            unexpected_cmd = 1'b1;
+          if (ispr_kmac_msg_send_wr_i && cmd_process_raw)
+            unexpected_cmd = 1'b1;
+          // ... normal MsgFeed logic ...
+          if (keccak_run_pending_q)
+            keccak_run = 1'b1;
+          if (process_pending_q && !absorb_hold_q && !keccak_run_pending_q) begin
             st_d = StPad;
-          else if (absorb_total > 0)
-            st_d = StPad;
-        end else if (cmd_process) begin
-          // If keccak is still running from a rate-full auto-trigger,
-          // defer PROCESS until keccak completes.  process_pending_q
-          // is set in the clocked block below and will retry next cycle.
-          if (absorb_hold_q || keccak_run_pending_q) begin
-            // Remain in StMsgFeed; deferral handled by process_pending_q
-          end else if (absorb_total == 0) begin
-            // Empty message: pad10*1 fills entire rate block (SHA3 → 0x06, SHAKE → 0x1F)
-            st_d = StPad;
-          end else if (absorb_total > 0) begin
-            // Non-empty message: go pad remaining words
-            st_d = StPad;
+          end else if (cmd_process) begin
+            if (absorb_hold_q || keccak_run_pending_q) begin
+              // defer to process_pending_q
+            end else begin
+              st_d = StPad;
+            end
           end
         end
       end
 
       StPad: begin
-        // No commands allowed during padding
-        if (cmd_start_raw || cmd_process_raw || cmd_run_raw || cmd_done_raw || ispr_kmac_msg_send_wr_i)
-          unexpected_cmd = 1'b1;
-        if (pad_cnt == pad_words_needed) begin
-          keccak_run = 1'b1;
-          st_d = StProcessing;
+        if (sec_wipe_detected) begin
+          st_d = StSecWipeClearing;
+        end else begin
+          if (cmd_start_raw || cmd_process_raw || cmd_run_raw ||
+              cmd_done_raw || ispr_kmac_msg_send_wr_i)
+            unexpected_cmd = 1'b1;
+          if (pad_cnt == pad_words_needed) begin
+            keccak_run = 1'b1;
+            st_d = StProcessing;
+          end
         end
       end
 
       StProcessing: begin
-        // No commands allowed during Keccak processing.
-        // cmd_run_raw may be 1 for an extra cycle after RUN→StProcessing transition.
-        if (cmd_start_raw || cmd_process_raw || cmd_done_raw || ispr_kmac_msg_send_wr_i)
-          unexpected_cmd = 1'b1;
-        if (keccak_done_q && process_cnt_q == 0)
-          st_d = StSqueeze;
+        if (sec_wipe_detected && keccak_done_q) begin
+          // Let keccak-f finish, then wipe. Digest will be discarded.
+          st_d = StSecWipeClearing;
+        end else begin
+          if (cmd_start_raw || cmd_process_raw || cmd_done_raw || ispr_kmac_msg_send_wr_i)
+            unexpected_cmd = 1'b1;
+          if (keccak_done_q && process_cnt_q == 0)
+            st_d = StSqueeze;
+        end
       end
 
       StSqueeze: begin
-        // RUN (SHAKE XOF) and DONE are valid.  START/PROCESS/msg_send are not.
-        // cmd_run_raw may persist for 2 cycles; it's the valid trigger for RUN.
-        if (cmd_start_raw || cmd_process_raw || ispr_kmac_msg_send_wr_i)
-          unexpected_cmd = 1'b1;
-        // RUN transitions to StProcessing to start the counter, but
-        // does NOT run keccak_f.  SHAKE is a continuous output stream.
-        // Use cmd_run_raw to avoid 1 extra cycle of command register
-        // delay (matches ISS kmac.step() which reads CSR immediately
-        // after commit).
-        if ((cmd_run_raw && !sha3_mode) || (cmd_run && !sha3_mode)) begin
-          keccak_run = 1'b1;       // SHAKE RUN: run keccak-f to advance sponge
-          st_d = StProcessing;
-        end else if (cmd_done)
+        if (sec_wipe_detected) begin
+          st_d = StSecWipeClearing;
+        end else begin
+          if (cmd_start_raw || cmd_process_raw || ispr_kmac_msg_send_wr_i)
+            unexpected_cmd = 1'b1;
+          if ((cmd_run_raw && !sha3_mode) || (cmd_run && !sha3_mode)) begin
+            keccak_run = 1'b1;
+            st_d = StProcessing;
+          end else if (cmd_done)
+            st_d = StIdle;
+        end
+      end
+
+      StSecWipeClearing: begin
+        // Clear all internal state: cfg, strb, absorb, pending flags.
+        // The data WSRs (kmac_data_s0/1) are cleared externally via
+        // sec_wipe_kmac_data_s0/1_i controlled by otbn_start_stop.
+        st_d = StSecWipeDone;
+      end
+
+      StSecWipeDone: begin
+        if (!sec_wipe_kmac_i) begin
           st_d = StIdle;
+          sec_wipe_complete = 1'b1;
+        end
       end
 
       StTermError: begin
-        // Already in error, do not report further unexpected commands
-        st_d = StTermError;
+        if (sec_wipe_detected) begin
+          st_d = StSecWipeClearing;
+        end else begin
+          st_d = StTermError;
+        end
       end
 
       default: begin
         // Sparse FSM violation: state register corrupted to illegal value.
-        // This is an FSM integrity error, NOT a command error.  The sparse
-        // FSM macro (PRIM_FLOP_SPARSE_FSM) handles integrity internally.
         st_d = StTermError;
       end
     endcase
-
-    if (sec_wipe_kmac_i) st_d = StIdle;
   end
 
   `PRIM_FLOP_SPARSE_FSM(u_state_regs, st_d, st_q, kmac_st_e, StIdle)
