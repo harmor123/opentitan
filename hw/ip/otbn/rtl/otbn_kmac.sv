@@ -199,8 +199,10 @@ module otbn_kmac
       logic is_cmd;
       is_cmd = (ispr_kmac_ctrl_wdata_i[5:0] inside {6'h1D, 6'h2E, 6'h31, 6'h16});
       if (!is_cmd) begin
+        // Hardware auto-generates the inverted upper copy (FI redundancy).
+        // SW only writes the lower 6 bits; upper is computed automatically.
         kmac_cfg_lower_q <= ispr_kmac_ctrl_wdata_i[5:0];
-        kmac_cfg_upper_q <= ispr_kmac_ctrl_wdata_i[21:16];
+        kmac_cfg_upper_q <= ~ispr_kmac_ctrl_wdata_i[5:0];
       end
       kmac_ctrl_q <= ispr_kmac_ctrl_wdata_i;
     end else begin
@@ -954,7 +956,9 @@ module otbn_kmac
     unique case (st_q)
       StIdle: begin
         if (sec_wipe_detected) begin
-          st_d = StSecWipeClearing;
+          // Already idle, nothing to clear.  Acknowledge and stay put.
+          st_d = StIdle;
+          sec_wipe_complete = 1'b1;
         end else begin
           if (cmd_process_raw || cmd_run_raw || cmd_done_raw)
             unexpected_cmd = 1'b1;
@@ -1096,7 +1100,8 @@ module otbn_kmac
 
   // KMAC event trace
   always_ff @(posedge clk_i) begin
-    if (st_q != st_d)
+    // Skip t=0: st_q=0 is uninitialized (not a valid sparse encoding)
+    if (st_q != st_d && st_q != '0)
       $display("[KMAC] t=%0t st %0d->%0d  abs=%0d(rp=%0d)  pad=%0d/%0d  k_run=%0d  k_done=%0d  msgs=%0d  pcnt=%0d",
                $time, st_q, st_d, absorb_total, absorb_rate_pos,
                pad_cnt, pad_words_needed, keccak_run, keccak_done_q, msg_send_cnt,

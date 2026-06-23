@@ -70,4 +70,4 @@ w28 | 0xd1c02e9b_5fa086df_ca94d0ec_3d45cd66_b0bdfd16_4fa0591a_bd78506b_268b2531
 w29 | 0xa00ce8f3_56cfbe90_279587e0_1ae89311_a4d8a3b9_bd660cdf_d6648801_a8518607
 w30 | 0x8d2122dd_9beefa91_396a0cef_8c52787a_1e93f652_9d5a34e7_bd94d017_7e7471c8
 w31 | 0x351a7d3c_8a89ab9d_e474c25f_e86e1b2c_d72043b2_2eb83b28_84d23da8_f3673ced
-- src/lowrisc_ip_otbn_top_sim_0.1/otbn_top_sim.sv:343: Verilog $finish
+- src/lowrisc_ip_otbn_top_sim_0.1/otbn_top_sim.sv:345: Verilog $finish
