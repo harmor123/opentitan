@@ -310,7 +310,8 @@ module otbn_kmac
     end else if (sec_wipe_kmac_i) begin
       kmac_intr_q <= '0;
     end else begin
-      if (kmac_state_err_o || cmd_sequence_err_q || wsr_write_err_q || cfg_integrity_err)
+      if (kmac_state_err_o || cmd_sequence_err_q || wsr_write_err_q ||
+          cfg_integrity_err || pad_cnt_err || process_cnt_err || sqz_idx_err)
         kmac_intr_q[0] <= 1'b1;
       else if (ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[0])
         kmac_intr_q[0] <= 1'b0;
@@ -703,15 +704,28 @@ module otbn_kmac
   // Process counter — decrements in StProcessing, matches ISS KECCAK_PROCESS_CYCLES (96).
   // Only set on StPad→StProcessing. SHAKE RUN enters StProcessing from StSqueeze
   // and relies on keccak_done_q alone — exits as soon as keccak-f completes.
-  logic [$clog2(ProcessCycles+1)-1:0] process_cnt_q;
+  // SEC_CM: CTR.REDUN — hardened via prim_count.
+  localparam int ProcessCntW = $clog2(ProcessCycles+1);
+  logic [ProcessCntW-1:0] process_cnt_q;
+  logic process_cnt_err;
 
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni)                                    process_cnt_q <= '0;
-    else if (st_q == StPad && pad_cnt == pad_words_needed)
-      process_cnt_q <= ProcessCycles;  // 96, matches ISS KECCAK_PROCESS_CYCLES
-    else if (process_cnt_q > 0)
-      process_cnt_q <= process_cnt_q - 1'b1;
-  end
+  prim_count #(
+    .Width(ProcessCntW),
+    .PossibleActions(prim_count_pkg::Set | prim_count_pkg::Decr)
+  ) u_process_cnt (
+    .clk_i,
+    .rst_ni,
+    .clr_i     (1'b0),
+    .set_i     (st_q == StPad && pad_cnt == pad_words_needed),
+    .set_cnt_i (ProcessCntW'(ProcessCycles)),
+    .incr_en_i (1'b0),
+    .decr_en_i (|process_cnt_q),
+    .step_i    (ProcessCntW'(1)),
+    .commit_i  ((st_q == StPad && pad_cnt == pad_words_needed) || (|process_cnt_q)),
+    .cnt_o     (process_cnt_q),
+    .cnt_after_commit_o(),
+    .err_o     (process_cnt_err)
+  );
 
   // Keccak state clear on START (reset internal state for new hash operation)
   logic keccak_clear;
@@ -784,17 +798,28 @@ module otbn_kmac
     end
   end
 
-  // Squeeze word index (0..digest_words-1, up to 7 for SHA3-512)
-  logic [4:0] sqz_word_idx;  // up to 21 for SHAKE128
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      sqz_word_idx <= '0;
-    end else if (st_q != StSqueeze) begin
-      sqz_word_idx <= '0;
-    end else if (advance_word) begin
-      sqz_word_idx <= sqz_word_idx + 1'b1;
-    end
-  end
+  // Squeeze word index (0..digest_words-1, up to 21 for SHAKE128).
+  // SEC_CM: CTR.REDUN — hardened via prim_count.
+  logic [4:0] sqz_word_idx;
+  logic sqz_idx_err;
+
+  prim_count #(
+    .Width(5),
+    .PossibleActions(prim_count_pkg::Clr | prim_count_pkg::Incr)
+  ) u_sqz_idx (
+    .clk_i,
+    .rst_ni,
+    .clr_i     (st_q != StSqueeze),
+    .set_i     (1'b0),
+    .set_cnt_i (5'(0)),
+    .incr_en_i (advance_word),
+    .decr_en_i (1'b0),
+    .step_i    (5'(1)),
+    .commit_i  ((st_q != StSqueeze) || advance_word),
+    .cnt_o     (sqz_word_idx),
+    .cnt_after_commit_o(),
+    .err_o     (sqz_idx_err)
+  );
 
   // Squeeze ready: word available and not yet fully read.
   // st_d == StSqueeze gates off squeeze during transition cycles (e.g. RUN)
@@ -1083,13 +1108,26 @@ module otbn_kmac
   end
 
 
-  // Pad counter
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni)                                    pad_cnt <= '0;
-    else if (keccak_pad_skip)                        pad_cnt <= pad_words_needed - 1;
-    else if (keccak_pad_valid)                       pad_cnt <= pad_cnt + 1'b1;
-    else if (st_q != StPad)                          pad_cnt <= '0;
-  end
+  // Pad counter (hardened via prim_count).  SEC_CM: CTR.REDUN.
+  logic pad_cnt_err;
+
+  prim_count #(
+    .Width(10),
+    .PossibleActions(prim_count_pkg::Clr | prim_count_pkg::Set | prim_count_pkg::Incr)
+  ) u_pad_cnt (
+    .clk_i,
+    .rst_ni,
+    .clr_i     (st_q != StPad),
+    .set_i     (keccak_pad_skip),
+    .set_cnt_i (pad_words_needed - 1),
+    .incr_en_i (keccak_pad_valid),
+    .decr_en_i (1'b0),
+    .step_i    (10'(1)),
+    .commit_i  ((st_q != StPad) || keccak_pad_skip || keccak_pad_valid),
+    .cnt_o     (pad_cnt),
+    .cnt_after_commit_o(),
+    .err_o     (pad_cnt_err)
+  );
 
   // Total absorbed words (across all WSRs, up to rate_words)
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -1120,8 +1158,9 @@ module otbn_kmac
   // Only secure wipe errors trigger this path.
   // Sticky W1C errors (cmd_sequence, wsr_write) only feed kmac_intr + kmac_if_status.
   ////////////////////////////////////////////////////////////////////////////
-  assign kmac_state_err_o = (sec_wipe_kmac_data_s0_i | sec_wipe_kmac_data_s1_i) &
-                             ~sec_wipe_running_i;
+  assign kmac_state_err_o = pad_cnt_err || process_cnt_err || sqz_idx_err ||
+                             ((sec_wipe_kmac_data_s0_i | sec_wipe_kmac_data_s1_i) &
+                              ~sec_wipe_running_i);
 
   ////////////////////////////////////////////////////////////////////////////
   // Assertions
