@@ -234,18 +234,59 @@ module otbn_kmac
     kmac_status_q[1]    = absorb_s;
     kmac_status_q[2]    = squeeze_s;
   end
-  // if_status: msg_write_rdy[0], digest_valid[3]
+  // if_status: msg_write_rdy[0], cmd_sequence_err[1], wsr_write_err[2], digest_valid[3]
   logic [31:0] kmac_if_status;
   always_comb begin
     kmac_if_status = '0;
     kmac_if_status[0] = msg_rdy_s;               // MSG_WRITE_RDY (properly gated)
+    kmac_if_status[1] = cmd_sequence_err_q;      // CMD_SEQUENCE_ERROR (W1C sticky)
+    kmac_if_status[2] = wsr_write_err_q;         // WSR_WRITE_ERROR (W1C sticky)
     kmac_if_status[3] = digest_valid_s;          // DIGEST_VALID (per YAML)
   end
   assign ispr_kmac_if_status_rdata_o = kmac_if_status;
   assign ispr_kmac_status_rdata_o = kmac_status_q;
 
+  ////////////////////////////////////////////////////////////////////////////
+  // Sticky W1C error bits (FI hardening: error latched until SW clears)
+  ////////////////////////////////////////////////////////////////////////////
+  logic cmd_sequence_err_q, cmd_sequence_err_d;
+  logic wsr_write_err_q,   wsr_write_err_d;
+
+  logic clear_cmd_sequence_err;
+  logic clear_wsr_write_err;
+
+  // W1C clear: SW writes 1 to the corresponding bit in kmac_intr (0x7DA).
+  // bit[0]: clear KMAC_ERROR (kmac_intr)
+  // bit[1]: clear CMD_SEQUENCE_ERROR (kmac_if_status)
+  // bit[2]: clear WSR_WRITE_ERROR    (kmac_if_status)
+  assign clear_cmd_sequence_err = ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[1];
+  assign clear_wsr_write_err    = ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[2];
+
+  // Sticky error update: sec_wipe clears, violation sets, W1C clears
+  assign cmd_sequence_err_d = sec_wipe_kmac_i        ? 1'b0 :
+                              unexpected_cmd          ? 1'b1 :
+                              clear_cmd_sequence_err  ? 1'b0 :
+                                                       cmd_sequence_err_q;
+
+  assign wsr_write_err_d = sec_wipe_kmac_i            ? 1'b0 :
+                           (wsr_write_violation ||
+                            cfg_write_violation ||
+                            strb_write_violation)      ? 1'b1 :
+                           clear_wsr_write_err         ? 1'b0 :
+                                                         wsr_write_err_q;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      cmd_sequence_err_q <= 1'b0;
+      wsr_write_err_q    <= 1'b0;
+    end else begin
+      cmd_sequence_err_q <= cmd_sequence_err_d;
+      wsr_write_err_q    <= wsr_write_err_d;
+    end
+  end
+
   // kmac_intr (0x7DA): bit[0]=KMAC_ERROR (W1C per csr.yml)
-  // Software writes 1 to bit 0 to clear.  Set by HW when kmac_state_err_o.
+  // Software writes 1 to bit 0 to clear.  Set by HW on any error.
   logic [31:0] kmac_intr_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -253,7 +294,7 @@ module otbn_kmac
     end else if (sec_wipe_kmac_i) begin
       kmac_intr_q <= '0;
     end else begin
-      if (kmac_state_err_o)
+      if (kmac_state_err_o || cmd_sequence_err_q || wsr_write_err_q)
         kmac_intr_q[0] <= 1'b1;
       else if (ispr_kmac_intr_wr_i && ispr_kmac_ctrl_wdata_i[0])
         kmac_intr_q[0] <= 1'b0;
@@ -262,14 +303,20 @@ module otbn_kmac
   assign ispr_kmac_intr_rdata_o = kmac_intr_q;
 
   // kmac_error (0xFC3): bits[7:0]=ERROR_CODE (read-only per csr.yml)
+  // Sticky: latches the first error code. Cleared by sec_wipe.
   logic [31:0] kmac_error_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       kmac_error_q <= '0;
     end else if (sec_wipe_kmac_i) begin
       kmac_error_q <= '0;
-    end else if (kmac_state_err_o && kmac_error_q == '0) begin
-      kmac_error_q[7:0] <= 8'h08;  // ERR_SW_CMD_SEQUENCE
+    end else if (kmac_error_q == '0) begin
+      if (kmac_state_err_o)
+        kmac_error_q[7:0] <= 8'h08;            // ERR_SW_CMD_SEQUENCE (sec_wipe)
+      else if (cmd_sequence_err_q)
+        kmac_error_q[7:0] <= 8'h08;            // ERR_SW_CMD_SEQUENCE
+      else if (wsr_write_err_q)
+        kmac_error_q[7:0] <= 8'h01;            // ERR_SW_MSG_WRITE
     end
   end
   assign ispr_kmac_error_rdata_o = kmac_error_q;
@@ -806,16 +853,32 @@ module otbn_kmac
   ////////////////////////////////////////////////////////////////////////////
   // FSM
   ////////////////////////////////////////////////////////////////////////////
+  logic unexpected_cmd;  // asserted when a command is issued in the wrong state
+  // Use cmd_*_raw (not cmd_*) for unexpected_cmd detection.  cmd_*_raw reflects
+  // what SW actually issued THIS cycle.  cmd_* is 1-cycle-delayed and can
+  // persist for an extra cycle after the FSM has already transitioned, causing
+  // false-positive unexpected_cmd assertions.
+
   always_comb begin
     st_d           = st_q;
     keccak_run     = 1'b0;
+    unexpected_cmd = 1'b0;
 
     unique case (st_q)
       StIdle: begin
+        // Only START is valid in Idle
+        if (cmd_process_raw || cmd_run_raw || cmd_done_raw)
+          unexpected_cmd = 1'b1;
         if (cmd_start) st_d = StMsgFeed;
       end
 
       StMsgFeed: begin
+        // Only PROCESS allowed (msg_send is separate), no simultaneous msg_send+PROCESS
+        if (cmd_start_raw || cmd_run_raw || cmd_done_raw)
+          unexpected_cmd = 1'b1;
+        if (ispr_kmac_msg_send_wr_i && cmd_process_raw)
+          unexpected_cmd = 1'b1;
+
         // Trigger keccak permutation one cycle after the last feed of a
         // rate block (keccak_round requires valid_i and run_i to be one-hot).
         if (keccak_run_pending_q)
@@ -847,6 +910,9 @@ module otbn_kmac
       end
 
       StPad: begin
+        // No commands allowed during padding
+        if (cmd_start_raw || cmd_process_raw || cmd_run_raw || cmd_done_raw || ispr_kmac_msg_send_wr_i)
+          unexpected_cmd = 1'b1;
         if (pad_cnt == pad_words_needed) begin
           keccak_run = 1'b1;
           st_d = StProcessing;
@@ -854,11 +920,19 @@ module otbn_kmac
       end
 
       StProcessing: begin
+        // No commands allowed during Keccak processing.
+        // cmd_run_raw may be 1 for an extra cycle after RUN→StProcessing transition.
+        if (cmd_start_raw || cmd_process_raw || cmd_done_raw || ispr_kmac_msg_send_wr_i)
+          unexpected_cmd = 1'b1;
         if (keccak_done_q && process_cnt_q == 0)
           st_d = StSqueeze;
       end
 
       StSqueeze: begin
+        // RUN (SHAKE XOF) and DONE are valid.  START/PROCESS/msg_send are not.
+        // cmd_run_raw may persist for 2 cycles; it's the valid trigger for RUN.
+        if (cmd_start_raw || cmd_process_raw || ispr_kmac_msg_send_wr_i)
+          unexpected_cmd = 1'b1;
         // RUN transitions to StProcessing to start the counter, but
         // does NOT run keccak_f.  SHAKE is a continuous output stream.
         // Use cmd_run_raw to avoid 1 extra cycle of command register
@@ -872,16 +946,52 @@ module otbn_kmac
       end
 
       StTermError: begin
+        // Already in error, do not report further unexpected commands
         st_d = StTermError;
       end
 
-      default: st_d = StTermError;
+      default: begin
+        // Sparse FSM violation: state register corrupted to illegal value.
+        // This is an FSM integrity error, NOT a command error.  The sparse
+        // FSM macro (PRIM_FLOP_SPARSE_FSM) handles integrity internally.
+        st_d = StTermError;
+      end
     endcase
 
     if (sec_wipe_kmac_i) st_d = StIdle;
   end
 
   `PRIM_FLOP_SPARSE_FSM(u_state_regs, st_d, st_q, kmac_st_e, StIdle)
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Write violation detection (FI: WSR/CFG/STRB writes in wrong state)
+  ////////////////////////////////////////////////////////////////////////////
+  logic wsr_write_violation;
+  logic cfg_write_violation;
+  logic strb_write_violation;
+
+  // WSR data write only valid in StMsgFeed
+  assign wsr_write_violation = (ispr_kmac_data_s0_wr_i || ispr_kmac_data_s1_wr_i)
+                               && (st_q != StMsgFeed);
+
+  // Only COMMAND writes (START/PROCESS/RUN/DONE opcodes) are gated by state.
+  // CFG writes (mode/strength) are harmless in any state.
+  logic is_cfg_write;
+  assign is_cfg_write = ispr_kmac_ctrl_wr_i &&
+      !(ispr_kmac_ctrl_wdata_i[5:0] inside {6'h1D, 6'h2E, 6'h31, 6'h16});
+
+  // CFG write is always allowed (sets up next session).
+  // Command writes are only valid in specific states:
+  //   StIdle: START only
+  //   StMsgFeed: PROCESS only (including via msg_send)
+  //   StSqueeze: RUN (SHAKE) or DONE
+  assign cfg_write_violation = ispr_kmac_ctrl_wr_i && !is_cfg_write &&
+      !((st_q == StIdle)   && (ispr_kmac_ctrl_wdata_i[5:0] == 6'h1D)) &&
+      !((st_q == StMsgFeed) && (ispr_kmac_ctrl_wdata_i[5:0] == 6'h2E)) &&
+      !((st_q == StSqueeze) && (ispr_kmac_ctrl_wdata_i[5:0] inside {6'h31, 6'h16}));
+
+  // STRB write only valid in StMsgFeed
+  assign strb_write_violation = ispr_kmac_byte_strobe_wr_i && (st_q != StMsgFeed);
 
   logic [7:0] msg_send_cnt;
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -959,6 +1069,12 @@ module otbn_kmac
 
   ////////////////////////////////////////////////////////////////////////////
   // Secure wipe error
+  ////////////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////
+  // Secure wipe error (kmac_state_err_o → controller)
+  // This signal goes to the OTBN controller and can stall/halt the processor.
+  // Only secure wipe errors trigger this path.
+  // Sticky W1C errors (cmd_sequence, wsr_write) only feed kmac_intr + kmac_if_status.
   ////////////////////////////////////////////////////////////////////////////
   assign kmac_state_err_o = (sec_wipe_kmac_data_s0_i | sec_wipe_kmac_data_s1_i) &
                              ~sec_wipe_running_i;
