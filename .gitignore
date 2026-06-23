@@ -97,3 +97,5 @@ book
 *.sff
 hw/dv/tools/fi_sim.tcl
 hw/dv/tools/dvsim/z01x.hjson
+test_1/
+test_1/otbn-pq
