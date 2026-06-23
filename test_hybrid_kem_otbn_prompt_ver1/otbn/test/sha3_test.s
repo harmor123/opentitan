@@ -19,6 +19,12 @@ main:
     jal     x1, test_sha3_512_msg
     jal     x1, test_shake128_msg
     jal     x1, test_shake256_msg
+    jal     x1, test_shake128_empty
+    jal     x1, test_shake256_empty
+    jal     x1, test_cshake128_empty
+    jal     x1, test_cshake256_empty
+    jal     x1, test_cshake128_msg
+    jal     x1, test_cshake256_msg
 
     /* ---- 进阶边缘测试 (针对 keccak_send_message 的尾部掩码) ---- */
     jal     x1, test_sha3_256_32b
@@ -240,6 +246,69 @@ test_shake128_rate_cross:
     jal     x1, kmac_squeeze_32B   /* crosses boundary → auto-RUN inside */
     jal     x1, kmac_done
     ret
+
+/* ==================== SHAKE 空消息测试 ==================== */
+test_shake128_empty:
+    addi    x10, x0, 2             /* Mode 2: SHAKE128 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, shake128_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_shake256_empty:
+    addi    x10, x0, 3             /* Mode 3: SHAKE256 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, shake256_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+/* ==================== cSHAKE 测试 (空 customization ≡ SHAKE) ==================== */
+test_cshake128_empty:
+    addi    x10, x0, 2             /* Mode 2: cSHAKE128 ≡ SHAKE128 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, cshake128_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_cshake256_empty:
+    addi    x10, x0, 3             /* Mode 3: cSHAKE256 ≡ SHAKE256 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, cshake256_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_cshake128_msg:
+    addi    x10, x0, 2             /* Mode 2: cSHAKE128 ≡ SHAKE128 */
+    jal     x1, kmac_init
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, keccak_send_message
+    jal     x1, kmac_process
+    la      x10, cshake128_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_cshake256_msg:
+    addi    x10, x0, 3             /* Mode 3: cSHAKE256 ≡ SHAKE256 */
+    jal     x1, kmac_init
+    la      x10, my_message
+    addi    x11, x0, 8
+    jal     x1, keccak_send_message
+    jal     x1, kmac_process
+    la      x10, cshake256_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
 /* ==================== 数据段 ==================== */
 .data
 
@@ -299,6 +368,24 @@ shake128_out:         .zero 32
 
 .balign 32
 shake256_out:         .zero 32
+
+.balign 32
+shake128_empty_out:   .zero 32
+
+.balign 32
+shake256_empty_out:   .zero 32
+
+.balign 32
+cshake128_empty_out:  .zero 32
+
+.balign 32
+cshake256_empty_out:  .zero 32
+
+.balign 32
+cshake128_out:        .zero 32
+
+.balign 32
+cshake256_out:        .zero 32
 
 /* 边缘测试专用输出缓冲区 */
 .balign 32

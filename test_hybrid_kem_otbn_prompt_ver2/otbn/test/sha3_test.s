@@ -12,10 +12,34 @@ main:
     la      x2, stack_end
     addi    x2, x2, -64
 
+    /* ---- 基础测试 ---- */
+    jal     x1, test_sha3_256_empty
+    jal     x1, test_sha3_512_empty
+    jal     x1, test_sha3_256_msg
+    jal     x1, test_sha3_512_msg
+    jal     x1, test_shake128_msg
+    jal     x1, test_shake256_msg
+    jal     x1, test_shake128_empty
+    jal     x1, test_shake256_empty
+    jal     x1, test_cshake128_empty
+    jal     x1, test_cshake256_empty
+    jal     x1, test_cshake128_msg
+    jal     x1, test_cshake256_msg
 
+    /* ---- 进阶边缘测试 (针对 keccak_send_message 的尾部掩码) ---- */
+    jal     x1, test_sha3_256_32b
+    jal     x1, test_sha3_256_33b
+    jal     x1, test_sha3_256_35b
+    jal     x1, test_sha3_256_64b
+    jal     x1, test_shake128_64b_run
+    /* ---- SHAKE + RUN 测试 ---- */
+    jal     x1, test_shake128_1run
+    jal     x1, test_shake256_1run
 
     /* ---- SHAKE rate-cross: 跨 21 lanes 边界 ---- */
     jal     x1, test_shake128_rate_cross
+
+    jal     x1, test_sha3_256_127b
 
     ecall
 
@@ -38,26 +62,6 @@ test_sha3_512_empty:
     jal     x1, kmac_squeeze_32B
     /* SHA3-512 digest=64B=8 lanes, rate=9 lanes, 无需 RUN */
     addi    x10, x10, 32
-    jal     x1, kmac_squeeze_32B
-    jal     x1, kmac_done
-    ret
-
-/* FIPS 202: SHAKE empty — pad10*1 with domain suffix 1111 fills entire rate block */
-test_shake128_empty:
-    addi    x10, x0, 2             /* Mode 2: SHAKE128 */
-    jal     x1, kmac_init
-    /* ★ No keccak_send_message — empty message triggers pad10*1 directly */
-    jal     x1, kmac_process
-    la      x10, shake128_empty_out
-    jal     x1, kmac_squeeze_32B
-    jal     x1, kmac_done
-    ret
-
-test_shake256_empty:
-    addi    x10, x0, 3             /* Mode 3: SHAKE256 */
-    jal     x1, kmac_init
-    jal     x1, kmac_process
-    la      x10, shake256_empty_out
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
     ret
@@ -243,36 +247,47 @@ test_shake128_rate_cross:
     jal     x1, kmac_done
     ret
 
-/* test_cshake128_empty: cSHAKE128 empty — pad10*1 fills full rate block */
+/* ==================== SHAKE 空消息测试 ==================== */
+test_shake128_empty:
+    addi    x10, x0, 2             /* Mode 2: SHAKE128 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, shake128_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+test_shake256_empty:
+    addi    x10, x0, 3             /* Mode 3: SHAKE256 */
+    jal     x1, kmac_init
+    jal     x1, kmac_process
+    la      x10, shake256_empty_out
+    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_done
+    ret
+
+/* ==================== cSHAKE 测试 (空 customization ≡ SHAKE) ==================== */
 test_cshake128_empty:
-    addi    x10, x0, 48            /* CSHAKE128: MODE=3<<4 | STRENGTH=0(L128)<<1 */
-    csrrw   x0, 0x7DB, x10
-    addi    x5, x0, 0x1D
-    csrrw   x0, 0x7DD, x5
+    addi    x10, x0, 2             /* Mode 2: cSHAKE128 ≡ SHAKE128 */
+    jal     x1, kmac_init
     jal     x1, kmac_process
     la      x10, cshake128_empty_out
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
     ret
 
-/* test_cshake256_empty: cSHAKE256 empty — pad10*1 fills full rate block */
 test_cshake256_empty:
-    addi    x10, x0, 52            /* CSHAKE256: MODE=3<<4 | STRENGTH=2(L256)<<1 */
-    csrrw   x0, 0x7DB, x10
-    addi    x5, x0, 0x1D
-    csrrw   x0, 0x7DD, x5
+    addi    x10, x0, 3             /* Mode 3: cSHAKE256 ≡ SHAKE256 */
+    jal     x1, kmac_init
     jal     x1, kmac_process
     la      x10, cshake256_empty_out
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
     ret
 
-/* test_cshake128_msg: cSHAKE128 (mode=3, strength=0) ≡ SHAKE128 */
 test_cshake128_msg:
-    addi    x10, x0, 48            /* CSHAKE128: MODE=3<<4 | STRENGTH=0(L128)<<1 */
-    csrrw   x0, 0x7DB, x10         /* kmac_cfg */
-    addi    x5, x0, 0x1D           /* CMD_START */
-    csrrw   x0, 0x7DD, x5
+    addi    x10, x0, 2             /* Mode 2: cSHAKE128 ≡ SHAKE128 */
+    jal     x1, kmac_init
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
@@ -282,12 +297,9 @@ test_cshake128_msg:
     jal     x1, kmac_done
     ret
 
-/* test_cshake256_msg: cSHAKE256 (mode=3, strength=2) ≡ SHAKE256 */
 test_cshake256_msg:
-    addi    x10, x0, 52            /* CSHAKE256: MODE=3<<4 | STRENGTH=2(L256)<<1 */
-    csrrw   x0, 0x7DB, x10         /* kmac_cfg */
-    addi    x5, x0, 0x1D           /* CMD_START */
-    csrrw   x0, 0x7DD, x5
+    addi    x10, x0, 3             /* Mode 3: cSHAKE256 ≡ SHAKE256 */
+    jal     x1, kmac_init
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
@@ -357,12 +369,23 @@ shake128_out:         .zero 32
 .balign 32
 shake256_out:         .zero 32
 
-/* SHAKE empty-message output buffers (FIPS 202 pad10*1) */
 .balign 32
 shake128_empty_out:   .zero 32
 
 .balign 32
 shake256_empty_out:   .zero 32
+
+.balign 32
+cshake128_empty_out:  .zero 32
+
+.balign 32
+cshake256_empty_out:  .zero 32
+
+.balign 32
+cshake128_out:        .zero 32
+
+.balign 32
+cshake256_out:        .zero 32
 
 /* 边缘测试专用输出缓冲区 */
 .balign 32
@@ -417,13 +440,3 @@ rcx_b4:  .zero 32
 rcx_b5:  .zero 32
 .balign 32
 rcx_b6:  .zero 32
-
-/* cSHAKE output buffers (≡ SHAKE with empty customization) */
-.balign 32
-cshake128_empty_out: .zero 32
-.balign 32
-cshake256_empty_out: .zero 32
-.balign 32
-cshake128_out:  .zero 32
-.balign 32
-cshake256_out:  .zero 32
