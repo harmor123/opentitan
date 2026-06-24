@@ -107,6 +107,9 @@ module otbn_predecode
 `ifdef BNMULV
   logic                  mac_bignum_mulv;
 `endif
+`ifdef BNMULV_ACCH
+  logic                  mac_bignum_is_modp256;
+`endif
   logic [3:0]            mac_bignum_lane_index;
   logic [1:0]            mac_bignum_op_a_qw_sel;
   logic [2:0]            mac_bignum_op_b_elem0_sel;
@@ -248,6 +251,9 @@ module otbn_predecode
     mac_bignum_is_lane         = 1'b0;
 `ifdef BNMULV
     mac_bignum_mulv            = 1'b0;
+`endif
+`ifdef BNMULV_ACCH
+    mac_bignum_is_modp256      = 1'b0;
 `endif
     mac_bignum_op_a_qw_sel     = '0;
     mac_bignum_op_b_elem0_sel  = '0;
@@ -907,6 +913,19 @@ module otbn_predecode
           endcase
         end
 `endif
+`ifdef BNMULV_ACCH
+        //            BN.MODP256              //
+        InsnOpcodeBignumModp256: begin
+          rf_ren_a_bignum          = 1'b1;
+          rf_ren_b_bignum          = 1'b1;
+          rf_we_bignum             = 1'b1;
+          mac_bignum_mac_en        = 1'b1;
+          mac_bignum_mulv          = 1'b1;
+          mac_bignum_acc_add_en    = 1'b1;
+          mac_bignum_is_modp256    = 1'b1;
+          flags_mac_update[flag_group] = 1'b1;
+        end
+`endif
 
         default: ;
       endcase
@@ -1075,6 +1094,9 @@ module otbn_predecode
   assign mac_bignum_predec_raw_o.operation_valid_raw = '0;
 `ifdef BNMULV
   assign mac_bignum_predec_raw_o.mulv                = mac_bignum_mulv;
+`endif
+`ifdef BNMULV_ACCH
+  assign mac_bignum_predec_raw_o.is_modp256          = mac_bignum_is_modp256;
 `endif
 
   assign insn_rs1 = imem_rdata_i[19:15];

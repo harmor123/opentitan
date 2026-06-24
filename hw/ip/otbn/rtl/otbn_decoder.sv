@@ -206,6 +206,9 @@ module otbn_decoder
   logic                  mac_lane_word_16_bignum;
   logic [1:0]            mac_exec_mode_bignum;
 `endif
+`ifdef BNMULV_ACCH
+  logic                  mac_is_modp256_bignum;
+`endif
 
 `ifdef TOWARDS_BASE
   alu_vector_type_t      alu_vector_type_bignum;
@@ -318,6 +321,9 @@ module otbn_decoder
     mac_lane_word_16:       mac_lane_word_16_bignum,
     mac_exec_mode:          mac_exec_mode_bignum,
 `endif
+`ifdef BNMULV_ACCH
+    is_modp256:             mac_is_modp256_bignum,
+`endif
     mac_en:                 mac_en_bignum,
     mac_is_vec:             mac_is_vec_bignum,
     mac_is_mod:             mac_is_mod_bignum,
@@ -387,6 +393,9 @@ module otbn_decoder
     mac_lane_word_32_bignum       = 1'b0;
     mac_lane_word_16_bignum       = 1'b0;
     mac_exec_mode_bignum          = 2'b0;
+`endif
+`ifdef BNMULV_ACCH
+    mac_is_modp256_bignum         = 1'b0;
 `endif
 
 `ifdef TOWARDS_BASE
@@ -815,6 +824,27 @@ module otbn_decoder
           endcase
         end
   `endif
+`ifdef BNMULV_ACCH
+      //            BN.MODP256              //
+      InsnOpcodeBignumModp256: begin
+        insn_subset              = InsnSubsetBignum;
+        rf_ren_a_bignum          = 1'b1;
+        rf_ren_b_bignum          = 1'b1;
+        rf_wdata_sel_bignum      = RfWdSelMac;
+        rf_we_bignum             = 1'b1;
+        mac_en_bignum            = 1'b1;
+        mac_shift_out_bignum     = 1'b0;
+        mac_acc_add_en           = 1'b1;
+        mac_mulv_bignum          = 1'b1;
+        mac_data_type_bignum     = 1'b1;
+        mac_exec_mode_bignum     = 2'b11;
+        mac_sel_bignum           = 1'b0;
+        mac_lane_mode_bignum     = 1'b0;
+        mac_is_vec_bignum        = 1'b0;
+        mac_is_modp256_bignum    = 1'b1;
+        mac_flag_en_bignum       = 1'b1;
+      end
+`endif
       // Bignum logical/BN.RSHI/LOOP/LOOPI //
       ///////////////////////////////////////
 
@@ -1373,6 +1403,27 @@ module otbn_decoder
           endcase
         end
   `endif
+`ifdef BNMULV_ACCH
+      //            BN.MODP256              //
+      InsnOpcodeBignumModp256: begin
+        insn_subset              = InsnSubsetBignum;
+        rf_ren_a_bignum          = 1'b1;
+        rf_ren_b_bignum          = 1'b1;
+        rf_wdata_sel_bignum      = RfWdSelMac;
+        rf_we_bignum             = 1'b1;
+        mac_en_bignum            = 1'b1;
+        mac_shift_out_bignum     = 1'b0;
+        mac_acc_add_en           = 1'b1;
+        mac_mulv_bignum          = 1'b1;
+        mac_data_type_bignum     = 1'b1;
+        mac_exec_mode_bignum     = 2'b11;
+        mac_sel_bignum           = 1'b0;
+        mac_lane_mode_bignum     = 1'b0;
+        mac_is_vec_bignum        = 1'b0;
+        mac_is_modp256_bignum    = 1'b1;
+        mac_flag_en_bignum       = 1'b1;
+      end
+`endif
       // Bignum logical/BN.RSHI/LOOP/LOOPI //
       ///////////////////////////////////////
 

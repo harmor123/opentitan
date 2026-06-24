@@ -41,6 +41,7 @@ filesets:
       - rtl/otbn_mac_bignum.sv
       - rtl/otbn_mai.sv
       - rtl/otbn_kmac.sv
+      - rtl/otbn_modp256.sv
       - rtl/otbn_mask_accelerator.sv
       - rtl/otbn_mod_result_selector.sv
       # BNMULV unified multiplier and vector adder (from paper2)

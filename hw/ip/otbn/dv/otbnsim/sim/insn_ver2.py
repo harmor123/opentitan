@@ -1807,15 +1807,37 @@ class BNMULVL(OTBNInsn):
 
 
 class BNMODP256(OTBNInsn):
-    """bn.modp256: multi-cycle 256-bit modular multiplication for P-256"""
+    """bn.modp256: NIST P-256 fast Solinas modular multiplication.
+
+    Schoolbook 16 cycles (matching RTL ROM) + 10-term Solinas reduction
+    with p/2p complements + conditional p-subtract + DONE.
+    Total: ~29 cycles depending on conditional subtract iterations.
+    """
     insn = insn_for_mnemonic("bn.modp256", 3)
     P256 = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
 
-    # Schoolbook: (i, j, actual_shift) where actual_shift = i+j (0..6)
-    _SB = [(0,0,0),(0,1,1),(0,2,2),(0,3,3),
-           (1,0,1),(1,1,2),(1,2,3),(1,3,4),
-           (2,0,2),(2,1,3),(2,2,4),(2,3,5),
-           (3,0,3),(3,1,4),(3,2,5),(3,3,6)]
+    # Schoolbook ROM matching RTL otbn_modp256.sv:
+    # (wsel_a, wsel_b, dshift, sel_hi)
+    # sel_hi=0: product at dshift*64 in 512-bit space
+    # sel_hi=1: product at 256 + dshift*64 (via mul_hi path)
+    _SB = [
+        (0, 0, 0, 0),  # cnt 0:  a0*b0, eff_shift=0
+        (0, 1, 1, 0),  # cnt 1:  a0*b1, eff_shift=64
+        (0, 2, 2, 0),  # cnt 2:  a0*b2, eff_shift=128
+        (0, 3, 3, 0),  # cnt 3:  a0*b3, eff_shift=192
+        (1, 0, 1, 0),  # cnt 4:  a1*b0, eff_shift=64
+        (1, 1, 2, 0),  # cnt 5:  a1*b1, eff_shift=128
+        (1, 2, 3, 0),  # cnt 6:  a1*b2, eff_shift=192
+        (2, 0, 2, 0),  # cnt 7:  a2*b0, eff_shift=128
+        (2, 1, 3, 0),  # cnt 8:  a2*b1, eff_shift=192
+        (3, 0, 3, 0),  # cnt 9:  a3*b0, eff_shift=192
+        (1, 3, 0, 1),  # cnt 10: a1*b3, eff_shift=256 (4*64)
+        (2, 2, 0, 1),  # cnt 11: a2*b2, eff_shift=256 (4*64)
+        (2, 3, 1, 1),  # cnt 12: a2*b3, eff_shift=320 (5*64)
+        (3, 1, 0, 1),  # cnt 13: a3*b1, eff_shift=256 (4*64)
+        (3, 2, 1, 1),  # cnt 14: a3*b2, eff_shift=320 (5*64)
+        (3, 3, 2, 1),  # cnt 15: a3*b3, eff_shift=384 (6*64)
+    ]
 
     def __init__(self, raw: int, op_vals: Dict[str, int]):
         super().__init__(raw, op_vals)
@@ -1823,58 +1845,139 @@ class BNMODP256(OTBNInsn):
         self.wrs1 = op_vals["wrs1"]
         self.wrs2 = op_vals["wrs2"]
 
+    # --------------------------------------------------------
+    # Solinas term construction helpers
+    # --------------------------------------------------------
+    @staticmethod
+    def _term_from_words(sel_list):
+        """Build a 256-bit term from 8 32-bit lane selectors.
+
+        sel_list: list of 8 tuples (src, word_idx) or None for zero.
+          src='s' -> from S, src='r' -> from R.
+        """
+        val = 0
+        for lane, spec in enumerate(sel_list):
+            if spec is not None:
+                val |= (spec[0] << ((7 - lane) * 32))
+        return val
+
+    def _build_terms(self, S, R):
+        """Build the 10 Solinas reduction terms from S and R.
+
+        Verified formula (see verify_modp256.py), 2000+ random tests passed.
+        Index: s[0]=S[255:224](MSB), s[7]=S[31:0](LSB), same for r.
+        """
+        s = [(S >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
+        r = [(R >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
+
+        # Verified sub-terms (c-index: c[0..7]=s[0..7], c[8..15]=r[0..7])
+        s1 = (s[0] << 224) | (s[1] << 192) | (s[2] << 160) | (s[3] << 128) | (s[4] << 96)
+        s2 = (s[0] << 192) | (s[1] << 160) | (s[2] << 128) | (s[3] << 96)
+        s3 = (s[0] << 224) | (s[1] << 192) | (s[5] << 64) | (s[6] << 32) | s[7]
+        s4 = (s[7] << 224) | (s[2] << 192) | (s[0] << 160) | (s[1] << 128) | \
+             (s[2] << 96)  | (s[4] << 64)  | (s[5] << 32)  | s[6]
+        d1 = (s[5] << 224) | (s[7] << 192) | (s[2] << 64) | (s[3] << 32) | s[4]
+        d2 = (s[4] << 224) | (s[6] << 192) | (s[0] << 96) | (s[1] << 64) | (s[2] << 32) | s[3]
+        d3 = (s[3] << 224) | (s[5] << 160) | (s[6] << 128) | (s[7] << 96) | \
+             (s[0] << 64)  | (s[1] << 32)  | s[2]
+        d4 = (s[2] << 224) | (s[4] << 160) | (s[5] << 128) | (s[6] << 96) | (s[0] << 32) | s[1]
+
+        p2 = 2 * self.P256
+        terms = [
+            (s1, True),              # +s1 (1st)
+            (s1, True),              # +s1 (2nd)
+            (s2, True),              # +s2 (1st)
+            (s2, True),              # +s2 (2nd)
+            (s3, True),              # +s3
+            (s4, True),              # +s4
+            (p2 - d1, True),         # +(2p-d1)
+            (p2 - d2, True),         # +(2p-d2)
+            (self.P256 - d3, True),  # +(p-d3)
+            (self.P256 - d4, True),  # +(p-d4)
+        ]
+        return terms
+
+    # --------------------------------------------------------
+    # Execute
+    # --------------------------------------------------------
     def execute(self, state: OTBNState) -> Optional[Iterator[None]]:
         a = state.wdrs.get_reg(self.wrs1).read_unsigned()
         b = state.wdrs.get_reg(self.wrs2).read_unsigned()
         mask256 = (1 << 256) - 1
         mask512 = (1 << 512) - 1
-        mask64 = (1 << 64) - 1
+        mask64  = (1 << 64) - 1
 
-        # C0: Init
-        yield None
-
-        # C1-C16: Schoolbook  single 512-bit accumulator
-        acc = 0
-        for c in range(16):
-            i, j, sh = self._SB[c]
+        # ================================================
+        # Phase 1: Schoolbook multiplication (16 cycles)
+        # C0: IDLE->MUL transition, adder_op_b=0 (first product + 0)
+        # C1-C15: ST_MUL, cnt=1..15
+        # ================================================
+        acc_lo = 0
+        acc_hi = 0
+        for cnt in range(16):
+            i, j, sh, hi = self._SB[cnt]
             ai = (a >> (i * 64)) & mask64
             bj = (b >> (j * 64)) & mask64
-            acc = (acc + ((ai * bj) << (sh * 64))) & mask512
-            state.wsrs.ACC.write_unsigned(acc & mask256)
-            state.wsrs.ACCH.write_unsigned((acc >> 256) & mask256)
+            prod = ai * bj  # 128-bit product
+
+            effective_shift = sh * 64 + (256 if hi else 0)
+            total = (acc_hi << 256) | acc_lo
+            total = (total + (prod << effective_shift)) & mask512
+
+            acc_lo = total & mask256
+            acc_hi = (total >> 256) & mask256
+            state.wsrs.ACC.write_unsigned(acc_lo)
+            state.wsrs.ACCH.write_unsigned(acc_hi)
             yield None
 
-        # C17-C22: NIST P-256 fast reduction (32-bit word decomposition)
-        # Algorithm: 2^256 ≡ 2^224 - 2^192 - 2^96 + 1 (mod p)
-        # Auto-derived reduction coefficients per high word v[8..15]
-        _RED_COEFFS = {
-            8:  {7:1, 6:-1, 3:-1, 0:1},
-            9:  {6:-1, 4:-1, 3:-1, 1:1, 0:1},
-            10: {7:-1, 5:-1, 4:-1, 2:1, 1:1},
-            11: {7:-1, 5:-1, 3:2, 2:1, 0:-1},
-            12: {7:-1, 3:2, 4:2, 1:-1, 0:-1},
-            13: {7:-1, 6:1, 5:2, 4:2, 3:1, 2:-1, 1:-1, 0:-1},
-            14: {6:3, 5:2, 4:1, 2:-1, 1:-1, 0:-1},
-            15: {7:3, 6:2, 5:1, 3:-1, 2:-1, 1:-1},
-        }
-        v = [(acc >> (32*i)) & 0xFFFFFFFF for i in range(16)]
-        R = sum(v[i] << (32*i) for i in range(8))
-        for i in range(8, 16):
-            R += v[i] * sum(c * (1 << (32*w)) for w, c in _RED_COEFFS[i].items())
+        # After schoolbook: S=acc_hi, R=acc_lo
+        S = acc_hi
+        R = acc_lo
 
-        # Conditional subtract p
-        while R >= self.P256:
-            R -= self.P256
-        while R < 0:
-            R += self.P256
-        result = R & mask256
+        # ================================================
+        # Phase 2: RED_S0 — save S in temp, clear ACCH
+        # ACC = R (keep), ACCH = 0
+        # ================================================
+        acc_lo = R
+        acc_hi = 0
+        state.wsrs.ACC.write_unsigned(acc_lo)
+        state.wsrs.ACCH.write_unsigned(acc_hi)
+        yield None
 
-        # C17-C22: write intermediate ACC during reduction
-        for _ in range(6):
-            state.wsrs.ACC.write_unsigned(result)
+        # ================================================
+        # Phase 3: 10-term Solinas reduction
+        # Each cycle: add/sub a term to/from {ACCH, ACC}
+        # ================================================
+        terms = self._build_terms(S, R)
+        for term_val, is_add in terms:
+            total = (acc_hi << 256) | acc_lo
+            total = (total + term_val) & mask512  # all terms are additions (complements)
+            acc_lo = total & mask256
+            acc_hi = (total >> 256) & mask256
+            state.wsrs.ACC.write_unsigned(acc_lo)
+            state.wsrs.ACCH.write_unsigned(acc_hi)
             yield None
 
-        # C23: DONE
+        # ================================================
+        # Phase 4: Conditional subtract p (full 512-bit check)
+        # ================================================
+        full_T = (acc_hi << 256) | acc_lo
+        while full_T >= self.P256:
+            full_T -= self.P256
+            state.wsrs.ACC.write_unsigned(full_T & mask256)
+            state.wsrs.ACCH.write_unsigned((full_T >> 256) & mask256)
+            yield None
+
+        result = full_T & mask256
+
+        # DONE cycle (RTL ST_DONE)
+        state.wsrs.ACC.write_unsigned(result)
+        state.wsrs.ACCH.write_unsigned(0)
+        yield None
+
+        # ================================================
+        # Phase 5: DONE — write result, clear ACCH, set flags
+        # ================================================
         state.wdrs.get_reg(self.wrd).write_unsigned(result)
         state.wsrs.ACC.write_unsigned(result)
         state.wsrs.ACCH.write_unsigned(0)

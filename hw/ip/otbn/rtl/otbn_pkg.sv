@@ -249,6 +249,9 @@ package otbn_pkg;
 `ifdef BNMULV
     ,InsnOpcodeBignumMulv     = 7'h4B
 `endif
+`ifdef BNMULV_ACCH
+    ,InsnOpcodeBignumModp256  = 7'h1B
+`endif
 `ifdef TOWARDS_BASE
     ,InsnOpcodeBignumTrn      = 7'h5F
     ,InsnOpcodeBignumShiftv   = 7'h7F
@@ -670,6 +673,9 @@ package otbn_pkg;
     logic                    rf_ren_b;
 
     logic                    sel_insn;
+`ifdef BNMULV_ACCH
+    logic                    is_modp256;
+`endif
   } insn_dec_bignum_t;
 
   typedef struct packed {
@@ -720,6 +726,9 @@ package otbn_pkg;
     logic [NFlagGroups-1:0]  flags_logic_update;
     logic [NFlagGroups-1:0]  flags_mac_update;
     logic [NFlagGroups-1:0]  flags_ispr_wr;
+`ifdef BNMULV_ACCH
+    logic                    is_modp256;
+`endif
   } alu_bignum_predec_t;
 
   typedef struct packed {
@@ -752,6 +761,9 @@ package otbn_pkg;
     logic                  operation_valid_raw;
 `ifdef BNMULV
     logic                  mulv;
+`endif
+`ifdef BNMULV_ACCH
+    logic                  is_modp256;
 `endif
   } mac_bignum_predec_t;
 
@@ -832,6 +844,9 @@ package otbn_pkg;
     logic                  lane_word_32;
     logic                  lane_word_16;
     logic [1:0]            exec_mode;
+`endif
+`ifdef BNMULV_ACCH
+    logic                  is_modp256;
 `endif
   } mac_bignum_operation_t;
 

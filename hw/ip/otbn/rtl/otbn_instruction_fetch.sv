@@ -177,6 +177,9 @@ module otbn_instruction_fetch
 `ifdef BNMULV
     .mulv_i           (mac_bignum_predec_to_fsm.mulv),
 `endif
+`ifdef BNMULV_ACCH
+    .is_modp256_i     (mac_bignum_predec_to_fsm.is_modp256),
+`endif
     .is_vec_i         (mac_bignum_predec_to_fsm.is_vec),
     .is_mod_i         (mac_bignum_predec_to_fsm.is_mod),
     .is_lane_i        (mac_bignum_predec_to_fsm.is_lane),
@@ -211,6 +214,9 @@ module otbn_instruction_fetch
     mac_bignum_predec_to_fsm.mul_merger_en,
     mac_bignum_predec_to_fsm.add_res_en,
     mac_bignum_predec_to_fsm.operation_valid_raw
+`ifdef BNMULV_ACCH
+    ,mac_bignum_predec_to_fsm.is_modp256
+`endif
   };
 
   prim_onehot_enc #(

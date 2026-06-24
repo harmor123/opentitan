@@ -17,6 +17,9 @@ module otbn_mac_bignum_fsm
 `ifdef BNMULV
   input  logic                  mulv_i,
 `endif
+`ifdef BNMULV_ACCH
+  input  logic                  is_modp256_i,
+`endif
   input  logic                  is_vec_i,
   input  logic                  is_mod_i,
   input  logic                  is_lane_i,
@@ -343,6 +346,10 @@ module otbn_mac_bignum_fsm
 `ifdef BNMULV
     ,
     mulv:               mulv_i
+`endif
+`ifdef BNMULV_ACCH
+    ,
+    is_modp256:         is_modp256_i
 `endif
   };
 

@@ -409,23 +409,86 @@ module otbn_mac_bignum
   ////////////////////////////////////////////////////////////////
 `ifdef BNMULV_ACCH
   logic [2*WLEN-1:0] bnmulv_mul_res;
+
+  // ============ BN.MODP256 Instruction Support ============
+  logic is_modp256;
+  assign is_modp256 = operation_i.is_modp256;
+
+  // modp256 control signals from otbn_modp256
+  logic [1:0]        modp256_mul_wsel_a, modp256_mul_wsel_b;
+  logic [1:0]        modp256_mul_wmode,  modp256_mul_dshift;
+  logic [WLEN-1:0]   modp256_mul_A,      modp256_mul_B;
+  logic [2*WLEN-1:0] modp256_adder_op_a, modp256_adder_op_b;
+  vec_type_e         modp256_adder_wm_lo, modp256_adder_wm_hi;
+  logic              modp256_adder_cin_lo, modp256_adder_cin_hi;
+  logic [WLEN-1:0]   modp256_acc_d,      modp256_acch_d;
+  logic              modp256_acc_wr_en_add, modp256_acch_wr_en_add;
+  logic              modp256_acc_blk_dis, modp256_acch_blk_dis;
+  logic [WLEN-1:0]   modp256_result;
+  logic              modp256_valid;
+  flags_t            modp256_flags,       modp256_flags_en;
+  logic [15:0]       modp256_adder_cout;
+
+  otbn_modp256 u_modp256 (
+    .clk_i, .rst_ni,
+    .is_modp256_i     (is_modp256),
+    .mac_en_i,
+    .mac_commit_i,
+    .predec_i,
+    .operand_a_i      (operand_a_blanked),
+    .operand_b_i      (operand_b_blanked),
+    .mul_wsel_a_o     (modp256_mul_wsel_a),
+    .mul_wsel_b_o     (modp256_mul_wsel_b),
+    .mul_wmode_o      (modp256_mul_wmode),
+    .mul_dshift_o     (modp256_mul_dshift),
+    .mul_A_o          (modp256_mul_A),
+    .mul_B_o          (modp256_mul_B),
+    .mul_result_i     (bnmulv_mul_res),
+    .adder_op_a_o     (modp256_adder_op_a),
+    .adder_op_b_o     (modp256_adder_op_b),
+    .adder_word_mode_lo_o (modp256_adder_wm_lo),
+    .adder_word_mode_hi_o (modp256_adder_wm_hi),
+    .adder_cin_lo_o   (modp256_adder_cin_lo),
+    .adder_cin_hi_o   (modp256_adder_cin_hi),
+    .adder_result_i   (adder_result),
+    .adder_cout_i     (modp256_adder_cout),
+    .acc_q_i          (acc_no_intg_q),
+    .acch_q_i         (acch_no_intg_q),
+    .acc_d_o          (modp256_acc_d),
+    .acch_d_o         (modp256_acch_d),
+    .acc_wr_en_add_o  (modp256_acc_wr_en_add),
+    .acch_wr_en_add_o (modp256_acch_wr_en_add),
+    .acc_blk_dis_o    (modp256_acc_blk_dis),
+    .acch_blk_dis_o   (modp256_acch_blk_dis),
+    .result_o         (modp256_result),
+    .valid_o          (modp256_valid),
+    .flags_o          (modp256_flags),
+    .flags_en_o       (modp256_flags_en)
+  );
 `else
   logic [WLEN-1:0]   bnmulv_mul_res;
 `endif
   otbn_mul_unified u_mul (
+`ifdef BNMULV_ACCH
+    .word_mode  (is_modp256 ? modp256_mul_wmode  : {operation_i.mulv, operation_i.data_type}),
+    .word_sel_A (is_modp256 ? modp256_mul_wsel_a : operation_i.op_a_qw_sel_raw),
+    .word_sel_B (is_modp256 ? modp256_mul_wsel_b : operation_i.op_b_elem0_sel_raw[2:1]),
+    .exec_mode  (is_modp256 ? 2'b00 : operation_i.exec_mode),
+    .A          (is_modp256 ? modp256_mul_A : operand_a_blanked),
+    .B          (is_modp256 ? modp256_mul_B : operand_b_blanked),
+    .data_type_64_shift(is_modp256 ? modp256_mul_dshift : (operation_i.mulv ? operation_i.pre_acc_shift_imm : 2'd0)),
+`else
     .word_mode  ({operation_i.mulv, operation_i.data_type}),
     .word_sel_A (operation_i.op_a_qw_sel_raw),
     .word_sel_B (operation_i.op_b_elem0_sel_raw[2:1]),
-`ifdef BNMULV_ACCH
-    .exec_mode  (operation_i.exec_mode),
+    .A          (operand_a_blanked),
+    .B          (operand_b_blanked),
+    .data_type_64_shift(operation_i.mulv ? operation_i.pre_acc_shift_imm : 2'd0),
 `endif
     .half_sel   (operation_i.sel),
     .lane_mode  (operation_i.lane_mode),
     .lane_word_32(operation_i.lane_word_32),
     .lane_word_16(operation_i.lane_word_16),
-    .A          (operand_a_blanked),
-    .B          (operand_b_blanked),
-    .data_type_64_shift(operation_i.mulv ? operation_i.pre_acc_shift_imm : 2'd0),
     .result     (bnmulv_mul_res)
   );
   // MULQACC (mulv=0): MODE_64 result at [127:0] feeds Montgomery C/TMP path.
@@ -545,7 +608,11 @@ module otbn_mac_bignum
   // acc_add_en is so if .Z set in MULQACC (zero_acc) so accumulator reads as 0
   prim_blanker #(.Width(WLEN)) u_acc_add_blanker (
     .in_i (acc_no_intg_q),
-    .en_i (predec_i.acc_add_en),
+    .en_i (predec_i.acc_add_en
+`ifdef BNMULV_ACCH
+           && !modp256_acc_blk_dis
+`endif
+          ),
     .out_o(acc_add_blanked)
   );
 
@@ -553,7 +620,8 @@ module otbn_mac_bignum
   // SEC_CM: DATA_REG_SW.SCA
   prim_blanker #(.Width(WLEN)) u_acch_blanker (
     .in_i (acch_no_intg_q),
-    .en_i (predec_i.acc_add_en & operation_i.mulv),
+    .en_i (predec_i.acc_add_en & operation_i.mulv
+           & ~modp256_acch_blk_dis),
     .out_o(acch_blanked)
   );
 `endif
@@ -568,10 +636,11 @@ module otbn_mac_bignum
   // - mul_res_add is only non zero for vectorized multiplications where acc_add_blanked is unused.
   //   Vice versa acc_add_blanked is only non zero for regular multiplications where mul_res_add is
   //   blanked.
-  assign adder_op_a = {{128{1'b0}}, c_blanked} | mul_res_shifted;
 `ifdef BNMULV_ACCH
-  assign adder_op_b = {acch_blanked, acc_add_blanked} | {mul_res_add, mul_res_add};
+  assign adder_op_a = is_modp256 ? modp256_adder_op_a : ({{128{1'b0}}, c_blanked} | mul_res_shifted);
+  assign adder_op_b = is_modp256 ? modp256_adder_op_b : ({acch_blanked, acc_add_blanked} | {mul_res_add, mul_res_add});
 `else
+  assign adder_op_a = {{128{1'b0}}, c_blanked} | mul_res_shifted;
   assign adder_op_b = mul_res_add              | acc_add_blanked;
 `endif
 
@@ -582,17 +651,26 @@ module otbn_mac_bignum
   otbn_adder_buffer_bit u_mac_adder (
     .A        (adder_op_a[WLEN-1:0]),
     .B        (adder_op_b[WLEN-1:0]),
+`ifdef BNMULV_ACCH
+    .word_mode(is_modp256 ? modp256_adder_wm_lo : mac_adder_mode),
+    .cin      (is_modp256 ? modp256_adder_cin_lo : 1'b0),
+`else
     .word_mode(mac_adder_mode),
     .cin      (1'b0),
+`endif
     .res      (adder_result[WLEN-1:0]),
+`ifdef BNMULV_ACCH
+    .cout     (modp256_adder_cout)
+`else
     .cout     ()
+`endif
   );
 `ifdef BNMULV_ACCH
   otbn_adder_buffer_bit u_mac_adder_h (
     .A        (adder_op_a[WLEN+:WLEN]),
     .B        (adder_op_b[WLEN+:WLEN]),
-    .word_mode(operation_i.data_type == 1'b0 ? VecType_s32 : VecType_d64),
-    .cin      (1'b0),
+    .word_mode(is_modp256 ? modp256_adder_wm_hi : (operation_i.data_type == 1'b0 ? VecType_s32 : VecType_d64)),
+    .cin      (is_modp256 ? modp256_adder_cin_hi : 1'b0),
     .res      (adder_result[WLEN+:WLEN]),
     .cout     ()
   );
@@ -685,52 +763,62 @@ module otbn_mac_bignum
   assign adder_result_hw_is_zero[0] = adder_result_blanked[WLEN/2-1:0] == 'h0;
   assign adder_result_hw_is_zero[1] = adder_result_blanked[WLEN/2+:WLEN/2] == 'h0;
 
-  assign operation_flags_o.L    = adder_result_blanked[0];
+  flags_t flags_norm, flags_en_norm;
+
+  assign flags_norm.L    = adder_result_blanked[0];
   // L is always updated for .WO, and for .SO when writing to the lower half-word
 `ifdef BNMULV
-  assign operation_flags_en_o.L = operation_i.mulv                    ? 1'b0 :
-                                  predec_i.is_vec                     ? 1'b0 :
-                                  operation_i.shift_acc               ? ~operation_i.wr_hw_sel_upper : 1'b1;
+  assign flags_en_norm.L = operation_i.mulv                    ? 1'b0 :
+                           predec_i.is_vec                     ? 1'b0 :
+                           operation_i.shift_acc               ? ~operation_i.wr_hw_sel_upper : 1'b1;
 `else
-  assign operation_flags_en_o.L = predec_i.is_vec       ? 1'b0                         :
-                                  operation_i.shift_acc ? ~operation_i.wr_hw_sel_upper : 1'b1;
+  assign flags_en_norm.L = predec_i.is_vec       ? 1'b0                         :
+                           operation_i.shift_acc ? ~operation_i.wr_hw_sel_upper : 1'b1;
 `endif
 
   // For .SO M is taken from the top-bit of shifted out half-word, otherwise it is taken from the
   // top-bit of the full result.
-  assign operation_flags_o.M    = operation_i.shift_acc ? adder_result_blanked[WLEN/2-1] :
-                                                          adder_result_blanked[WLEN-1];
+  assign flags_norm.M    = operation_i.shift_acc ? adder_result_blanked[WLEN/2-1] :
+                                                   adder_result_blanked[WLEN-1];
   // M is always updated for .WO, and for .SO when writing to the upper half-word.
 `ifdef BNMULV
-  assign operation_flags_en_o.M = operation_i.mulv                    ? 1'b0 :
-                                  predec_i.is_vec                     ? 1'b0 :
-                                  operation_i.shift_acc               ? operation_i.wr_hw_sel_upper : 1'b1;
+  assign flags_en_norm.M = operation_i.mulv                    ? 1'b0 :
+                           predec_i.is_vec                     ? 1'b0 :
+                           operation_i.shift_acc               ? operation_i.wr_hw_sel_upper : 1'b1;
 `else
-  assign operation_flags_en_o.M = predec_i.is_vec       ? 1'b0                        :
-                                  operation_i.shift_acc ? operation_i.wr_hw_sel_upper : 1'b1;
+  assign flags_en_norm.M = predec_i.is_vec       ? 1'b0                        :
+                           operation_i.shift_acc ? operation_i.wr_hw_sel_upper : 1'b1;
 `endif
 
   // For .SO Z is calculated from the shifted out half-word, otherwise it is calculated on the full
   // result.
-  assign operation_flags_o.Z    = operation_i.shift_acc ? adder_result_hw_is_zero[0] :
-                                                          &adder_result_hw_is_zero;
+  assign flags_norm.Z    = operation_i.shift_acc ? adder_result_hw_is_zero[0] :
+                                                   &adder_result_hw_is_zero;
 
   // Z is updated for .WO. For .SO updates are based upon result and half-word:
   // - When writing to lower half-word always update Z.
   // - When writing to upper half-word clear Z if result is non-zero otherwise leave it alone.
 `ifdef BNMULV
-  assign operation_flags_en_o.Z = operation_i.mulv ? 1'b0 :
-                                  predec_i.is_vec                                     ? 1'b0                        :
-                                  operation_i.shift_acc & operation_i.wr_hw_sel_upper ? ~adder_result_hw_is_zero[0] : 1'b1;
+  assign flags_en_norm.Z = operation_i.mulv ? 1'b0 :
+                           predec_i.is_vec                                     ? 1'b0                        :
+                           operation_i.shift_acc & operation_i.wr_hw_sel_upper ? ~adder_result_hw_is_zero[0] : 1'b1;
 `else
-  assign operation_flags_en_o.Z =
+  assign flags_en_norm.Z =
       predec_i.is_vec                                     ? 1'b0                        :
       operation_i.shift_acc & operation_i.wr_hw_sel_upper ? ~adder_result_hw_is_zero[0] : 1'b1;
 `endif
 
-  // MAC never sets the carry flag
-  assign operation_flags_o.C    = 1'b0;
-  assign operation_flags_en_o.C = 1'b0;
+  // MAC never sets the carry flag (except MODP256)
+  assign flags_norm.C    = 1'b0;
+  assign flags_en_norm.C = 1'b0;
+
+`ifdef BNMULV_ACCH
+  assign operation_flags_o    = is_modp256 ? modp256_flags    : flags_norm;
+  assign operation_flags_en_o = is_modp256 ? modp256_flags_en : flags_en_norm;
+`else
+  assign operation_flags_o    = flags_norm;
+  assign operation_flags_en_o = flags_en_norm;
+`endif
 
   ////////////////
   // ACC update //
@@ -751,8 +839,16 @@ module otbn_mac_bignum
         end else begin
 `ifdef BNMULV
           if (operation_i.mulv) begin
-            // BNMULV: ACC gets the adder result directly (product + optional old ACC)
+`ifdef BNMULV_ACCH
+            if (is_modp256) begin
+              acc_no_intg_d = modp256_acc_d;
+            end else begin
+`endif
+            // BNMULV: ACC gets the adder result directly
             acc_no_intg_d = adder_result[WLEN-1:0];
+`ifdef BNMULV_ACCH
+            end
+`endif
             acc_intg_d    = acc_intg_calc;
           end else begin
 `endif
@@ -788,7 +884,15 @@ module otbn_mac_bignum
         if (ispr_acch_wr_en_i) begin
           acch_intg_d = ispr_acch_wr_data_intg_i;
         end else begin
+`ifdef BNMULV_ACCH
+          if (is_modp256) begin
+            acch_no_intg_d = modp256_acch_d;
+          end else begin
+`endif
           acch_no_intg_d = adder_result[2*WLEN-1:WLEN];
+`ifdef BNMULV_ACCH
+          end
+`endif
           acch_intg_d    = acch_intg_calc;
         end
       end
@@ -805,7 +909,11 @@ module otbn_mac_bignum
   logic tmp_wr_en_raw;
   logic c_wr_en_raw;
 
-  assign acc_wr_en = ((acc_wr_en_raw | acc_clear_en) & (predec_i.mac_en & mac_commit_i))
+  assign acc_wr_en = (((is_modp256 ? 1'b0 : acc_wr_en_raw) | acc_clear_en
+`ifdef BNMULV_ACCH
+                       | modp256_acc_wr_en_add
+`endif
+                      ) & (predec_i.mac_en & mac_commit_i))
                      | ispr_acc_wr_en_i | sec_wipe_urnd_i;
   assign tmp_wr_en = ((tmp_wr_en_raw | tmp_clear_en) & (predec_i.mac_en & mac_commit_i))
                      | sec_wipe_urnd_i;
@@ -813,7 +921,9 @@ module otbn_mac_bignum
                      | sec_wipe_urnd_i;
 
 `ifdef BNMULV_ACCH
-  assign acch_wr_en = (predec_i.mac_en & mac_commit_i & operation_i.mulv)
+  assign acch_wr_en = (predec_i.mac_en & mac_commit_i &
+                        (is_modp256 ? modp256_acch_wr_en_add
+                         : (operation_i.mulv | modp256_acch_wr_en_add)))
                        | ispr_acch_wr_en_i | ispr_acc_wr_en_i | sec_wipe_urnd_i;
 `endif
 
@@ -836,6 +946,9 @@ module otbn_mac_bignum
     .mac_en_i         (mac_en_i),
 `ifdef BNMULV
     .mulv_i           (operation_i.mulv),
+`endif
+`ifdef BNMULV_ACCH
+    .is_modp256_i     (is_modp256),
 `endif
     .is_vec_i         (operation_i.is_vec),
     .is_mod_i         (operation_i.is_mod),
@@ -893,7 +1006,9 @@ module otbn_mac_bignum
 `ifdef BNMULV
     if (operation_i.mulv) begin
 `ifdef BNMULV_ACCH
-      unique case (operation_i.exec_mode)
+      if (is_modp256) begin
+        operation_result_o = modp256_result;
+      end else unique case (operation_i.exec_mode)
         2'b00: begin  // plain mulv
           if (operation_i.data_type == 1'b1) begin  // 32-bit mode (8S)
             operation_result_o = {adder_result[384 + 64*operation_i.sel +: 64],
@@ -968,7 +1083,12 @@ module otbn_mac_bignum
     end
 `endif
   end
-  assign operation_valid_o  = predec_i.operation_valid_raw &
+`ifdef BNMULV_ACCH
+  assign operation_valid_o  = is_modp256 ? modp256_valid :
+`else
+  assign operation_valid_o  = '0 |
+`endif
+                              predec_i.operation_valid_raw &
 `ifdef BNMULV
                                (predec_i.mac_en | operation_i.mulv);
 `else

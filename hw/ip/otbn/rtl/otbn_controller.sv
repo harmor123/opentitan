@@ -1073,7 +1073,11 @@ module otbn_controller
   assign mac_bignum_operation_o.lane_word_32    = insn_dec_bignum_i.mac_lane_word_32;
   assign mac_bignum_operation_o.lane_word_16    = insn_dec_bignum_i.mac_lane_word_16;
   assign mac_bignum_operation_o.exec_mode       = insn_dec_bignum_i.mac_exec_mode;
-`endif  assign mac_bignum_operation_o.elen               = insn_dec_bignum_i.mac_elen;
+`endif
+`ifdef BNMULV_ACCH
+  assign mac_bignum_operation_o.is_modp256      = insn_dec_bignum_i.is_modp256;
+`endif
+  assign mac_bignum_operation_o.elen               = insn_dec_bignum_i.mac_elen;
   assign mac_bignum_operation_o.adder_carry_sel    = insn_dec_bignum_i.mac_adder_carry_sel;
 
   assign mac_bignum_en_o     = insn_valid_i & insn_dec_bignum_i.mac_en;
