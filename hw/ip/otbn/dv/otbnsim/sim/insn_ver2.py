@@ -1897,6 +1897,19 @@ class BNMODP256(OTBNInsn):
         ]
         return terms
 
+    def _d_val(self, S, idx):
+        """Return raw d1/d2/d3/d4 from S (matching RTL term_val for complement terms)."""
+        s = [(S >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
+        if idx == 6:   # d1
+            return (s[5] << 224) | (s[7] << 192) | (s[2] << 64) | (s[3] << 32) | s[4]
+        elif idx == 7: # d2
+            return (s[4] << 224) | (s[6] << 192) | (s[0] << 96) | (s[1] << 64) | (s[2] << 32) | s[3]
+        elif idx == 8: # d3
+            return (s[3] << 224) | (s[5] << 160) | (s[6] << 128) | (s[7] << 96) | (s[0] << 64) | (s[1] << 32) | s[2]
+        elif idx == 9: # d4
+            return (s[2] << 224) | (s[4] << 160) | (s[5] << 128) | (s[6] << 96) | (s[0] << 32) | s[1]
+        return 0
+
     # --------------------------------------------------------
     # Execute
     # --------------------------------------------------------
@@ -1907,10 +1920,10 @@ class BNMODP256(OTBNInsn):
         mask512 = (1 << 512) - 1
         mask64  = (1 << 64) - 1
 
+        eprint(f"[ISS_START] opA={a:064x} opB={b:064x}")
+
         # ================================================
         # Phase 1: Schoolbook multiplication (16 cycles)
-        # C0: IDLE->MUL transition, adder_op_b=0 (first product + 0)
-        # C1-C15: ST_MUL, cnt=1..15
         # ================================================
         acc_lo = 0
         acc_hi = 0
@@ -1918,7 +1931,7 @@ class BNMODP256(OTBNInsn):
             i, j, sh, hi = self._SB[cnt]
             ai = (a >> (i * 64)) & mask64
             bj = (b >> (j * 64)) & mask64
-            prod = ai * bj  # 128-bit product
+            prod = ai * bj
 
             effective_shift = sh * 64 + (256 if hi else 0)
             total = (acc_hi << 256) | acc_lo
@@ -1930,13 +1943,11 @@ class BNMODP256(OTBNInsn):
             state.wsrs.ACCH.write_unsigned(acc_hi)
             yield None
 
-        # After schoolbook: S=acc_hi, R=acc_lo
         S = acc_hi
         R = acc_lo
 
         # ================================================
-        # Phase 2: RED_S0 — save S in temp, clear ACCH
-        # ACC = R (keep), ACCH = 0
+        # Phase 2: RED_S0
         # ================================================
         acc_lo = R
         acc_hi = 0
@@ -1946,14 +1957,15 @@ class BNMODP256(OTBNInsn):
 
         # ================================================
         # Phase 3: 10-term Solinas reduction
-        # Each cycle: add/sub a term to/from {ACCH, ACC}
         # ================================================
         terms = self._build_terms(S, R)
-        for term_val, is_add in terms:
+        for idx, (term_val, is_add) in enumerate(terms):
             total = (acc_hi << 256) | acc_lo
-            total = (total + term_val) & mask512  # all terms are additions (complements)
+            total = (total + term_val) & mask512
             acc_lo = total & mask256
             acc_hi = (total >> 256) & mask256
+            pass
+
             state.wsrs.ACC.write_unsigned(acc_lo)
             state.wsrs.ACCH.write_unsigned(acc_hi)
             yield None

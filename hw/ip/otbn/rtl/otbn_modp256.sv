@@ -1,7 +1,3 @@
-// Copyright lowRISC contributors (OpenTitan project).
-// Licensed under the Apache License, Version 2.0, see LICENSE for details.
-// SPDX-License-Identifier: Apache-2.0
-//
 // OTBN bn.modp256 — P-256 NIST Solinas modular multiplication.
 // 16-cycle schoolbook + 10-term complement reduction + cond-sub + DONE.
 // Total ~35 cycles. Verified against ISS (insn_ver2.py).
@@ -184,12 +180,19 @@ module otbn_modp256
   logic [2*WLEN-1:0] mul_hi;
   assign mul_hi = {mul_result_i[WLEN-1:0], {WLEN{1'b0}}};
 
-  logic            comp_hi;     // hardcoded: 1 for 2p (d1/d2), 0 for p (d3/d4)
+  logic            comp_hi;     // 1 when no borrow from 2^256 part (P256_2X >= term_val)
   logic [WLEN-1:0] comp_lo;     // comp_p - term_val (256-bit subtraction)
 
   always_comb begin
-    comp_hi = (red_cnt_q <= 4'd8);  // terms 7,8=2p(hi=1); terms 9,10=p(hi=0)
-    comp_lo = ((red_cnt_q <= 4'd8) ? P256_2X : P256) - term_val;
+    if (red_cnt_q <= 4'd8) begin
+      // 2p terms: 2p = 2^256 + P256_2X.  comp_hi=1 only if P256_2X >= term_val.
+      comp_hi = (P256_2X >= term_val);
+      comp_lo = P256_2X - term_val;  // unsigned: wraps correctly if P256_2X < term_val
+    end else begin
+      // p terms: p < 2^256, comp_hi always 0
+      comp_hi = 1'b0;
+      comp_lo = P256 - term_val;
+    end
   end
 
   always_comb begin
@@ -333,19 +336,11 @@ module otbn_modp256
   // ============ DEBUG ============
   `ifdef VERILATOR
   always_ff @(posedge clk_i) begin
-    if (is_modp256_i || state_q != ST_IDLE) begin
-      $display("[MODP256] t=%0t st=%s mul=%0d red=%0d | S=%08x term=%08x comp=%08x is_comp=%0d | ACC=%08x ACCH=%08x | opA=%08x opB=%08x cin_lo=%0d cin_hi=%0d | adr=%08x adr_hi=%08x cout=%x | wr=%0d_%0d",
-               $time,
-               (state_q == ST_IDLE) ? "I" : (state_q == ST_MUL) ? "M" :
-               (state_q == ST_REDUCE) ? "R" : "D",
-               mul_cnt_q, red_cnt_q,
-               S_q[31:0], term_val[31:0], {comp_hi, comp_lo[7:0]}, is_comp,
-               acc_q_i[31:0], acch_q_i[31:0],
-               adder_op_a_o[31:0], adder_op_b_o[31:0],
-               adder_cin_lo_o, adder_cin_hi_o,
-               adder_result_i[31:0], adder_result_i[WLEN+:32],
-               adder_cout_i,
-               acc_wr_en_add_o, acch_wr_en_add_o);
+    if (state_q == ST_IDLE && is_modp256_i && mac_en_i) begin
+      $display("[MODP256_START] opA=%064h opB=%064h", operand_a_i, operand_b_i);
+    end
+    if (state_q == ST_DONE) begin
+      $display("[MODP256_DONE] result=%064h", result_o);
     end
   end
   `endif
