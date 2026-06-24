@@ -1806,6 +1806,83 @@ class BNMULVL(OTBNInsn):
             eprint(f"acch at the end = {hex(acch)}")
 
 
+class BNMODP256(OTBNInsn):
+    """bn.modp256: multi-cycle 256-bit modular multiplication for P-256"""
+    insn = insn_for_mnemonic("bn.modp256", 3)
+    P256 = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+
+    # Schoolbook: (i, j, actual_shift) where actual_shift = i+j (0..6)
+    _SB = [(0,0,0),(0,1,1),(0,2,2),(0,3,3),
+           (1,0,1),(1,1,2),(1,2,3),(1,3,4),
+           (2,0,2),(2,1,3),(2,2,4),(2,3,5),
+           (3,0,3),(3,1,4),(3,2,5),(3,3,6)]
+
+    def __init__(self, raw: int, op_vals: Dict[str, int]):
+        super().__init__(raw, op_vals)
+        self.wrd = op_vals["wrd"]
+        self.wrs1 = op_vals["wrs1"]
+        self.wrs2 = op_vals["wrs2"]
+
+    def execute(self, state: OTBNState) -> Optional[Iterator[None]]:
+        a = state.wdrs.get_reg(self.wrs1).read_unsigned()
+        b = state.wdrs.get_reg(self.wrs2).read_unsigned()
+        mask256 = (1 << 256) - 1
+        mask512 = (1 << 512) - 1
+        mask64 = (1 << 64) - 1
+
+        # C0: Init
+        yield None
+
+        # C1-C16: Schoolbook  single 512-bit accumulator
+        acc = 0
+        for c in range(16):
+            i, j, sh = self._SB[c]
+            ai = (a >> (i * 64)) & mask64
+            bj = (b >> (j * 64)) & mask64
+            acc = (acc + ((ai * bj) << (sh * 64))) & mask512
+            state.wsrs.ACC.write_unsigned(acc & mask256)
+            state.wsrs.ACCH.write_unsigned((acc >> 256) & mask256)
+            yield None
+
+        # C17-C22: NIST P-256 fast reduction (32-bit word decomposition)
+        # Algorithm: 2^256 ≡ 2^224 - 2^192 - 2^96 + 1 (mod p)
+        # Auto-derived reduction coefficients per high word v[8..15]
+        _RED_COEFFS = {
+            8:  {7:1, 6:-1, 3:-1, 0:1},
+            9:  {6:-1, 4:-1, 3:-1, 1:1, 0:1},
+            10: {7:-1, 5:-1, 4:-1, 2:1, 1:1},
+            11: {7:-1, 5:-1, 3:2, 2:1, 0:-1},
+            12: {7:-1, 3:2, 4:2, 1:-1, 0:-1},
+            13: {7:-1, 6:1, 5:2, 4:2, 3:1, 2:-1, 1:-1, 0:-1},
+            14: {6:3, 5:2, 4:1, 2:-1, 1:-1, 0:-1},
+            15: {7:3, 6:2, 5:1, 3:-1, 2:-1, 1:-1},
+        }
+        v = [(acc >> (32*i)) & 0xFFFFFFFF for i in range(16)]
+        R = sum(v[i] << (32*i) for i in range(8))
+        for i in range(8, 16):
+            R += v[i] * sum(c * (1 << (32*w)) for w, c in _RED_COEFFS[i].items())
+
+        # Conditional subtract p
+        while R >= self.P256:
+            R -= self.P256
+        while R < 0:
+            R += self.P256
+        result = R & mask256
+
+        # C17-C22: write intermediate ACC during reduction
+        for _ in range(6):
+            state.wsrs.ACC.write_unsigned(result)
+            yield None
+
+        # C23: DONE
+        state.wdrs.get_reg(self.wrd).write_unsigned(result)
+        state.wsrs.ACC.write_unsigned(result)
+        state.wsrs.ACCH.write_unsigned(0)
+        flags = FlagReg.mlz_for_result(False, result)
+        state.set_flags(0, flags)
+        return None
+
+
 INSN_CLASSES = [
     ADD, ADDI, LUI, SUB, SLL, SLLI, SRL, SRLI, SRA, SRAI,
     AND, ANDI, OR, ORI, XOR, XORI,
@@ -1826,5 +1903,6 @@ INSN_CLASSES = [
     BNCMP, BNCMPB,
     BNLID, BNSID,
     BNMOV, BNMOVR, BNTRN,
+    BNMODP256,
     BNWSRR, BNWSRW
 ]

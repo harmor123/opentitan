@@ -173,6 +173,11 @@ custom6:
   parents:
     - rv(opcode=b10111)
 
+# A partial scheme for custom instructions with opcode b00110
+custom7:
+  parents:
+    - rv(opcode=b00110)
+
 # A partial scheme for instructions that produce a dest WDR.
 wrd:
   fields:
@@ -453,3 +458,14 @@ wcsr:
     fixed:
       bits: 30-28
       value: bxxx
+
+# bn.modp256: 256-bit modular multiplication for NIST P-256
+bnmodp256:
+  parents:
+    - custom7
+    - wdr3
+    - funct3
+  fields:
+    fixed:
+      bits: 31-25
+      value: bxxxxxxx

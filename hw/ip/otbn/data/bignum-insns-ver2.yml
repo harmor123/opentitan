@@ -1429,3 +1429,34 @@
       wrd: wrd
       funct3: b110
       type: type
+
+- mnemonic: bn.modp256
+  synopsis: 256-bit modular multiplication for NIST P-256 prime
+  operands:
+    - name: wrd
+      doc: Destination WDR
+    - name: wrs1
+      doc: First source WDR (multiplier a)
+    - name: wrs2
+      doc: Second source WDR (multiplicand b)
+  glued-ops: true
+  doc: |
+    Computes (a * b) mod p where p = 2^256 - 2^224 + 2^192 + 2^96 - 1
+    (the NIST P-256 prime). The 512-bit product is reduced using Solinas
+    fast reduction: S = product >> 256, R = product & (2^256 - 1);
+    T = R + S + S*2^224 - S*2^192 - S*2^96; result = (T >= p) ? T - p : T.
+    Result written to wrd and ACC. ACCH cleared. Flags updated.
+    Multi-cycle instruction (24 cycles).
+  syntax: |
+    <wrd>, <wrs1>, <wrs2>
+  errs: []
+  iflow:
+    - to: [wrd, ACC]
+      from: [wrs1, wrs2]
+  encoding:
+    scheme: bnmodp256
+    mapping:
+      wrd: wrd
+      wrs1: wrs1
+      wrs2: wrs2
+      funct3: b000
