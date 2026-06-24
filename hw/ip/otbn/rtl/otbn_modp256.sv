@@ -103,40 +103,38 @@ module otbn_modp256
   // 10-term Solinas ROM: {is_comp, lane_sel[7:0]}
   // Terms 0-5: add  (is_comp=0); Terms 6-9: complement (is_comp=1)
   // Lane sel 0-7 = S[255:224]..S[31:0]; 3'd0 = S[255:224]; zero via TERM_ZERO mask
-  localparam int N_TERMS = 10;
-  localparam logic [24:0] TERM_ROM [0:N_TERMS-1] = '{
-    // +s1 : {S[7],S[6],S[5],S[4],S[3], 0,0,0}
-    {1'b0, 3'd0, 3'd1, 3'd2, 3'd3, 3'd4, 3'd0, 3'd0, 3'd0},
-    // +s1 (2nd)
-    {1'b0, 3'd0, 3'd1, 3'd2, 3'd3, 3'd4, 3'd0, 3'd0, 3'd0},
-    // +s2 : {0, S[7],S[6],S[5],S[4], 0,0,0}
-    {1'b0, 3'd0, 3'd0, 3'd1, 3'd2, 3'd3, 3'd0, 3'd0, 3'd0},
-    // +s2 (2nd)
-    {1'b0, 3'd0, 3'd0, 3'd1, 3'd2, 3'd3, 3'd0, 3'd0, 3'd0},
+  localparam int N_TERMS = 8;
+  // 26-bit ROM: {doubled, is_comp, lane7_sel[2:0], ..., lane0_sel[2:0]}
+  // doubled=1: term_val <<= 1 (×2, replaces duplicate entries)
+  localparam logic [25:0] TERM_ROM [0:N_TERMS-1] = '{
+    // +2·s1 : doubled, {S[7],S[6],S[5],S[4],S[3], 0,0,0}
+    {1'b1, 1'b0, 3'd0, 3'd1, 3'd2, 3'd3, 3'd4, 3'd0, 3'd0, 3'd0},
+    // +2·s2 : doubled, {0, S[7],S[6],S[5],S[4], 0,0,0}
+    {1'b1, 1'b0, 3'd0, 3'd0, 3'd1, 3'd2, 3'd3, 3'd0, 3'd0, 3'd0},
     // +s3 : {S[7],S[6], 0,0,0, S[2],S[1],S[0]}
-    {1'b0, 3'd0, 3'd1, 3'd0, 3'd0, 3'd0, 3'd5, 3'd6, 3'd7},
+    {1'b0, 1'b0, 3'd0, 3'd1, 3'd0, 3'd0, 3'd0, 3'd5, 3'd6, 3'd7},
     // +s4 : {S[0],S[2],S[7],S[6],S[2],S[4],S[5],S[6]}
-    {1'b0, 3'd7, 3'd2, 3'd0, 3'd1, 3'd2, 3'd4, 3'd5, 3'd6},
+    {1'b0, 1'b0, 3'd7, 3'd2, 3'd0, 3'd1, 3'd2, 3'd4, 3'd5, 3'd6},
     // +(2p-d1): complement of d1={S[2],S[0],0,0,0,S[5],S[3],S[4]}
-    {1'b1, 3'd5, 3'd7, 3'd0, 3'd0, 3'd0, 3'd2, 3'd3, 3'd4},
+    {1'b0, 1'b1, 3'd5, 3'd7, 3'd0, 3'd0, 3'd0, 3'd2, 3'd3, 3'd4},
     // +(2p-d2): complement of d2={S[4],S[1],0,0,S[7],S[6],S[5],S[3]}
-    {1'b1, 3'd4, 3'd6, 3'd0, 3'd0, 3'd0, 3'd1, 3'd2, 3'd3},
+    {1'b0, 1'b1, 3'd4, 3'd6, 3'd0, 3'd0, 3'd0, 3'd1, 3'd2, 3'd3},
     // +(p-d3):  complement of d3={S[3],0,S[2],S[1],S[0],S[7],S[6],S[5]}
-    {1'b1, 3'd3, 3'd0, 3'd5, 3'd6, 3'd7, 3'd0, 3'd1, 3'd2},
+    {1'b0, 1'b1, 3'd3, 3'd0, 3'd5, 3'd6, 3'd7, 3'd0, 3'd1, 3'd2},
     // +(p-d4):  complement of d4={S[5],0,S[3],S[2],S[1],0,S[7],S[6]}
-    {1'b1, 3'd2, 3'd0, 3'd4, 3'd5, 3'd6, 3'd0, 3'd0, 3'd1}
+    {1'b0, 1'b1, 3'd2, 3'd0, 3'd4, 3'd5, 3'd6, 3'd0, 3'd0, 3'd1}
   };
 
   // Per-term zero lane masks
   localparam logic [7:0] TERM_ZERO [0:N_TERMS-1] = '{
-    8'b00000111, 8'b00000111,  // +s1, +s1: lanes 2,1,0=0
-    8'b10000111, 8'b10000111,  // +s2, +s2: lane 7=0, lanes 2,1,0=0
-    8'b00111000,               // +s3: lanes 5,4,3=0
-    8'b00000000,               // +s4: all used
-    8'b00111000,               // d1: lanes 5,4,3=0
-    8'b00110000,               // d2: lanes 5,4=0
-    8'b01000000,               // d3: lane 6=0
-    8'b01000100                // d4: lane 6=0, lane 2=0
+    8'b00000111,  // +2·s1: lanes 2,1,0=0
+    8'b10000111,  // +2·s2: lane 7=0, lanes 2,1,0=0
+    8'b00111000,  // +s3: lanes 5,4,3=0
+    8'b00000000,  // +s4: all used
+    8'b00111000,  // d1: lanes 5,4,3=0
+    8'b00110000,  // d2: lanes 5,4=0
+    8'b01000000,  // d3: lane 6=0
+    8'b01000100   // d4: lane 6=0, lane 2=0
   };
 
   function automatic logic [31:0] s_slice(logic [WLEN-1:0] S, logic [2:0] sel);
@@ -153,10 +151,11 @@ module otbn_modp256
   endfunction
 
   logic            is_comp;
+  logic            doubled;
   logic [WLEN-1:0] term_val;
-  logic [3:0]      term_idx;  // 0..9 for TERM_ROM lookup
+  logic [2:0]      term_idx;  // 0..7 for TERM_ROM lookup
 
-  assign term_idx = red_cnt_q;  // red_cnt 0..9 → TERM_ROM idx 0..9
+  assign term_idx = red_cnt_q[2:0];  // red_cnt 0..7 → TERM_ROM idx 0..7
 
   // term0 (red_cnt=0) uses acch_q_i (S before save); later terms use S_q
   logic [WLEN-1:0] term_src;
@@ -165,7 +164,9 @@ module otbn_modp256
   always_comb begin
     term_val = '0;
     is_comp  = 1'b0;
-    if (red_cnt_q <= 4'd9) begin
+    doubled  = 1'b0;
+    if (red_cnt_q <= 4'd7) begin
+      doubled = TERM_ROM[term_idx][25];
       is_comp = TERM_ROM[term_idx][24];
       for (int lane = 0; lane < 8; lane++) begin
         if (!TERM_ZERO[term_idx][lane])
@@ -176,8 +177,8 @@ module otbn_modp256
 
   logic in_s0_term0, in_term, in_subp, subp_done;
   assign in_s0_term0 = (state_q == ST_REDUCE) && (red_cnt_q == 4'd0);
-  assign in_term     = (state_q == ST_REDUCE) && (red_cnt_q >= 4'd1) && (red_cnt_q <= 4'd9);
-  assign in_subp     = (state_q == ST_REDUCE) && (red_cnt_q == 4'd10);
+  assign in_term     = (state_q == ST_REDUCE) && (red_cnt_q >= 4'd1) && (red_cnt_q <= 4'd7);
+  assign in_subp     = (state_q == ST_REDUCE) && (red_cnt_q == 4'd8);
   assign subp_done = in_subp && (acch_q_i == '0) && !adder_cout_i[15];
 
   // ============ Adder routing ============
@@ -188,12 +189,12 @@ module otbn_modp256
   logic [WLEN-1:0] comp_lo;     // comp_p - term_val (256-bit subtraction)
 
   always_comb begin
-    if (red_cnt_q <= 4'd7) begin
-      // 2p terms (red=6,7): 2p = 2^256 + P256_2X
+    if (red_cnt_q == 4'd4 || red_cnt_q == 4'd5) begin
+      // 2p terms (indices 4,5): 2p = 2^256 + P256_2X
       comp_hi = (P256_2X >= term_val);
       comp_lo = P256_2X - term_val;
     end else begin
-      // p terms (red=8,9): p < 2^256, comp_hi always 0
+      // p terms (indices 6,7) or non-complement: comp_hi always 0
       comp_hi = 1'b0;
       comp_lo = P256 - term_val;
     end
@@ -201,8 +202,9 @@ module otbn_modp256
 
   always_comb begin
     if (in_s0_term0) begin
-      // RED_S0 + term0 merged: save S, compute {0, R} + {0, s1}
-      adder_op_a_o = {{WLEN{1'b0}}, term_val};
+      // RED_S0 + term0 merged: save S, compute {0, R} + {0, 2·s1}
+      adder_op_a_o = doubled ? ({{(WLEN-1){1'b0}}, term_val} << 1)
+                             : {{WLEN{1'b0}}, term_val};
       adder_op_b_o = {{WLEN{1'b0}}, acc_q_i};   // hi part zeroed (ACCH→0)
       adder_cin_lo_o = 1'b0;
     end else if (in_term) begin
@@ -212,7 +214,8 @@ module otbn_modp256
         adder_op_b_o = {acch_q_i, acc_q_i};
         adder_cin_lo_o = 1'b0;
       end else begin
-        adder_op_a_o = {{WLEN{1'b0}}, term_val};
+        adder_op_a_o = doubled ? ({{(WLEN-1){1'b0}}, term_val} << 1)
+                               : {{WLEN{1'b0}}, term_val};
         adder_op_b_o = {acch_q_i, acc_q_i};
         adder_cin_lo_o = 1'b0;
       end
@@ -262,15 +265,15 @@ module otbn_modp256
 
       ST_REDUCE: begin
         unique case (red_cnt_q)
-          4'd0: begin  // S0+term0: save S, apply +s1
+          4'd0: begin  // S0+term0: save S, apply +2·s1
             S_d       = acch_q_i;
             red_cnt_d = 4'd1;
           end
           4'd1, 4'd2, 4'd3, 4'd4, 4'd5,
-          4'd6, 4'd7, 4'd8, 4'd9: begin
+          4'd6, 4'd7: begin
             red_cnt_d = red_cnt_q + 1'b1;
           end
-          4'd10: begin  // SUB_P: done when ACCH==0 and no carry from lo
+          4'd8: begin  // SUB_P: done when ACCH==0 and no carry from lo
             if ((acch_q_i == '0) && !adder_cout_i[15]) begin
               state_d   = ST_IDLE;
               mul_cnt_d = 4'd0;

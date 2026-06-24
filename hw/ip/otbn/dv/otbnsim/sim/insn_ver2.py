@@ -1884,10 +1884,8 @@ class BNMODP256(OTBNInsn):
 
         p2 = 2 * self.P256
         terms = [
-            (s1, True),              # +s1 (1st)
-            (s1, True),              # +s1 (2nd)
-            (s2, True),              # +s2 (1st)
-            (s2, True),              # +s2 (2nd)
+            (2 * s1, True),          # +2·s1 (merged, doubled)
+            (2 * s2, True),          # +2·s2 (merged, doubled)
             (s3, True),              # +s3
             (s4, True),              # +s4
             (p2 - d1, True),         # +(2p-d1)
@@ -1900,13 +1898,13 @@ class BNMODP256(OTBNInsn):
     def _d_val(self, S, idx):
         """Return raw d1/d2/d3/d4 from S (matching RTL term_val for complement terms)."""
         s = [(S >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
-        if idx == 6:   # d1
+        if idx == 4:   # d1
             return (s[5] << 224) | (s[7] << 192) | (s[2] << 64) | (s[3] << 32) | s[4]
-        elif idx == 7: # d2
+        elif idx == 5: # d2
             return (s[4] << 224) | (s[6] << 192) | (s[0] << 96) | (s[1] << 64) | (s[2] << 32) | s[3]
-        elif idx == 8: # d3
+        elif idx == 6: # d3
             return (s[3] << 224) | (s[5] << 160) | (s[6] << 128) | (s[7] << 96) | (s[0] << 64) | (s[1] << 32) | s[2]
-        elif idx == 9: # d4
+        elif idx == 7: # d4
             return (s[2] << 224) | (s[4] << 160) | (s[5] << 128) | (s[6] << 96) | (s[0] << 32) | s[1]
         return 0
 
@@ -1960,8 +1958,8 @@ class BNMODP256(OTBNInsn):
         state.wsrs.ACCH.write_unsigned(acc_hi)
         yield None
 
-        # Terms 1-9: standard 512-bit accumulation
-        for idx in range(1, 10):
+        # Terms 1-7: standard 512-bit accumulation
+        for idx in range(1, 8):
             term_val, is_add = terms[idx]
             total = (acc_hi << 256) | acc_lo
             total = (total + term_val) & mask512
