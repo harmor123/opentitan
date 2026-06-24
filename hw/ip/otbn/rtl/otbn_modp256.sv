@@ -1,7 +1,3 @@
-// Copyright lowRISC contributors (OpenTitan project).
-// Licensed under the Apache License, Version 2.0, see LICENSE for details.
-// SPDX-License-Identifier: Apache-2.0
-//
 // OTBN bn.modp256 — P-256 NIST Solinas modular multiplication.
 // 16-cycle schoolbook + 10-term complement reduction + cond-sub + DONE.
 // Total ~35 cycles. Verified against ISS (insn_ver2.py).
@@ -275,14 +271,17 @@ module otbn_modp256
             red_cnt_d = red_cnt_q + 1'b1;
           end
           4'd10: begin  // SUB_P: done when ACCH==0 and no carry from lo
-            if ((acch_q_i == '0) && !adder_cout_i[15])
-              state_d = ST_DONE;
+            if ((acch_q_i == '0) && !adder_cout_i[15]) begin
+              state_d   = ST_IDLE;
+              mul_cnt_d = 4'd0;
+              red_cnt_d = 4'd0;
+            end
           end
           default: red_cnt_d = 4'd0;
         endcase
       end
 
-      ST_DONE: begin
+      ST_DONE: begin  // legacy: subp_done now bypasses this
         state_d   = ST_IDLE;
         mul_cnt_d = 4'd0;
         red_cnt_d = 4'd0;
@@ -333,16 +332,16 @@ module otbn_modp256
 
   // ============ Result & flags ============
   assign result_o = acc_q_i;
-  assign valid_o  = (state_q == ST_DONE);
+  assign valid_o  = (state_q == ST_DONE) | subp_done;
 
   assign flags_o.L    = acc_q_i[0];
   assign flags_o.M    = acc_q_i[WLEN-1];
   assign flags_o.Z    = (acc_q_i == '0);
   assign flags_o.C    = |adder_cout_i;
-  assign flags_en_o.L = (state_q == ST_DONE);
-  assign flags_en_o.M = (state_q == ST_DONE);
-  assign flags_en_o.Z = (state_q == ST_DONE);
-  assign flags_en_o.C = (state_q == ST_DONE);
+  assign flags_en_o.L = (state_q == ST_DONE) | subp_done;
+  assign flags_en_o.M = (state_q == ST_DONE) | subp_done;
+  assign flags_en_o.Z = (state_q == ST_DONE) | subp_done;
+  assign flags_en_o.C = (state_q == ST_DONE) | subp_done;
 
   // ============ DEBUG ============
   `ifdef VERILATOR
@@ -350,7 +349,7 @@ module otbn_modp256
     if (state_q == ST_IDLE && is_modp256_i && mac_en_i) begin
       $display("[MODP256_START] opA=%064h opB=%064h", operand_a_i, operand_b_i);
     end
-    if (state_q == ST_DONE) begin
+    if ((state_q == ST_DONE) | subp_done) begin
       $display("[MODP256_DONE] result=%064h", result_o);
     end
   end

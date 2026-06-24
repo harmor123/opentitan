@@ -1983,17 +1983,10 @@ class BNMODP256(OTBNInsn):
 
         result = full_T & mask256
 
-        # DONE cycle (RTL ST_DONE)
+        # DONE: write result, clear ACCH, set flags (RTL subp_done outputs same cycle)
         state.wsrs.ACC.write_unsigned(result)
         state.wsrs.ACCH.write_unsigned(0)
-        yield None
-
-        # ================================================
-        # Phase 5: DONE — write result, clear ACCH, set flags
-        # ================================================
         state.wdrs.get_reg(self.wrd).write_unsigned(result)
-        state.wsrs.ACC.write_unsigned(result)
-        state.wsrs.ACCH.write_unsigned(0)
         flags = FlagReg.mlz_for_result(False, result)
         state.set_flags(0, flags)
         return None
