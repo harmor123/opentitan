@@ -1,3 +1,7 @@
+// Copyright lowRISC contributors (OpenTitan project).
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+//
 // OTBN bn.modp256 — P-256 NIST Solinas modular multiplication.
 // 16-cycle schoolbook + 10-term complement reduction + cond-sub + DONE.
 // Total ~35 cycles. Verified against ISS (insn_ver2.py).
@@ -156,24 +160,28 @@ module otbn_modp256
   logic [WLEN-1:0] term_val;
   logic [3:0]      term_idx;  // 0..9 for TERM_ROM lookup
 
-  assign term_idx = red_cnt_q - 1;  // red_cnt 1..10 → idx 0..9
+  assign term_idx = red_cnt_q;  // red_cnt 0..9 → TERM_ROM idx 0..9
+
+  // term0 (red_cnt=0) uses acch_q_i (S before save); later terms use S_q
+  logic [WLEN-1:0] term_src;
+  assign term_src = (red_cnt_q == 4'd0) ? acch_q_i : S_q;
 
   always_comb begin
     term_val = '0;
     is_comp  = 1'b0;
-    if (red_cnt_q >= 4'd1 && red_cnt_q <= 4'd10) begin
+    if (red_cnt_q <= 4'd9) begin
       is_comp = TERM_ROM[term_idx][24];
       for (int lane = 0; lane < 8; lane++) begin
         if (!TERM_ZERO[term_idx][lane])
-          term_val[lane*32+:32] = s_slice(S_q, TERM_ROM[term_idx][3*lane+:3]);
+          term_val[lane*32+:32] = s_slice(term_src, TERM_ROM[term_idx][3*lane+:3]);
       end
     end
   end
 
-  logic in_s0, in_term, in_subp, subp_done;
-  assign in_s0   = (state_q == ST_REDUCE) && (red_cnt_q == 4'd0);
-  assign in_term = (state_q == ST_REDUCE) && (red_cnt_q >= 4'd1) && (red_cnt_q <= 4'd10);
-  assign in_subp = (state_q == ST_REDUCE) && (red_cnt_q == 4'd11);
+  logic in_s0_term0, in_term, in_subp, subp_done;
+  assign in_s0_term0 = (state_q == ST_REDUCE) && (red_cnt_q == 4'd0);
+  assign in_term     = (state_q == ST_REDUCE) && (red_cnt_q >= 4'd1) && (red_cnt_q <= 4'd9);
+  assign in_subp     = (state_q == ST_REDUCE) && (red_cnt_q == 4'd10);
   assign subp_done = in_subp && (acch_q_i == '0) && !adder_cout_i[15];
 
   // ============ Adder routing ============
@@ -184,19 +192,24 @@ module otbn_modp256
   logic [WLEN-1:0] comp_lo;     // comp_p - term_val (256-bit subtraction)
 
   always_comb begin
-    if (red_cnt_q <= 4'd8) begin
-      // 2p terms: 2p = 2^256 + P256_2X.  comp_hi=1 only if P256_2X >= term_val.
+    if (red_cnt_q <= 4'd7) begin
+      // 2p terms (red=6,7): 2p = 2^256 + P256_2X
       comp_hi = (P256_2X >= term_val);
-      comp_lo = P256_2X - term_val;  // unsigned: wraps correctly if P256_2X < term_val
+      comp_lo = P256_2X - term_val;
     end else begin
-      // p terms: p < 2^256, comp_hi always 0
+      // p terms (red=8,9): p < 2^256, comp_hi always 0
       comp_hi = 1'b0;
       comp_lo = P256 - term_val;
     end
   end
 
   always_comb begin
-    if (in_term) begin
+    if (in_s0_term0) begin
+      // RED_S0 + term0 merged: save S, compute {0, R} + {0, s1}
+      adder_op_a_o = {{WLEN{1'b0}}, term_val};
+      adder_op_b_o = {{WLEN{1'b0}}, acc_q_i};   // hi part zeroed (ACCH→0)
+      adder_cin_lo_o = 1'b0;
+    end else if (in_term) begin
       if (is_comp) begin
         // Complement add: {ACCH, ACC} + {comp_hi, comp_p - term_val}
         adder_op_a_o = {{(WLEN-1){1'b0}}, comp_hi, comp_lo};
@@ -253,15 +266,15 @@ module otbn_modp256
 
       ST_REDUCE: begin
         unique case (red_cnt_q)
-          4'd0: begin  // S0: save S
+          4'd0: begin  // S0+term0: save S, apply +s1
             S_d       = acch_q_i;
             red_cnt_d = 4'd1;
           end
           4'd1, 4'd2, 4'd3, 4'd4, 4'd5,
-          4'd6, 4'd7, 4'd8, 4'd9, 4'd10: begin
+          4'd6, 4'd7, 4'd8, 4'd9: begin
             red_cnt_d = red_cnt_q + 1'b1;
           end
-          4'd11: begin  // SUB_P: done when ACCH==0 and no carry from lo
+          4'd10: begin  // SUB_P: done when ACCH==0 and no carry from lo
             if ((acch_q_i == '0) && !adder_cout_i[15])
               state_d = ST_DONE;
           end
@@ -301,16 +314,14 @@ module otbn_modp256
     acc_d_o  = adder_result_i[WLEN-1:0];
     acch_d_o = adder_result_i[2*WLEN-1:WLEN];
 
-    if (in_s0) begin
-      acc_d_o  = acc_q_i;
-      acch_d_o = '0;
-    end else if (state_q == ST_DONE) begin
+    if (state_q == ST_DONE) begin
       acch_d_o = '0;
     end
   end
 
   // ============ Write enables ============
   assign acc_wr_en_add_o = (state_q inside {ST_IDLE, ST_MUL})
+                         | in_s0_term0
                          | in_term
                          | (in_subp & ~subp_done);
 

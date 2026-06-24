@@ -1947,25 +1947,26 @@ class BNMODP256(OTBNInsn):
         R = acc_lo
 
         # ================================================
-        # Phase 2: RED_S0
+        # Phase 2+3 merged: RED_S0 + term0 (+s1) in one cycle
         # ================================================
-        acc_lo = R
-        acc_hi = 0
+        terms = self._build_terms(S, R)
+
+        # Term 0 (+s1): R + s1 with ACCH zeroed (RTL adder_op_b hi=0)
+        term0_val = terms[0][0]
+        total = R + term0_val
+        acc_lo = total & mask256
+        acc_hi = (total >> 256) & mask256
         state.wsrs.ACC.write_unsigned(acc_lo)
         state.wsrs.ACCH.write_unsigned(acc_hi)
         yield None
 
-        # ================================================
-        # Phase 3: 10-term Solinas reduction
-        # ================================================
-        terms = self._build_terms(S, R)
-        for idx, (term_val, is_add) in enumerate(terms):
+        # Terms 1-9: standard 512-bit accumulation
+        for idx in range(1, 10):
+            term_val, is_add = terms[idx]
             total = (acc_hi << 256) | acc_lo
             total = (total + term_val) & mask512
             acc_lo = total & mask256
             acc_hi = (total >> 256) & mask256
-            pass
-
             state.wsrs.ACC.write_unsigned(acc_lo)
             state.wsrs.ACCH.write_unsigned(acc_hi)
             yield None
