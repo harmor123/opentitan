@@ -411,6 +411,7 @@ module otbn_mac_bignum
   logic [2*WLEN-1:0] bnmulv_mul_res;
 
   // ============ BN.MODP256 Instruction Support ============
+`ifndef SYN_NO_MODP256
   logic is_modp256;
   assign is_modp256 = operation_i.is_modp256;
 
@@ -465,9 +466,49 @@ module otbn_mac_bignum
     .flags_o          (modp256_flags),
     .flags_en_o       (modp256_flags_en)
   );
-`else
+`else  // SYN_NO_MODP256
+  logic is_modp256;
+  assign is_modp256 = 1'b0;
+  logic [1:0]        modp256_mul_wsel_a, modp256_mul_wsel_b;
+  logic [1:0]        modp256_mul_wmode,  modp256_mul_dshift;
+  logic [WLEN-1:0]   modp256_mul_A,      modp256_mul_B;
+  logic [2*WLEN-1:0] modp256_adder_op_a, modp256_adder_op_b;
+  vec_type_e         modp256_adder_wm_lo, modp256_adder_wm_hi;
+  logic              modp256_adder_cin_lo, modp256_adder_cin_hi;
+  logic [WLEN-1:0]   modp256_acc_d,      modp256_acch_d;
+  logic              modp256_acc_wr_en_add, modp256_acch_wr_en_add;
+  logic              modp256_acc_blk_dis, modp256_acch_blk_dis;
+  logic [WLEN-1:0]   modp256_result;
+  logic              modp256_valid;
+  flags_t            modp256_flags,       modp256_flags_en;
+  logic [15:0]       modp256_adder_cout;
+  assign modp256_mul_wsel_a   = '0;
+  assign modp256_mul_wsel_b   = '0;
+  assign modp256_mul_wmode    = '0;
+  assign modp256_mul_dshift   = '0;
+  assign modp256_mul_A        = '0;
+  assign modp256_mul_B        = '0;
+  assign modp256_adder_op_a   = '0;
+  assign modp256_adder_op_b   = '0;
+  assign modp256_adder_wm_lo  = VecType_v256;
+  assign modp256_adder_wm_hi  = VecType_v256;
+  assign modp256_adder_cin_lo = '0;
+  assign modp256_adder_cin_hi = '0;
+  assign modp256_acc_d        = '0;
+  assign modp256_acch_d       = '0;
+  assign modp256_acc_wr_en_add  = '0;
+  assign modp256_acch_wr_en_add = '0;
+  assign modp256_acc_blk_dis  = '0;
+  assign modp256_acch_blk_dis = '0;
+  assign modp256_result       = '0;
+  assign modp256_valid        = '0;
+  assign modp256_flags        = '0;
+  assign modp256_flags_en     = '0;
+  assign modp256_adder_cout   = '0;
+`endif  // SYN_NO_MODP256
+`else  // !BNMULV_ACCH
   logic [WLEN-1:0]   bnmulv_mul_res;
-`endif
+`endif  // BNMULV_ACCH
   otbn_mul_unified u_mul (
 `ifdef BNMULV_ACCH
     .word_mode  (is_modp256 ? modp256_mul_wmode  : {operation_i.mulv, operation_i.data_type}),

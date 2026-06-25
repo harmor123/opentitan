@@ -128,17 +128,9 @@ p256_shared_key:
      and multiply the random masks with z^-1 to
      also convert them into affine space. */
 
-  /* Move z^-1 and x coordinate mask to mul_modp input WDRs.
-     z^-1 is still stored in w14 from previous
-     proj_to_affine call.
-     w25 <= w14 = z^-1
-     w24 <= w2 = m_x */
-  bn.mov    w25, w14
-  bn.mov    w24, w2
-
   /* Compute modular multiplication of m_x and z^-1.
-     w19 = w24 * w25 mod p = m_x * z^-1 mod p = x1 */
-  jal       x1, mul_modp
+     w19 = m_x * z^-1 mod p = x1 */
+  bn.modp256 w19, w2, w14
 
   /* Store "affine" mask to DMEM. Use the y-coordinate
      to save memory (not needed afterwards)

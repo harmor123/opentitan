@@ -11,9 +11,11 @@
 set -e
 set -o pipefail
 
-MODE="${1:?Usage: $0 <baseline|kmac|ver2_base|ver2_kmac>}"
-if [ "$MODE" != "baseline" ] && [ "$MODE" != "kmac" ] && [ "$MODE" != "ver2_base" ] && [ "$MODE" != "ver2_kmac" ]; then
-    echo >&2 "Error: MODE must be 'baseline', 'kmac', 'ver2_base', or 'ver2_kmac'"
+MODE="${1:?Usage: $0 <baseline|kmac|ver2_base|ver2_kmac|modp256|ver2_modp256>}"
+if [ "$MODE" != "baseline" ] && [ "$MODE" != "kmac" ] && \
+   [ "$MODE" != "ver2_base" ] && [ "$MODE" != "ver2_kmac" ] && \
+   [ "$MODE" != "modp256" ] && [ "$MODE" != "ver2_modp256" ]; then
+    echo >&2 "Error: MODE must be 'baseline', 'kmac', 'ver2_base', 'ver2_kmac', 'modp256', or 'ver2_modp256'"
     exit 1
 fi
 
@@ -65,7 +67,7 @@ echo "=============================================="
 export LR_SYNTH_SRC_DIR="../../$LR_SYNTH_IP_NAME"
 
 # ★ KMAC defines — only difference between baseline and kmac modes
-if [ "$MODE" = "baseline" ]; then
+if [ "$MODE" = "baseline" ] || [ "$MODE" = "ver2_base" ] || [ "$MODE" = "ver2_modp256" ]; then
     KMAC_DEFINE=(--define=SYN_NO_KMAC)
     echo ">>> SYN_NO_KMAC=1  (otbn_kmac removed)"
 else
@@ -73,18 +75,21 @@ else
     echo ">>> SYN_NO_KMAC=0  (otbn_kmac present)"
 fi
 
+# ★ MODP256 defines — A/B test for modp256 area
+if [ "$MODE" = "baseline" ] || [ "$MODE" = "kmac" ] || [ "$MODE" = "ver2_base" ]; then
+    MODP256_DEFINE=(--define=SYN_NO_MODP256)
+    echo ">>> SYN_NO_MODP256=1  (otbn_modp256 removed)"
+else
+    MODP256_DEFINE=()
+    echo ">>> SYN_NO_MODP256=0  (otbn_modp256 present)"
+fi
+
 # ★ ver2 defines — enable BNMULV unified multiplier
-if [ "$MODE" = "ver2_base" ] || [ "$MODE" = "ver2_kmac" ]; then
+if [ "$MODE" = "ver2_base" ] || [ "$MODE" = "ver2_kmac" ] || [ "$MODE" = "ver2_modp256" ]; then
     VER2_DEFINE=(--define=BNMULV --define=BNMULV_ACCH)
     echo ">>> BNMULV=1 BNMULV_ACCH=1  (ver2 unified multiplier)"
 else
     VER2_DEFINE=()
-fi
-
-# ver2_base = baseline + ver2 (no KMAC, with BNMULV)
-# ver2_kmac = kmac + ver2 (with KMAC, with BNMULV)
-if [ "$MODE" = "ver2_base" ]; then
-    KMAC_DEFINE=(--define=SYN_NO_KMAC)
 fi
 
 #-------------------------------------------------------------------------
@@ -223,6 +228,7 @@ for file in "$LR_SYNTH_SRC_DIR"/rtl/*.sv; do
     sv2v \
         --define=SYNTHESIS \
         "${KMAC_DEFINE[@]}" \
+        "${MODP256_DEFINE[@]}" \
         "${VER2_DEFINE[@]}" \
         "${OT_DEP_PACKAGES[@]}" \
         "$LR_SYNTH_SRC_DIR"/rtl/*_pkg.sv \
@@ -305,6 +311,7 @@ foreach mod [list \
   *otbn_mac_bignum_fsm* \
   *otbn_mul_unified* \
   *otbn_adder_buffer_bit* \
+  *otbn_modp256* \
   *otbn_vec_multiplier* \
 ] {
   if {[llength [yosys "select -list $mod"]] > 0} {

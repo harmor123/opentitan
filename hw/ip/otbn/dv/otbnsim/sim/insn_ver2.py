@@ -1918,7 +1918,7 @@ class BNMODP256(OTBNInsn):
         mask512 = (1 << 512) - 1
         mask64  = (1 << 64) - 1
 
-        eprint(f"[ISS_START] opA={a:064x} opB={b:064x}")
+        # eprint(f"[ISS_START] opA={a:064x} opB={b:064x}")
 
         # ================================================
         # Phase 1: Schoolbook multiplication (16 cycles)

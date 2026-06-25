@@ -78,6 +78,7 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver2/otbn/p256:p256_shared_key_lib",
     ],
     dexp = "p256.dexp",
+    copts = ["--bnmulv_version_id=2"],
 )
 
 otbn_sim_test(

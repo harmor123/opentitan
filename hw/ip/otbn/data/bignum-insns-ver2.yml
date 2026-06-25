@@ -1432,13 +1432,7 @@
 
 - mnemonic: bn.modp256
   synopsis: 256-bit modular multiplication for NIST P-256 prime
-  operands:
-    - name: wrd
-      doc: Destination WDR
-    - name: wrs1
-      doc: First source WDR (multiplier a)
-    - name: wrs2
-      doc: Second source WDR (multiplicand b)
+  operands: [wrd, wrs1, wrs2]
   glued-ops: true
   doc: |
     Computes (a * b) mod p where p = 2^256 - 2^224 + 2^192 + 2^96 - 1
