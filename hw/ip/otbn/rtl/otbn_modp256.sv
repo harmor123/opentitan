@@ -1,6 +1,6 @@
 // OTBN bn.modp256 — P-256 NIST Solinas modular multiplication.
-// 16-cycle schoolbook + 10-term complement reduction + cond-sub + DONE.
-// Total ~35 cycles. Verified against ISS (insn_ver2.py).
+// 16-cycle schoolbook + 8-term complement reduction + cond-sub + DONE.
+// Total ~26 cycles. Verified against ISS (insn_ver2.py).
 
 module otbn_modp256
   import otbn_pkg::*;
@@ -346,16 +346,16 @@ module otbn_modp256
   assign flags_en_o.Z = (state_q == ST_DONE) | subp_done;
   assign flags_en_o.C = (state_q == ST_DONE) | subp_done;
 
-  // ============ DEBUG ============
-  `ifdef VERILATOR
-  always_ff @(posedge clk_i) begin
-    if (state_q == ST_IDLE && is_modp256_i && mac_en_i) begin
-      $display("[MODP256_START] opA=%064h opB=%064h", operand_a_i, operand_b_i);
-    end
-    if ((state_q == ST_DONE) | subp_done) begin
-      $display("[MODP256_DONE] result=%064h", result_o);
-    end
-  end
-  `endif
+  // // ============ DEBUG ============
+  // `ifdef VERILATOR
+  // always_ff @(posedge clk_i) begin
+  //   if (state_q == ST_IDLE && is_modp256_i && mac_en_i) begin
+  //     $display("[MODP256_START] opA=%064h opB=%064h", operand_a_i, operand_b_i);
+  //   end
+  //   if ((state_q == ST_DONE) | subp_done) begin
+  //     $display("[MODP256_DONE] result=%064h", result_o);
+  //   end
+  // end
+  // `endif
 
 endmodule

@@ -4,44 +4,6 @@
 
 .globl p256_isoncurve_proj
 
-.globl setup_modp
-
-
-/**
- * Set up for coordinate field operations modulo the prime p.
- *
- * Loads the constants required by `mul_modp` and other coordinate-arithmetic
- * routines.
- *
- * Flags: Flags have no meaning beyond the scope of this subroutine.
- *
- * @param[in]  w31: all-zero
- * @param[out] MOD: p, modulus of P-256 underlying finite field
- * @param[out] w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[out] w29: r448, constant, 2^448 mod p
- *
- * clobbered registers: w28, w29
- * clobbered flag groups: FG0
- */
-setup_modp:
-  /* Load the modulus p from DMEM and store it in MOD.
-     MOD <= w29 <= p = dmem[p256_p] */
-  li        x2, 29
-  la        x3, p256_p
-  bn.lid    x2, 0(x3)
-  bn.wsrw   MOD, w29
-
-  /* Compute the constant r256 for reduction modulo p.
-       w28 <= 2^256 - p = r256 */
-  bn.sub   w28, w31, w29
-
-  /* Load the constant r448 for reduction modulo p.
-     w29 <= dmem[p256_r448] = r448 */
-  li        x2, 29
-  la        x3, p256_r448
-  bn.lid    x2, 0(x3)
-  ret
-
 /**
  * Checks if a projective point is a valid curve point on curve P-256 (secp256r1)
  *
@@ -154,44 +116,3 @@ p256_isoncurve_proj:
   bn.modp256 w19, w24, w19
 
   ret
-
-.section .data
-
-/* P-256 domain parameter b */
-.globl p256_b
-.balign 32
-p256_b:
-  .word 0x27d2604b
-  .word 0x3bce3c3e
-  .word 0xcc53b0f6
-  .word 0x651d06b0
-  .word 0x769886bc
-  .word 0xb3ebbd55
-  .word 0xaa3a93e7
-  .word 0x5ac635d8
-
-/* P-256 domain parameter p (modulus) */
-.globl p256_p
-.balign 32
-p256_p:
-  .word 0xffffffff
-  .word 0xffffffff
-  .word 0xffffffff
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000000
-  .word 0x00000001
-  .word 0xffffffff
-
-/* Constant ((2^448) mod p) for reduction modulo p. */
-.globl p256_r448
-.balign 32
-p256_r448:
-  .word 0xffffffff
-  .word 0xfffffffe
-  .word 0xfffffffe
-  .word 0xffffffff
-  .word 0x00000000
-  .word 0x00000002
-  .word 0x00000003
-  .word 0x00000000

@@ -1809,9 +1809,9 @@ class BNMULVL(OTBNInsn):
 class BNMODP256(OTBNInsn):
     """bn.modp256: NIST P-256 fast Solinas modular multiplication.
 
-    Schoolbook 16 cycles (matching RTL ROM) + 10-term Solinas reduction
+    Schoolbook 16 cycles (matching RTL ROM) + 8-term Solinas reduction
     with p/2p complements + conditional p-subtract + DONE.
-    Total: ~29 cycles depending on conditional subtract iterations.
+    Total: ~26 cycles (26-32 depending on conditional subtract iterations).
     """
     insn = insn_for_mnemonic("bn.modp256", 3)
     P256 = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
@@ -1848,29 +1848,15 @@ class BNMODP256(OTBNInsn):
     # --------------------------------------------------------
     # Solinas term construction helpers
     # --------------------------------------------------------
-    @staticmethod
-    def _term_from_words(sel_list):
-        """Build a 256-bit term from 8 32-bit lane selectors.
-
-        sel_list: list of 8 tuples (src, word_idx) or None for zero.
-          src='s' -> from S, src='r' -> from R.
-        """
-        val = 0
-        for lane, spec in enumerate(sel_list):
-            if spec is not None:
-                val |= (spec[0] << ((7 - lane) * 32))
-        return val
-
-    def _build_terms(self, S, R):
-        """Build the 10 Solinas reduction terms from S and R.
+    def _build_terms(self, S):
+        """Build the 8 Solinas reduction terms from S.
 
         Verified formula (see verify_modp256.py), 2000+ random tests passed.
-        Index: s[0]=S[255:224](MSB), s[7]=S[31:0](LSB), same for r.
+        Index: s[0]=S[255:224](MSB), s[7]=S[31:0](LSB).
         """
         s = [(S >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
-        r = [(R >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
 
-        # Verified sub-terms (c-index: c[0..7]=s[0..7], c[8..15]=r[0..7])
+        # Verified sub-terms
         s1 = (s[0] << 224) | (s[1] << 192) | (s[2] << 160) | (s[3] << 128) | (s[4] << 96)
         s2 = (s[0] << 192) | (s[1] << 160) | (s[2] << 128) | (s[3] << 96)
         s3 = (s[0] << 224) | (s[1] << 192) | (s[5] << 64) | (s[6] << 32) | s[7]
@@ -1895,19 +1881,6 @@ class BNMODP256(OTBNInsn):
         ]
         return terms
 
-    def _d_val(self, S, idx):
-        """Return raw d1/d2/d3/d4 from S (matching RTL term_val for complement terms)."""
-        s = [(S >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
-        if idx == 4:   # d1
-            return (s[5] << 224) | (s[7] << 192) | (s[2] << 64) | (s[3] << 32) | s[4]
-        elif idx == 5: # d2
-            return (s[4] << 224) | (s[6] << 192) | (s[0] << 96) | (s[1] << 64) | (s[2] << 32) | s[3]
-        elif idx == 6: # d3
-            return (s[3] << 224) | (s[5] << 160) | (s[6] << 128) | (s[7] << 96) | (s[0] << 64) | (s[1] << 32) | s[2]
-        elif idx == 7: # d4
-            return (s[2] << 224) | (s[4] << 160) | (s[5] << 128) | (s[6] << 96) | (s[0] << 32) | s[1]
-        return 0
-
     # --------------------------------------------------------
     # Execute
     # --------------------------------------------------------
@@ -1917,8 +1890,6 @@ class BNMODP256(OTBNInsn):
         mask256 = (1 << 256) - 1
         mask512 = (1 << 512) - 1
         mask64  = (1 << 64) - 1
-
-        # eprint(f"[ISS_START] opA={a:064x} opB={b:064x}")
 
         # ================================================
         # Phase 1: Schoolbook multiplication (16 cycles)
@@ -1945,11 +1916,11 @@ class BNMODP256(OTBNInsn):
         R = acc_lo
 
         # ================================================
-        # Phase 2+3 merged: RED_S0 + term0 (+s1) in one cycle
+        # Phase 2+3 merged: RED_S0 + term0 (+2·s1) in one cycle
         # ================================================
-        terms = self._build_terms(S, R)
+        terms = self._build_terms(S)
 
-        # Term 0 (+s1): R + s1 with ACCH zeroed (RTL adder_op_b hi=0)
+        # Term 0 (+2·s1): R + 2*s1 with ACCH zeroed (RTL adder_op_b hi=0)
         term0_val = terms[0][0]
         total = R + term0_val
         acc_lo = total & mask256
@@ -1960,7 +1931,7 @@ class BNMODP256(OTBNInsn):
 
         # Terms 1-7: standard 512-bit accumulation
         for idx in range(1, 8):
-            term_val, is_add = terms[idx]
+            term_val, _ = terms[idx]
             total = (acc_hi << 256) | acc_lo
             total = (total + term_val) & mask512
             acc_lo = total & mask256
@@ -1981,7 +1952,7 @@ class BNMODP256(OTBNInsn):
 
         result = full_T & mask256
 
-        # DONE: write result, clear ACCH, set flags (RTL subp_done outputs same cycle)
+        # DONE: write result, clear ACCH, set flags
         state.wsrs.ACC.write_unsigned(result)
         state.wsrs.ACCH.write_unsigned(0)
         state.wdrs.get_reg(self.wrd).write_unsigned(result)
