@@ -108,3 +108,13 @@ otbn_sim_test(
     dexp = "modp256_test.dexp",
     copts = ["--bnmulv_version_id=2"],
 )
+
+otbn_sim_test(
+    name = "p256_isoncurve_proj_test",
+    srcs = ["p256_isoncurve_proj_test.s"],
+    deps = [
+        "//test_hybrid_kem_otbn_prompt_ver2/otbn/p256:p256_isoncurve_proj_lib",
+    ],
+    dexp = "p256_isoncurve_proj_test.exp",
+    copts = ["--bnmulv_version_id=2"],
+)
