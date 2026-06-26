@@ -950,12 +950,17 @@ module otbn_mac_bignum
   logic tmp_wr_en_raw;
   logic c_wr_en_raw;
 
+`ifdef BNMULV
   assign acc_wr_en = (((is_modp256 ? 1'b0 : acc_wr_en_raw) | acc_clear_en
 `ifdef BNMULV_ACCH
                        | modp256_acc_wr_en_add
 `endif
                       ) & (predec_i.mac_en & mac_commit_i))
                      | ispr_acc_wr_en_i | sec_wipe_urnd_i;
+`else
+  assign acc_wr_en = ((acc_wr_en_raw | acc_clear_en) & (predec_i.mac_en & mac_commit_i))
+                     | ispr_acc_wr_en_i | sec_wipe_urnd_i;
+`endif
   assign tmp_wr_en = ((tmp_wr_en_raw | tmp_clear_en) & (predec_i.mac_en & mac_commit_i))
                      | sec_wipe_urnd_i;
   assign c_wr_en   = ((c_wr_en_raw | c_clear_en) & (predec_i.mac_en & mac_commit_i))
