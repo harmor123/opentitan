@@ -69,6 +69,76 @@ INSTR_CATEGORIES = {
     "RISC-V Other": ("li", "la", "mv", "ret", "nop", "unimp"),
 }
 
+# ── Phase Breakdown: 函数 → kernel 类别映射 ──
+
+FUNC_CATEGORIES_COMMON = {
+    # ML-KEM NTT / INTT
+    "ntt":          "NTT",
+    "intt":         "INTT",
+    # ML-KEM Basemul
+    "basemul":      "Basemul",
+    "basemul_acc":  "Basemul",
+    # ML-KEM Sampling
+    "cbd2":                 "Sampling",
+    "cbd3":                 "Sampling",
+    "poly_getnoise_eta_1":  "Sampling",
+    "poly_getnoise_eta_2":  "Sampling",
+    # ML-KEM Packing
+    "pack_pk":          "Packing",
+    "pack_sk":          "Packing",
+    "unpack_pk":        "Packing",
+    "unpack_sk":        "Packing",
+    "pack_ciphertext":  "Packing",
+    "unpack_ciphertext":"Packing",
+    # ML-KEM Poly arithmetic
+    "poly_add":         "Poly",
+    "poly_sub":         "Poly",
+    "poly_tomont":      "Poly",
+    "poly_reduce":      "Poly",
+    "poly_frommsg":     "Poly",
+    "poly_tomsg":       "Poly",
+    "poly_gen_matrix":  "Poly",
+    # P-256 Scalar Multiplication
+    "p256_scalar_mult":             "P256-ScalarMult",
+    "scalar_mult_int":              "P256-ScalarMult",
+    "proj_add":                     "P256-ScalarMult",
+    "proj_double":                  "P256-ScalarMult",
+    "proj_to_affine":              "P256-ScalarMult",
+    "mul_modp":                     "P256-ScalarMult",
+    "setup_modp":                   "P256-ScalarMult",
+    "p256_masked_scalar_reblind":   "P256-ScalarMult",
+    "trigger_fault_if_fg0_z":       "P256-ScalarMult",
+    "trigger_fault_if_fg0_not_z":   "P256-ScalarMult",
+    # P-256 Curve-Point Check
+    "p256_isoncurve_proj":  "P256-CurveCheck",
+    # P-256 Shared Key Derivation
+    "p256_shared_key":          "P256-SharedKey",
+    "arithmetic_to_boolean_mod":"P256-SharedKey",
+    "arithmetic_to_boolean":    "P256-SharedKey",
+    # HKDF
+    "hkdf_extract": "HKDF-Extract",
+    "hkdf_expand":  "HKDF-Expand",
+    "hmac_sha3_256": "HMAC-SHA3",
+}
+
+FUNC_CATEGORIES_VER0_SHA3 = {
+    "sha3_init":    "SHA3/SHAKE",
+    "sha3_update":  "SHA3/SHAKE",
+    "sha3_final":   "SHA3/SHAKE",
+    "shake_xof":    "SHA3/SHAKE",
+    "shake_out":    "SHA3/SHAKE",
+    "keccakf":      "SHA3/SHAKE",
+}
+
+FUNC_CATEGORIES_VER12_SHA3 = {
+    "kmac_init":            "SHA3/SHAKE",
+    "keccak_send_message":  "SHA3/SHAKE",
+    "kmac_process":         "SHA3/SHAKE",
+    "kmac_squeeze_32B":     "SHA3/SHAKE",
+    "kmac_run":             "SHA3/SHAKE",
+    "kmac_done":            "SHA3/SHAKE",
+}
+
 
 def _resolve_db(config: dict, db_arg: str = "") -> str:
     if db_arg:
@@ -132,6 +202,145 @@ def _get_elf_sizes(elf_path: str) -> dict:
     return sizes
 
 
+def _get_func_boundaries(elf_path: str, imem_bytes: int) -> list:
+    """从 ELF .symtab 提取 STB_GLOBAL 函数符号及其 PC 范围."""
+    from elftools.elf.elffile import ELFFile
+    from elftools.elf.sections import SymbolTableSection
+
+    elf = ELFFile(open(elf_path, 'rb'))
+    symtab = elf.get_section_by_name('.symtab')
+    logger.info("[phase] ELF=%s, imem_bytes=%d, symtab=%s, sections=%s",
+                Path(elf_path).name, imem_bytes,
+                type(symtab).__name__ if symtab else None,
+                [s.name for s in elf.iter_sections()][:20])
+
+    if not isinstance(symtab, SymbolTableSection):
+        logger.warning("[phase] .symtab 不是 SymbolTableSection: %s", type(symtab))
+        return []
+
+    all_syms = list(symtab.iter_symbols())
+    logger.info("[phase] symtab 共 %d 个符号", len(all_syms))
+
+    # pyelftools: st_info.bind 可能是字符串 'STB_GLOBAL' 或整数 1
+    sample = all_syms[0].entry.st_info.bind if all_syms else None
+    if isinstance(sample, str):
+        GLOBAL = 'STB_GLOBAL'; UNDEF = 'SHN_UNDEF'
+    else:
+        GLOBAL = 1; UNDEF = 0
+
+    # OTBN 汇编器不设 st_size（始终为0），不能用 st_size>0 过滤。
+    # 关键：只保留 .text 段（IMEM）的符号，排除 .data/.bss（DMEM）标签。
+    # DMEM 标签的地址和 IMEM 函数地址在数值上重叠（如 d1 在 DMEM 0x40，
+    # trigger_fault 在 IMEM 0x40），混在一起会把函数边界切碎。
+    text_ndx = None
+    for i, sec in enumerate(elf.iter_sections()):
+        if sec.name == '.text':
+            text_ndx = i
+            break
+    logger.info("[phase] .text section index = %s", text_ndx)
+
+    symbols = []
+    for sym in all_syms:
+        entry = sym.entry
+        if (entry.st_info.bind == GLOBAL
+                and entry.st_shndx == text_ndx
+                and entry.st_shndx != UNDEF):
+            symbols.append((entry.st_value, sym.name))
+
+    logger.info("[phase] 过滤后: %d 个 GLOBAL .text 符号", len(symbols))
+
+    if not symbols:
+        logger.warning("[phase] 无 GLOBAL .text 符号通过过滤")
+        return []
+
+    symbols.sort(key=lambda x: x[0])
+    boundaries = []
+    for i, (addr, name) in enumerate(symbols):
+        end = symbols[i + 1][0] if i + 1 < len(symbols) else imem_bytes
+        boundaries.append((addr, end, name))
+    logger.info("[phase] 函数边界: %d 个, 范围 0x%x - 0x%x",
+                len(boundaries), boundaries[0][0], boundaries[-1][1])
+    return boundaries
+
+
+def _compute_phase_breakdown(sim, elf_path: str) -> dict:
+    """从 per-PC coverage + ELF symtab 计算 kernel phase 周期占比."""
+    from collections import defaultdict
+
+    stats = sim.stats
+    coverage = stats.coverage
+    total_insns = stats.get_insn_count()
+    total_stalls = stats.stall_count
+    imem_bytes = len(stats.program) * 4
+
+    logger.info("[phase] coverage entries=%d  total_insns=%d  total_stalls=%d  imem_bytes=%d",
+                len(coverage), total_insns, total_stalls, imem_bytes)
+
+    if not coverage:
+        logger.warning("[phase] coverage 为空，跳过")
+        return {}
+
+    boundaries = _get_func_boundaries(elf_path, imem_bytes)
+    if not boundaries:
+        logger.warning("[phase] func_boundaries 为空，跳过")
+        return {}
+
+    # 检查 coverage PC 范围是否在 boundaries 范围内
+    pc_min, pc_max = min(coverage.keys()), max(coverage.keys())
+    b_min, b_max = boundaries[0][0], boundaries[-1][1]
+    logger.info("[phase] coverage PC 范围: 0x%x - 0x%x  boundary 范围: 0x%x - 0x%x",
+                pc_min, pc_max, b_min, b_max)
+    if pc_min < b_min or pc_max > b_max:
+        logger.warning("[phase] coverage PC 超出函数边界范围！")
+
+    all_names = {n for _, _, n in boundaries}
+    sha3_cats = FUNC_CATEGORIES_VER0_SHA3 if "sha3_init" in all_names else FUNC_CATEGORIES_VER12_SHA3
+    logger.info("[phase] SHA3 类别: %s", "ver0" if "sha3_init" in all_names else "ver12")
+
+    full_categories = {}
+    full_categories.update(FUNC_CATEGORIES_COMMON)
+    full_categories.update(sha3_cats)
+
+    cat_insns = defaultdict(int)
+    pc_miss = 0
+
+    for pc, count in coverage.items():
+        func_name = None
+        for start, end, name in boundaries:
+            if start <= pc < end:
+                func_name = name
+                break
+        if func_name:
+            cat_insns[full_categories.get(func_name, "Other (glue)")] += count
+        else:
+            pc_miss += count
+
+    logger.info("[phase] 归属完成: %d categories, pc_miss=%d", len(cat_insns), pc_miss)
+    for cat, insns in sorted(cat_insns.items(), key=lambda x: -x[1]):
+        logger.info("[phase]   %-25s %8d insns", cat, insns)
+
+    if pc_miss > 0:
+        cat_insns["Other (glue)"] += pc_miss
+
+    sum_insns = sum(cat_insns.values())
+    if sum_insns != total_insns:
+        logger.warning(
+            "[phase] 闭合性失败: sum=%d != total=%d (diff=%d, pc_miss=%d)",
+            sum_insns, total_insns, total_insns - sum_insns, pc_miss)
+
+    result = {}
+    for cat, insns in sorted(cat_insns.items(), key=lambda x: -x[1]):
+        cycles = insns + total_stalls * (insns / total_insns) if total_insns > 0 else insns
+        pct = insns / total_insns * 100 if total_insns > 0 else 0.0
+        result[cat] = {
+            "instructions": insns,
+            "cycles": round(cycles),
+            "pct": round(pct, 1),
+        }
+    logger.info("[phase] 结果: %d categories, total_cycles=%d", len(result), sum(r["cycles"] for r in result.values()))
+    return result
+
+
 def run_iss(elf_path: str, test_name: str, bnmulv: str = "",
             env: dict | None = None) -> dict | None:
     """直接调用 StandaloneSim API，获取 ExecutionStatAnalyzer 全量指标。"""
@@ -185,6 +394,13 @@ def run_iss(elf_path: str, test_name: str, bnmulv: str = "",
             raw["cycles"] = raw["instructions"] + raw["stalls"]
 
     raw["dump_text"] = dump_text
+
+    # Phase breakdown: per-PC coverage → 函数 → kernel 类别周期占比
+    try:
+        raw["phase_breakdown"] = _compute_phase_breakdown(sim, elf_path)
+    except Exception as e:
+        logger.warning("[%s] phase breakdown 失败: %s", test_name, e)
+
     logger.info("[%s] cycles=%s  ins=%s  stalls=%s  imem=%s  dmem=%s",
                 test_name, raw.get("cycles", "?"), raw.get("instructions", "?"),
                 raw.get("stalls", "?"), raw.get("imem", "?"), raw.get("dmem", "?"))
@@ -315,6 +531,7 @@ def cmd_run(config, version_filter="", test_filter="", db_path=""):
                 instr_categories=metrics.get("instr_categories", {}),
                 instr_freqs=metrics.get("instr_freqs", {}),
                 func_calls=metrics.get("func_calls", {}),
+                phase_breakdown=metrics.get("phase_breakdown", {}),
             )
         with open(log_file, "w", encoding="utf-8") as f:
             f.write("\n".join(all_dumps))

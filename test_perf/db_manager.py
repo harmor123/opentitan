@@ -52,6 +52,7 @@ class DBManager:
                 ("instr_categories", "TEXT"),
                 ("instr_freqs", "TEXT"),
                 ("func_calls", "TEXT"),
+                ("phase_breakdown", "TEXT"),
             ]:
                 try:
                     con.execute(f"ALTER TABLE metrics ADD COLUMN {col} {typ}")
@@ -74,18 +75,21 @@ class DBManager:
                       imem: int = 0, dmem: int = 0,
                       instr_categories: dict | None = None,
                       instr_freqs: dict | None = None,
-                      func_calls: dict | None = None):
+                      func_calls: dict | None = None,
+                      phase_breakdown: dict | None = None):
         import json
         cats_json = json.dumps(instr_categories) if instr_categories else "{}"
         freqs_json = json.dumps(instr_freqs) if instr_freqs else "{}"
         funcs_json = json.dumps(func_calls) if func_calls else "{}"
+        pb_json = json.dumps(phase_breakdown) if phase_breakdown else "{}"
         with self._connect() as con:
             con.execute(
                 "INSERT INTO metrics (run_id, operation, cycles, cycles_std, instructions, "
-                "stalls, stall_pct, imem, dmem, instr_categories, instr_freqs, func_calls) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "stalls, stall_pct, imem, dmem, instr_categories, instr_freqs, func_calls, "
+                "phase_breakdown) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (run_id, op, cycles, cycles_std, instructions,
-                 stalls, stall_pct, imem, dmem, cats_json, freqs_json, funcs_json),
+                 stalls, stall_pct, imem, dmem, cats_json, freqs_json, funcs_json, pb_json),
             )
 
     # ── 删 ──

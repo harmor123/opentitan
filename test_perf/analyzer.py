@@ -229,6 +229,9 @@ def report_latest(db: DBManager) -> str:
     # ── [10] 掩码 vs 非掩码对比 ──
     _append_masked_comparison(lines, vers, data, all_ops, totals)
 
+    # ── [11] Kernel Phase Breakdown ──
+    _append_phase_breakdown(lines, vers, data, all_ops)
+
     return "\n".join(lines)
 
 
@@ -274,6 +277,43 @@ def _append_masked_comparison(lines, vers, data, all_ops, totals):
         else:
             tr += f"{_fmt(mc)}     —  "
     lines.append(tr)
+
+
+def _append_phase_breakdown(lines, vers, data, all_ops):
+    """[11] Kernel Phase Breakdown — 每个 OTBN App 内部 kernel 周期占比."""
+    lines.append(f"\n{C_BOLD}[11] Kernel Phase Breakdown (周期占比){C_END}\n" + SEP)
+
+    for ver in vers:
+        lines.append(f"\n  {C_HEAD}── {ver} ──{C_END}")
+        for op in all_ops:
+            m = data[ver].get(op, {})
+            pb_str = m.get("phase_breakdown", "{}")
+            pb = json.loads(pb_str) if isinstance(pb_str, str) else (pb_str or {})
+            if not pb:
+                continue
+
+            total_cycles = m.get("cycles") or 1
+            label = _label(op)
+            lines.append(f"  {C_HEAD}▸ {label}  ({total_cycles:,} cycles){C_END}")
+
+            for cat, info in pb.items():
+                insns = info.get("instructions", 0)
+                cycles = info.get("cycles", 0)
+                pct = info.get("pct", 0.0)
+                bar_len = int(pct / 5)
+                bar = "█" * bar_len + "░" * (20 - bar_len)
+                lines.append(
+                    f"    {_pad(cat, 20)} {insns:>8,} ins  "
+                    f"{cycles:>8,} cyc  {pct:>5.1f}%  {bar}"
+                )
+            lines.append(f"    {'─' * 60}")
+
+            total_insns = sum(info.get("instructions", 0) for info in pb.values())
+            total_pct = sum(info.get("pct", 0) for info in pb.values())
+            lines.append(
+                f"    {_pad('TOTAL', 20)} {total_insns:>8,} ins  "
+                f"{total_cycles:>8,} cyc  {total_pct:>5.1f}%"
+            )
 
 
 def report_history(db: DBManager, version: str) -> str:
