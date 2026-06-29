@@ -85,3 +85,9 @@ pk_x:
 .balign 32
 pk_y:
   .zero 32
+
+/* Temporary projective z-coordinate used by the on-curve check. */
+.globl z
+.balign 32
+z:
+  .zero 32
