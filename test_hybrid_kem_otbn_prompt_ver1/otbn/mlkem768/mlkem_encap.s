@@ -269,11 +269,9 @@ crypto_kem_enc:
   addi  x11, x0, 1184    /* x11 = pk length */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   addi  x10, fp, -1120
   addi  x10, x10, 32     /* x10 = output pointer (fp-1088), immediately after randombytes */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   jal   x1, kmac_done
 
@@ -288,10 +286,8 @@ crypto_kem_enc:
   addi  x11, x0, 64      /* x11 = message length 64 bytes */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   lw    x10, -20(fp)     /* x10 = ss pointer, first 32 bytes write K */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   addi  x10, x10, 32     /* x10 = ss pointer + 32, next 32 bytes write r */
   jal   x1, kmac_squeeze_32B

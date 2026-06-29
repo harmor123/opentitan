@@ -121,6 +121,23 @@ _keccak_send_message_end:
     ret
 
 /* ================================================================
+ * kmac_process: 点火即走 — 写 CMD_PROCESS 立即返回, 不轮询.
+ *
+ * keccak-f 在后台运行. 调用者可在 squeeze 之前插入有用工作.
+ * kmac_squeeze_32B 的 Word0 检查负责等待 keccak-f 完成.
+ *
+ * 简单场景(无插入工作): 用 kmac_squeeze_after_process 一次调用.
+ * 重叠场景(有插入工作): kmac_process → 干活 → kmac_squeeze_32B.
+ *
+ * 破坏: x5
+ * ================================================================ */
+.globl kmac_process
+kmac_process:
+    addi    x5, x0, 46              /* CMD_PROCESS = 0x2E */
+    csrrw   x0, 0x7dd, x5           /* 点火 → keccak-f 开始 */
+    ret                             /* 立即返回, 不等待 */
+
+/* ================================================================
  * kmac_squeeze_32B: 挤出 32 字节摘要到 DMEM
  *
  * DIGEST_VALID 检查内联 (省 jal _ensure_digest 开销).
@@ -134,12 +151,13 @@ _keccak_send_message_end:
 kmac_squeeze_32B:
     bn.xor  w31, w31, w31           /* w31 = 0 (bn.rshi zero reference) */
 
-    /* Word 0 -> w8[63:0] */
-    csrrs   x5, 0x7d9, x0           /* kmac_if_status */
+    /* Word 0 -> w8[63:0]
+     * beq 循环: 兼容点火即走 kmac_process 后的初始等待 + SHAKE 独立调用.
+     * Word0 永远不会在 SHAKE 边界 (边界总在读出 rate 末字后才触发). */
+1:  csrrs   x5, 0x7d9, x0           /* kmac_if_status */
     andi    x5, x5, 8               /* DIGEST_VALID */
-    bne     x5, x0, 1f
-    jal     x1, kmac_run
-1:  bn.wsrr w8, 8                   /* kmac_data_s0 */
+    beq     x5, x0, 1b              /* keccak-f 未完成 → 循环等待 */
+    bn.wsrr w8, 8                   /* kmac_data_s0 */
     bn.wsrr w9, 9                   /* kmac_data_s1 */
     bn.xor  w8, w8, w9
 

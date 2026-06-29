@@ -129,11 +129,9 @@ crypto_kem_dec:
   addi  x11, x0, 64      /* x11 = 消息长度 64 字节 */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   li    x10, -4256
   add   x10, fp, x10     /* x10 = 输出指针 (buf+64)，写入前 32 字节 (K') */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   addi  x10, x10, 32     /* x10 = 输出指针 (buf+96)，写入后 32 字节 (r') */
   jal   x1, kmac_squeeze_32B
@@ -162,12 +160,10 @@ crypto_kem_dec:
   li    x11, 1088        /* x11 = ct 长度 */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   li    x10, -4256
   add   x10, fp, x10
   addi  x10, x10, 32     /* x10 = 输出指针 (buf+96) */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   jal   x1, kmac_done    /* 注意：必须是 kmac_done，释放硬件回 IDLE */
 

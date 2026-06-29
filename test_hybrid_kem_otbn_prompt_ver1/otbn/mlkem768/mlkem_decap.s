@@ -154,11 +154,9 @@ crypto_kem_dec:
   addi  x11, x0, 64      /* x11 = message length 64 bytes */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   li    x10, -4256
   add   x10, fp, x10     /* x10 = output pointer (buf+64), write first 32 bytes (K') */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   addi  x10, x10, 32     /* x10 = output pointer (buf+96), write last 32 bytes (r') */
   jal   x1, kmac_squeeze_32B
@@ -192,12 +190,10 @@ crypto_kem_dec:
   li    x11, 1088        /* x11 = ct length */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   li    x10, -4256
   add   x10, fp, x10
   addi  x10, x10, 32     /* x10 = output pointer (buf+96) */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   jal   x1, kmac_done    /* Note: must be kmac_done, release hardware back to IDLE */
  

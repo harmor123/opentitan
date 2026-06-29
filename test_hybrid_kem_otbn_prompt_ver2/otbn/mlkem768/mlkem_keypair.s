@@ -21,12 +21,9 @@ indcpa_keypair:
   addi  x11, x0, 1              /* 长度 1 */
   jal   x1, keccak_send_message
 
-  /* 结束 Absorb，进入 Squeeze */
-  jal   x1, kmac_process
-
   /* 挤出前 32 字节到 fp-128 */
   addi  x10, fp, -128
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   /* 继续挤出后 32 字节到 fp-96 */
   addi  x10, fp, -96
@@ -189,12 +186,9 @@ crypto_kem_keypair:
   addi  x11, x0, 1184           /* 长度 1184 */
   jal   x1, keccak_send_message
 
-  /* 结束 Absorb，进入 Squeeze */
-  jal   x1, kmac_process
-
   /* 挤出 32 字节到 sk + 2336 (x12 已保存此值) */
   add   x10, x0, x12            /* x10 = sk + 2336 */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   /* 释放 KMAC 硬件 */
   jal   x1, kmac_done

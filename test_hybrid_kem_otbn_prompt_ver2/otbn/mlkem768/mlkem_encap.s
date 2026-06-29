@@ -213,11 +213,9 @@ crypto_kem_enc:
   addi  x11, x0, 1184    /* x11 = pk 长度 */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   addi  x10, fp, -1120
   addi  x10, x10, 32     /* x10 = 输出指针 (fp-1088)，紧跟在 randombytes 后面 */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   jal   x1, kmac_done
 
@@ -232,10 +230,8 @@ crypto_kem_enc:
   addi  x11, x0, 64      /* x11 = 消息长度 64 字节 */
   jal   x1, keccak_send_message
 
-  jal   x1, kmac_process
-
   lw    x10, -20(fp)     /* x10 = ss 指针，前 32 字节写入 K */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   addi  x10, x10, 32     /* x10 = ss 指针 + 32，后 32 字节写入 r */
   jal   x1, kmac_squeeze_32B

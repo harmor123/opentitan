@@ -46,11 +46,9 @@ poly_getnoise_eta_1:
   jal  x1, keccak_send_message
 
   /*  结束 Absorb，进入 Squeeze */
-  jal  x1, kmac_process
-
   /*  1次直接挤出 + 3次循环挤出 */
-  add  x10, x0, x20 
-  jal  x1, kmac_squeeze_32B
+  add  x10, x0, x20
+  jal  x1, kmac_squeeze_after_process
 
   addi x9, x0, 32
 
@@ -120,11 +118,9 @@ poly_getnoise_eta_2:
   jal  x1, keccak_send_message
 
   /*  结束 Absorb，进入 Squeeze */
-  jal  x1, kmac_process
-
   /*  1次直接挤出 + 3次循环挤出 */
-  add  x10, x0, x20 
-  jal  x1, kmac_squeeze_32B
+  add  x10, x0, x20
+  jal  x1, kmac_squeeze_after_process
 
   addi x9, x0, 32
 

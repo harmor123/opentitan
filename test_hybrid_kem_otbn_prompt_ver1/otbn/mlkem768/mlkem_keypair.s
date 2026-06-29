@@ -47,12 +47,9 @@ indcpa_keypair:
   addi  x11, x0, 1              /* Length 1 */
   jal   x1, keccak_send_message
 
-  /* End Absorb, enter Squeeze */
-  jal   x1, kmac_process
-
   /* Extract first 32 bytes to fp-128 */
   addi  x10, fp, -128
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   /* Continue extracting next 32 bytes to fp-96 */
   addi  x10, fp, -96
@@ -231,12 +228,9 @@ crypto_kem_keypair:
   addi  x11, x0, 1184           /* Length 1184 */
   jal   x1, keccak_send_message
 
-  /* End Absorb, enter Squeeze */
-  jal   x1, kmac_process
-
   /* Squeeze 32 bytes into sk + 2336 (x12 has saved this value) */
   add   x10, x0, x12            /* x10 = sk + 2336 */
-  jal   x1, kmac_squeeze_32B
+  jal   x1, kmac_squeeze_after_process
 
   /* Release KMAC hardware */
   jal   x1, kmac_done
