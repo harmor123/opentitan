@@ -16,6 +16,7 @@ exports_files([
     "mlkem_base_encap_test.s",
     "mlkem_base_decap_test.s",
     "p256_ecdh_shared_key_test.s",
+    "p256_keygen_test.s",
     "hkdf_test.s",
     "sha3_shake_test.s",
 ])
@@ -100,6 +101,17 @@ otbn_sim_test(
     ],
 )
 
+otbn_sim_test(
+    name = "p256_keygen_test",
+    srcs = ["p256_keygen_test.s"],
+    dexp = "p256_keygen.dexp",
+    deps = [
+        "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_base_lib",
+        "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_isoncurve_proj_lib",
+        "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_keygen_lib",
+    ],
+)
+
 # ================================================================
 # HKDF-SHA3-256 (pure software)
 # ================================================================
@@ -137,4 +149,3 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/hkdf:sha3_shake_lib",
     ],
 )
-

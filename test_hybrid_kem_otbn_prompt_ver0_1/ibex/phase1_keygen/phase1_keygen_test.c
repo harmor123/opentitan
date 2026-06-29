@@ -2,12 +2,11 @@
  * @file phase1_keygen_test.c
  * @brief Phase 1: Hybrid KEM key generation.
  *
- * Generates P-256 ECDH shared key (ss_e = d*G.x) and ML-KEM-768 keypair.
- * Uses p256_ecdh_shared_key binary (same as test_p256_only) for P-256,
- * mlkem768_keypair binary for ML-KEM.
+ * Generates a P-256 public key and an ML-KEM-768 keypair.
+ * Uses p256_keygen binary for P-256, mlkem768_keypair binary for ML-KEM.
  *
  * Outputs (for Phase 2):
- *   ss_e  = shared key (P-256 ECDH) = pk_e.x
+ *   pk_e  = P-256 public key
  *   pk_m  = ML-KEM public key (1184B)
  *   sk_m  = ML-KEM private key (2400B)
  */
@@ -86,14 +85,14 @@ static void hkem_profile_dump(uint32_t scope_total) {
 }
 
 /* ================================================================
- * P-256 ECDH (from //test_hybrid_kem_paper/otbn/p256:p256_ecdh_shared_key)
+ * P-256 KeyGen
  * ================================================================ */
-OTBN_DECLARE_APP_SYMBOLS(p256_ecdh_shared_key);
-OTBN_DECLARE_SYMBOL_ADDR(p256_ecdh_shared_key, d0);
-OTBN_DECLARE_SYMBOL_ADDR(p256_ecdh_shared_key, d1);
-OTBN_DECLARE_SYMBOL_ADDR(p256_ecdh_shared_key, x);
-OTBN_DECLARE_SYMBOL_ADDR(p256_ecdh_shared_key, y);
-static const otbn_app_t kAppP256 = OTBN_APP_T_INIT(p256_ecdh_shared_key);
+OTBN_DECLARE_APP_SYMBOLS(p256_keygen);
+OTBN_DECLARE_SYMBOL_ADDR(p256_keygen, d0);
+OTBN_DECLARE_SYMBOL_ADDR(p256_keygen, d1);
+OTBN_DECLARE_SYMBOL_ADDR(p256_keygen, pk_x);
+OTBN_DECLARE_SYMBOL_ADDR(p256_keygen, pk_y);
+static const otbn_app_t kAppP256Keygen = OTBN_APP_T_INIT(p256_keygen);
 
 static const uint8_t kInputD0[64] = {
     0x71, 0x10, 0x6d, 0xfe, 0x16, 0xa0, 0xd0, 0x21,
@@ -103,24 +102,17 @@ static const uint8_t kInputD0[64] = {
 };
 static const uint8_t kInputD1[64] = {0};
 
-static const uint8_t kInputGx[32] = {
-    0x96, 0xc2, 0x98, 0xd8, 0x45, 0x39, 0xa1, 0xf4,
-    0xa0, 0x33, 0xeb, 0x2d, 0x81, 0x7d, 0x03, 0x77,
-    0xf2, 0x40, 0xa4, 0x63, 0xe5, 0xe6, 0xbc, 0xf8,
-    0x47, 0x42, 0x2c, 0xe1, 0xf2, 0xd1, 0x17, 0x6b,
-};
-static const uint8_t kInputGy[32] = {
-    0xf5, 0x51, 0xbf, 0x37, 0x68, 0x40, 0xb6, 0xcb,
-    0xce, 0x5e, 0x31, 0x6b, 0x57, 0x33, 0xce, 0x2b,
-    0x16, 0x9e, 0x0f, 0x7c, 0x4a, 0xeb, 0xe7, 0x8e,
-    0x9b, 0x7f, 0x1a, 0xfe, 0xe2, 0x42, 0xe3, 0x4f,
-};
-
-static const uint8_t kExpectedSsE[32] = {
+static const uint8_t kExpectedPkE_Bob_X[32] = {
     0x4a, 0x67, 0xa9, 0x80, 0x56, 0xea, 0x47, 0x11,
     0xdd, 0x87, 0x7d, 0x0c, 0xdd, 0x4e, 0x50, 0x99,
     0xe2, 0x4d, 0x06, 0xbe, 0x3c, 0x84, 0x35, 0x6b,
     0x33, 0x7f, 0xd2, 0x7d, 0xad, 0x15, 0x52, 0x81,
+};
+static const uint8_t kExpectedPkE_Bob_Y[32] = {
+    0x84, 0xbc, 0x99, 0x49, 0x4b, 0x64, 0xa8, 0x09,
+    0xe8, 0xe3, 0x59, 0xd0, 0xdf, 0xbe, 0xbe, 0xef,
+    0xcc, 0x34, 0xe0, 0xe4, 0xfb, 0x02, 0x9f, 0x3d,
+    0x9f, 0xff, 0xf4, 0x03, 0xab, 0x26, 0xd0, 0xa6,
 };
 
 /* ================================================================
@@ -378,50 +370,40 @@ bool test_main(void) {
   uint64_t protocol_scope_start = profile_start();
 
   /* ==============================================================
-   * Step 1: P-256 ECDH → shared key ss_e = d*G.x
+   * Step 1: P-256 KeyGen -> pk_e = d*G
    * ============================================================== */
-  HKEM_PROFILE("p256_load",
-    CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppP256));
+  HKEM_PROFILE("p256_keygen_load",
+    CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppP256Keygen));
   );
 
-  HKEM_PROFILE("p256_write_inputs",
+  HKEM_PROFILE("p256_keygen_write_inputs",
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 64, kInputD0,
-        OTBN_ADDR_T_INIT(p256_ecdh_shared_key, d0)));
+        OTBN_ADDR_T_INIT(p256_keygen, d0)));
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 64, kInputD1,
-        OTBN_ADDR_T_INIT(p256_ecdh_shared_key, d1)));
-    CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 32, kInputGx,
-        OTBN_ADDR_T_INIT(p256_ecdh_shared_key, x)));
-    CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 32, kInputGy,
-        OTBN_ADDR_T_INIT(p256_ecdh_shared_key, y)));
+        OTBN_ADDR_T_INIT(p256_keygen, d1)));
   );
 
-  HKEM_PROFILE("p256_execute_wait",
+  HKEM_PROFILE("p256_keygen_execute_wait",
     CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
   );
 
-  uint8_t x0[32], x1[32];
-  HKEM_PROFILE("p256_read_outputs",
+  uint8_t pk_e_x[32], pk_e_y[32];
+  HKEM_PROFILE("p256_keygen_read_outputs",
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, 32,
-        OTBN_ADDR_T_INIT(p256_ecdh_shared_key, x), x0));
+        OTBN_ADDR_T_INIT(p256_keygen, pk_x), pk_e_x));
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, 32,
-        OTBN_ADDR_T_INIT(p256_ecdh_shared_key, y), x1));
+        OTBN_ADDR_T_INIT(p256_keygen, pk_y), pk_e_y));
   );
 
-  /* Unmask: ss_e = x0 ^ x1 */
-  uint8_t ss_e[32];
-  HKEM_PROFILE("p256_unmask",
-    for (int i = 0; i < 32; ++i) {
-      ss_e[i] = x0[i] ^ x1[i];
-    }
-  );
-  HKEM_PROFILE_TEST("check_p256_ss",
-    CHECK_ARRAYS_EQ(ss_e, kExpectedSsE, sizeof(kExpectedSsE));
+  HKEM_PROFILE_TEST("check_p256_keygen",
+    CHECK_ARRAYS_EQ(pk_e_x, kExpectedPkE_Bob_X, sizeof(kExpectedPkE_Bob_X));
+    CHECK_ARRAYS_EQ(pk_e_y, kExpectedPkE_Bob_Y, sizeof(kExpectedPkE_Bob_Y));
   );
 
   /* Secure wipe before next OTBN app */
-  HKEM_PROFILE("wipe_after_p256",
+  HKEM_PROFILE("wipe_after_p256_keygen",
     CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
@@ -467,7 +449,7 @@ bool test_main(void) {
 
   uint32_t scope_total = profile_end(protocol_scope_start);
   hkem_profile_dump(scope_total);
-  LOG_INFO("P-256 ECDH OK");
+  LOG_INFO("P-256 KeyGen OK");
   LOG_INFO("ML-KEM KeyGen OK");
 
   return true;

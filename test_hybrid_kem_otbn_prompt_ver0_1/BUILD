@@ -98,7 +98,7 @@ opentitan_test(
         "//sw/device/lib/testing:profile",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
-        "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_ecdh_shared_key",
+        "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_keygen",
         "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/mlkem768:mlkem768_keypair",
     ],
 )
@@ -117,6 +117,7 @@ opentitan_test(
         "//sw/device/lib/testing:profile",
         "//sw/device/lib/testing/test_framework:check",
         "//sw/device/lib/testing/test_framework:ottf_main",
+        "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_keygen",
         "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/p256:p256_ecdh_shared_key",
         "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/mlkem768:mlkem768_encap",
         "//test_hybrid_kem_otbn_prompt_ver0_1/otbn/hkdf:hkdf_sha3_256",
