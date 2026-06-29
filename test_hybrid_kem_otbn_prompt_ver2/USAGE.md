@@ -5,7 +5,8 @@
 ### ISS 测试
 
 ```bash
-bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:p256_ecdh_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:all --cache_test_results=no
+bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:p256_ecdh_test --test_output=errors --cache_test_results=no
 bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:hkdf_test --test_output=errors
 bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_keypair_test --test_output=errors
 bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_encap_test --test_output=errors
@@ -21,9 +22,6 @@ bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_hkdf_co_sim.sh
 bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_hmac_co_sim.sh
 bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_sha3_co_sim.sh
 bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_mlkem_keypair_co_sim.sh
-# ... 其他 co_sim 脚本
-# 或一键全部:
-bash test_hybrid_kem_otbn_prompt_ver2/otbn/co_sim/run_all_co_sim.sh
 ```
 
 ### Chip Sim

@@ -164,42 +164,54 @@ _ed_ret:
 /* ================================================================
  * kmac_squeeze_32B: 挤出 32 字节摘要到 DMEM
  *
- * 每个 word 读之前通过 _ensure_digest 自动检测 block 边界，
- * DIGEST_VALID 不可用时自动调用 kmac_run。
+ * DIGEST_VALID 检查内联 (省 jal _ensure_digest 开销).
+ * SHA3: 4次检查全部 bne 跳转, 从不触发 kmac_run.
+ * SHAKE: block 边界内同 SHA3; 跨边界时 bne 不跳→jal kmac_run.
  *
  * 输入: x10 = out_ptr (32-byte aligned)
- * 破坏: x5, x6, w8, w9, w10, w31
+ * 破坏: x5, w8, w9, w10, w31
  * ================================================================ */
 .globl kmac_squeeze_32B
 kmac_squeeze_32B:
     bn.xor  w31, w31, w31           /* w31 = 0 (bn.rshi zero reference) */
-    addi    x6, x0, 8               /* DIGEST_VALID bit mask */
 
     /* Word 0 -> w8[63:0] */
-    jal     x1, _ensure_digest
-    bn.wsrr w8, 8                   /* kmac_data_s0 */
+    csrrs   x5, 0x7d9, x0           /* kmac_if_status */
+    andi    x5, x5, 8               /* DIGEST_VALID */
+    bne     x5, x0, 1f
+    jal     x1, kmac_run
+1:  bn.wsrr w8, 8                   /* kmac_data_s0 */
     bn.wsrr w9, 9                   /* kmac_data_s1 */
     bn.xor  w8, w8, w9
 
     /* Word 1 -> w8[127:64] */
-    jal     x1, _ensure_digest
-    bn.wsrr w9, 8
+    csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    bne     x5, x0, 2f
+    jal     x1, kmac_run
+2:  bn.wsrr w9, 8
     bn.wsrr w10, 9
     bn.xor  w9, w9, w10
     bn.rshi w9, w9, w31 >> 192      /* w9 <<= 64 */
     bn.or   w8, w8, w9
 
     /* Word 2 -> w8[191:128] */
-    jal     x1, _ensure_digest
-    bn.wsrr w9, 8
+    csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    bne     x5, x0, 3f
+    jal     x1, kmac_run
+3:  bn.wsrr w9, 8
     bn.wsrr w10, 9
     bn.xor  w9, w9, w10
     bn.rshi w9, w9, w31 >> 128      /* w9 <<= 128 */
     bn.or   w8, w8, w9
 
     /* Word 3 -> w8[255:192] */
-    jal     x1, _ensure_digest
-    bn.wsrr w9, 8
+    csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    bne     x5, x0, 4f
+    jal     x1, kmac_run
+4:  bn.wsrr w9, 8
     bn.wsrr w10, 9
     bn.xor  w9, w9, w10
     bn.rshi w9, w9, w31 >> 64       /* w9 <<= 192 */
