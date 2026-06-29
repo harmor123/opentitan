@@ -62,9 +62,8 @@ hmac_sha3_256:
     lw      x10, 4(sp)            /* Restore key_ptr */
     lw      x11, 0(sp)            /* Restore key_len */
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, hmac_key_hashed
-    jal     x1, kmac_squeeze_32B   /* H(key) -> hmac_key_hashed */
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
 
     la      x10, hmac_key_hashed  /* Replace key_ptr with the hashed 32B key */
@@ -149,9 +148,8 @@ pad_done:
     lw      x11, 12(sp)           /* msg_len */
     jal     x1, keccak_send_message
 
-    jal     x1, kmac_process
-    la      x10, hmac_inner       /* inner_hash written to hmac_inner */
-    jal     x1, kmac_squeeze_32B
+    la      x10, hmac_inner
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done         /* Release KMAC hardware */
 
     /* ---- 外部哈希: H_outer = SHA3-256(opad[0:136] || inner_hash[0:32]) ----
@@ -168,9 +166,8 @@ pad_done:
     addi    x11, x0, 32
     jal     x1, keccak_send_message
 
-    jal     x1, kmac_process
-    lw      x10, 8(sp)            /* out_ptr -- output buffer specified by caller */
-    jal     x1, kmac_squeeze_32B
+    lw      x10, 8(sp)
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
 
     /* ---- Return ---- */

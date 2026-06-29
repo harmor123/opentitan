@@ -48,18 +48,16 @@ test_sha3_256_empty:
     addi    x10, x0, 0             /* Mode 0: SHA3-256 */
     jal     x1, kmac_init
     /* 空消息：不调用 keccak_send_message */
-    jal     x1, kmac_process
     la      x10, sha3_256_empty_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
 test_sha3_512_empty:
     addi    x10, x0, 1             /* Mode 1: SHA3-512 */
     jal     x1, kmac_init
-    jal     x1, kmac_process
     la      x10, sha3_512_empty_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     /* SHA3-512 digest=64B=8 lanes, rate=9 lanes, 无需 RUN */
     addi    x10, x10, 32
     jal     x1, kmac_squeeze_32B
@@ -72,9 +70,8 @@ test_sha3_256_msg:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_256_msg_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -84,9 +81,8 @@ test_sha3_512_msg:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_512_msg_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     /* SHA3-512 digest=64B=8 lanes, rate=9 lanes, 无需 RUN */
     addi    x10, x10, 32
     jal     x1, kmac_squeeze_32B
@@ -99,9 +95,8 @@ test_shake128_msg:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, shake128_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -111,9 +106,8 @@ test_shake256_msg:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, shake256_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -124,9 +118,8 @@ test_sha3_256_32b:
     la      x10, msg_32b
     addi    x11, x0, 32
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_256_32b_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -136,9 +129,8 @@ test_sha3_256_33b:
     la      x10, msg_33b
     addi    x11, x0, 33
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_256_33b_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -148,9 +140,8 @@ test_sha3_256_35b:
     la      x10, msg_35b
     addi    x11, x0, 35
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_256_35b_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -160,9 +151,8 @@ test_sha3_256_64b:
     la      x10, msg_64b
     addi    x11, x0, 64
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_256_64b_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -172,10 +162,9 @@ test_shake128_64b_run:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     /* 第一次挤出 32 字节 (lanes 0~3) */
     la      x10, shake128_64b_out_1
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     /* 第二次挤出 32 字节 (lanes 4~7, rate=21 远未用完) */
     la      x10, shake128_64b_out_2
     jal     x1, kmac_squeeze_32B
@@ -188,9 +177,8 @@ test_sha3_256_127b:
     la      x10, msg_127b
     addi    x11, x0, 127           /* 3 full WDR + 31B tail, pos=16, partial */
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, sha3_256_127b_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -200,9 +188,8 @@ test_shake128_1run:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, shake128_1run_b1
-    jal     x1, kmac_squeeze_32B   /* auto-RUN only if block exhausted */
+    jal     x1, kmac_squeeze_after_process   /* auto-RUN only if block exhausted */
     la      x10, shake128_1run_b2
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
@@ -215,9 +202,8 @@ test_shake256_1run:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, shake256_1run_b1
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     la      x10, shake256_1run_b2
     jal     x1, kmac_squeeze_32B
     jal     x1, kmac_done
@@ -230,10 +216,9 @@ test_shake128_rate_cross:
     la      x10, msg_256b
     addi    x11, x0, 256           /* 256B 消息 */
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     /* 6 squeezes: 192B > 168B rate, auto-RUN at boundary */
     la      x10, rcx_b1
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     la      x10, rcx_b2
     jal     x1, kmac_squeeze_32B
     la      x10, rcx_b3
@@ -251,18 +236,16 @@ test_shake128_rate_cross:
 test_shake128_empty:
     addi    x10, x0, 2             /* Mode 2: SHAKE128 */
     jal     x1, kmac_init
-    jal     x1, kmac_process
     la      x10, shake128_empty_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
 test_shake256_empty:
     addi    x10, x0, 3             /* Mode 3: SHAKE256 */
     jal     x1, kmac_init
-    jal     x1, kmac_process
     la      x10, shake256_empty_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -270,18 +253,16 @@ test_shake256_empty:
 test_cshake128_empty:
     addi    x10, x0, 2             /* Mode 2: cSHAKE128 ≡ SHAKE128 */
     jal     x1, kmac_init
-    jal     x1, kmac_process
     la      x10, cshake128_empty_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
 test_cshake256_empty:
     addi    x10, x0, 3             /* Mode 3: cSHAKE256 ≡ SHAKE256 */
     jal     x1, kmac_init
-    jal     x1, kmac_process
     la      x10, cshake256_empty_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -291,9 +272,8 @@ test_cshake128_msg:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, cshake128_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 
@@ -303,9 +283,8 @@ test_cshake256_msg:
     la      x10, my_message
     addi    x11, x0, 8
     jal     x1, keccak_send_message
-    jal     x1, kmac_process
     la      x10, cshake256_out
-    jal     x1, kmac_squeeze_32B
+    jal     x1, kmac_squeeze_after_process
     jal     x1, kmac_done
     ret
 

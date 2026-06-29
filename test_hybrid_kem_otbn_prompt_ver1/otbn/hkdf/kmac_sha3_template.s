@@ -121,47 +121,6 @@ _keccak_send_message_end:
     ret
 
 /* ================================================================
- * kmac_process: 结束 Absorb，触发 padding + Keccak-f，进入 Squeeze
- *
- * 破坏: x5, x6
- * ================================================================ */
-.globl kmac_process
-kmac_process:
-    addi    x5, x0, 46              /* CMD_PROCESS = 0x2E */
-    csrrw   x0, 0x7dd, x5           /* kmac_cmd */
-
-    addi    x6, x0, 8               /* kmac_if_status[3]: DIGEST_VALID */
-.wait_digest:
-    csrrs   x5, 0x7d9, x0
-    and     x5, x5, x6
-    beq     x5, x0, .wait_digest
-    ret
-
-/* ================================================================
- * _ensure_digest: 确保 DIGEST_VALID 置起，否则自动 kmac_run
- *
- * 每次读 word 前调用，彻底消除调用方对 block 边界的感知。
- * 输入: x6 = 8 (DIGEST_VALID 位掩码，调用者设定)
- * 破坏: x5
- * 保存/恢复: x1 (通过栈)，x6 (调用者负责)
- * ================================================================ */
-_ensure_digest:
-    csrrs   x5, 0x7d9, x0           /* kmac_if_status */
-    and     x5, x5, x6
-    bne     x5, x0, _ed_ret         /* DIGEST_VALID already set -> return directly */
-
-    /* Block exhausted, need kmac_run */
-    addi    sp, sp, -8
-    sw      x1, 0(sp)               /* Save return address within squeeze_32B */
-    sw      x6, 4(sp)               /* Save DIGEST_VALID mask */
-    jal     x1, kmac_run
-    lw      x6, 4(sp)
-    lw      x1, 0(sp)
-    addi    sp, sp, 8
-_ed_ret:
-    jalr    x0, x1, 0               /* Return to call point via x1 */
-
-/* ================================================================
  * kmac_squeeze_32B: 挤出 32 字节摘要到 DMEM
  *
  * DIGEST_VALID 检查内联 (省 jal _ensure_digest 开销).
@@ -219,6 +178,67 @@ kmac_squeeze_32B:
 
     addi    x5, x0, 8
     bn.sid  x5, 0(x10)              /* Store 256-bit to DMEM */
+    ret
+
+/* ================================================================
+ * kmac_squeeze_after_process: CMD_PROCESS + wait + squeeze 32B
+ *
+ * 合并 kmac_process 的 CMD_PROCESS 写入和 squeeze_32B 的等待.
+ * Word0 用 beq 循环等待 keccak-f 完成 (替代原 kmac_process 轮询).
+ *
+ * 输入: x10 = out_ptr (32-byte aligned)
+ * 破坏: x5, w8, w9, w10, w31
+ * ================================================================ */
+.globl kmac_squeeze_after_process
+kmac_squeeze_after_process:
+    addi    x5, x0, 46              /* CMD_PROCESS = 0x2E */
+    csrrw   x0, 0x7dd, x5           /* 发出 → keccak-f 开始 */
+
+    bn.xor  w31, w31, w31
+
+    /* Word 0: 等 keccak-f 完成 (首次 DIGEST_VALID=0, 循环等待) */
+1:  csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    beq     x5, x0, 1b              /* DIGEST_VALID=0 → 等待 */
+    bn.wsrr w8, 8
+    bn.wsrr w9, 9
+    bn.xor  w8, w8, w9
+
+    /* Word 1 */
+    csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    bne     x5, x0, 2f
+    jal     x1, kmac_run
+2:  bn.wsrr w9, 8
+    bn.wsrr w10, 9
+    bn.xor  w9, w9, w10
+    bn.rshi w9, w9, w31 >> 192
+    bn.or   w8, w8, w9
+
+    /* Word 2 */
+    csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    bne     x5, x0, 3f
+    jal     x1, kmac_run
+3:  bn.wsrr w9, 8
+    bn.wsrr w10, 9
+    bn.xor  w9, w9, w10
+    bn.rshi w9, w9, w31 >> 128
+    bn.or   w8, w8, w9
+
+    /* Word 3 */
+    csrrs   x5, 0x7d9, x0
+    andi    x5, x5, 8
+    bne     x5, x0, 4f
+    jal     x1, kmac_run
+4:  bn.wsrr w9, 8
+    bn.wsrr w10, 9
+    bn.xor  w9, w9, w10
+    bn.rshi w9, w9, w31 >> 64
+    bn.or   w8, w8, w9
+
+    addi    x5, x0, 8
+    bn.sid  x5, 0(x10)
     ret
 
 /* ================================================================
