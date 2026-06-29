@@ -103,19 +103,10 @@ _wait_rdy_tail:
 
     bn.lid  x0, 0(x10)              /* Load tail data (high bits contain garbage) */
 
-    /* Dynamically generate byte mask: mask = (1 << (8*x5)) - 1 */
-    bn.addi w1, w31, 1              /* w1 = 1 */
-    addi    x7, x5, 0               /* x7 = loop counter */
-_mask_loop:
-    beq     x7, x0, _mask_done
-    addi    x7, x7, -1
-    bn.rshi w1, w1, w31 >> 248      /* w1 <<= 8 */
-    jal     x0, _mask_loop
-_mask_done:
-    bn.subi w1, w1, 1               /* w1 = (1 << (8*x5)) - 1 */
-    bn.and  w0, w0, w1              /* w0 &= mask, clear high-order garbage */
-
-    bn.wsrw 8, w0                   /* kmac_data_s0 (masked) */
+    /* Software mask removed: hardware feed_byte_mask in otbn_kmac.sv
+     * already masks per-word with byte_strobe. Redundant masking here
+     * cost 4*tail_bytes cycles in mask_loop. */
+    bn.wsrw 8, w0                   /* kmac_data_s0 */
     bn.wsrw 9, w31                  /* kmac_data_s1 = 0 */
 
     /* byte_strobe = (1 << x5) - 1, mark only valid tail bytes */

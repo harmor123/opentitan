@@ -454,7 +454,10 @@ class Kmac():
         data_unmasked = share0 ^ share1
         data_word = (data_unmasked >> shift) & word_mask
 
-        # Convert to bytes (little-endian) and absorb.
+        # Mask data_word to num_bytes bytes.  RTL feed_byte_mask zeros
+        # invalid bytes; the ISS must do the same or to_bytes() overflows
+        # when WSR contains garbage in high bytes (no software mask).
+        data_word &= (1 << (num_bytes * 8)) - 1 if num_bytes > 0 else 0
         data_bytes = data_word.to_bytes(num_bytes, byteorder="little")
         self._keccak_state.update(data_bytes)
         self._absorbed_msg_bytes.extend(data_bytes)
