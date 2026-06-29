@@ -12,6 +12,7 @@
  * (No role in IKM; role binding via info in HKDF-Expand)
  */
 
+#include "sw/device/lib/base/macros.h"
 #include "sw/device/lib/dif/dif_otbn.h"
 #include "sw/device/lib/runtime/log.h"
 #include "sw/device/lib/testing/entropy_testutils.h"
@@ -23,17 +24,67 @@
 
 OTTF_DEFINE_TEST_CONFIG();
 
-#define HKEM_PROFILE(phase, step, body)          \
-  do {                                           \
-    uint64_t hkem_t_start = profile_start();     \
-    do {                                         \
-      body                                       \
-    } while (false);                             \
-    LOG_INFO("HKEM_PROF,%s,%s,%u", phase, step,  \
-             profile_end(hkem_t_start));         \
+#define HKEM_PROFILE(step, body)                         \
+  do {                                                   \
+    uint64_t hkem_t_start = profile_start();             \
+    do {                                                 \
+      body                                               \
+    } while (false);                                     \
+    uint32_t hkem_elapsed = profile_end(hkem_t_start);   \
+    hkem_protocol_cycles += hkem_elapsed;                \
+    hkem_profile_add(false, step, hkem_elapsed);         \
+  } while (false)
+
+#define HKEM_PROFILE_TEST(step, body)                    \
+  do {                                                   \
+    uint64_t hkem_t_start = profile_start();             \
+    do {                                                 \
+      body                                               \
+    } while (false);                                     \
+    uint32_t hkem_elapsed = profile_end(hkem_t_start);   \
+    hkem_test_cycles += hkem_elapsed;                    \
+    hkem_profile_add(true, step, hkem_elapsed);          \
   } while (false)
 
 static const char kPhaseName[] = "phase2_alice_encap";
+static uint64_t hkem_protocol_cycles;
+static uint32_t hkem_test_cycles;
+
+typedef struct hkem_profile_entry {
+  const char *step;
+  uint32_t cycles;
+  bool is_test;
+} hkem_profile_entry_t;
+
+static hkem_profile_entry_t hkem_profile_entries[24];
+static size_t hkem_profile_count;
+
+static void hkem_profile_add(bool is_test, const char *step, uint32_t cycles) {
+  CHECK(hkem_profile_count < ARRAYSIZE(hkem_profile_entries));
+  hkem_profile_entries[hkem_profile_count++] =
+      (hkem_profile_entry_t){.step = step, .cycles = cycles, .is_test = is_test};
+}
+
+static void hkem_profile_dump(uint32_t scope_total) {
+  for (size_t i = 0; i < hkem_profile_count; ++i) {
+    if (hkem_profile_entries[i].is_test) {
+      LOG_INFO("HKEM_PROF_TEST,%s,%s,%u", kPhaseName,
+               hkem_profile_entries[i].step, hkem_profile_entries[i].cycles);
+    } else {
+      LOG_INFO("HKEM_PROF,%s,%s,%u", kPhaseName,
+               hkem_profile_entries[i].step, hkem_profile_entries[i].cycles);
+    }
+  }
+  LOG_INFO("HKEM_PROF,%s,protocol_total,%u", kPhaseName,
+           (uint32_t)hkem_protocol_cycles);
+  LOG_INFO("HKEM_PROF_TEST,%s,test_total,%u", kPhaseName, hkem_test_cycles);
+  uint32_t accounted_total = (uint32_t)hkem_protocol_cycles + hkem_test_cycles;
+  LOG_INFO("HKEM_PROF_SCOPE,%s,scope_total,%u", kPhaseName, scope_total);
+  LOG_INFO("HKEM_PROF_SCOPE,%s,accounted_total,%u", kPhaseName,
+           accounted_total);
+  LOG_INFO("HKEM_PROF_SCOPE,%s,unaccounted_total,%u", kPhaseName,
+           scope_total > accounted_total ? scope_total - accounted_total : 0);
+}
 
 /* ================================================================
  * P-256 ECDH
@@ -292,17 +343,20 @@ static const uint8_t kExpectedOkm[32] = {
  * Test main
  * ================================================================ */
 bool test_main(void) {
-  uint64_t phase_t_start = profile_start();
+  hkem_protocol_cycles = 0;
+  hkem_test_cycles = 0;
+  hkem_profile_count = 0;
   dif_otbn_t otbn;
   CHECK_DIF_OK(dif_otbn_init_from_dt(kDtOtbn, &otbn));
   CHECK_STATUS_OK(entropy_testutils_auto_mode_init());
+  uint64_t protocol_scope_start = profile_start();
 
   /* ---- Step 1: P-256 ECDH → ss_e ---- */
-  HKEM_PROFILE(kPhaseName, "p256_load",
+  HKEM_PROFILE("p256_load",
     CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppP256));
   );
 
-  HKEM_PROFILE(kPhaseName, "p256_write_inputs",
+  HKEM_PROFILE("p256_write_inputs",
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 64, kSkE_Alice_D0,
         OTBN_ADDR_T_INIT(p256_ecdh_shared_key, d0)));
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 64, kSkE_Alice_D1,
@@ -313,14 +367,14 @@ bool test_main(void) {
         OTBN_ADDR_T_INIT(p256_ecdh_shared_key, y)));
   );
 
-  HKEM_PROFILE(kPhaseName, "p256_execute_wait",
+  HKEM_PROFILE("p256_execute_wait",
     CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
   );
 
   uint8_t x0[32], x1[32];
-  HKEM_PROFILE(kPhaseName, "p256_read_outputs",
+  HKEM_PROFILE("p256_read_outputs",
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, 32,
         OTBN_ADDR_T_INIT(p256_ecdh_shared_key, x), x0));
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, 32,
@@ -328,68 +382,74 @@ bool test_main(void) {
   );
 
   uint8_t ss_e[32];
-  for (int i = 0; i < 32; ++i) ss_e[i] = x0[i] ^ x1[i];
-  CHECK_ARRAYS_EQ(ss_e, kExpectedSsE, sizeof(kExpectedSsE));
-  LOG_INFO("Alice ECDH OK");
+  HKEM_PROFILE("p256_unmask",
+    for (int i = 0; i < 32; ++i) {
+      ss_e[i] = x0[i] ^ x1[i];
+    }
+  );
+  HKEM_PROFILE_TEST("check_p256_ss",
+    CHECK_ARRAYS_EQ(ss_e, kExpectedSsE, sizeof(kExpectedSsE));
+  );
 
   /* Secure wipe before next OTBN app */
-  HKEM_PROFILE(kPhaseName, "wipe_after_p256",
+  HKEM_PROFILE("wipe_after_p256",
     CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
   );
 
   /* ---- Step 2: ML-KEM encap → ct_m, ss_m ---- */
-  HKEM_PROFILE(kPhaseName, "mlkem_encap_load",
+  HKEM_PROFILE("mlkem_encap_load",
     CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppEncap));
   );
 
-  HKEM_PROFILE(kPhaseName, "mlkem_encap_write_inputs",
+  HKEM_PROFILE("mlkem_encap_write_inputs",
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kAliceCoins),
         kAliceCoins, OTBN_ADDR_T_INIT(mlkem768_encap, coins)));
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kPkM_Bob),
         kPkM_Bob, OTBN_ADDR_T_INIT(mlkem768_encap, ek)));
   );
 
-  HKEM_PROFILE(kPhaseName, "mlkem_encap_execute_wait",
+  HKEM_PROFILE("mlkem_encap_execute_wait",
     CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
   );
 
   uint8_t ct_m[1088], ss_m[32];
-  HKEM_PROFILE(kPhaseName, "mlkem_encap_read_outputs",
+  HKEM_PROFILE("mlkem_encap_read_outputs",
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, sizeof(ct_m),
         OTBN_ADDR_T_INIT(mlkem768_encap, ct), ct_m));
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, sizeof(ss_m),
         OTBN_ADDR_T_INIT(mlkem768_encap, ss), ss_m));
   );
 
-  CHECK_ARRAYS_EQ(ct_m, kExpectedCtM, sizeof(kExpectedCtM));
-  CHECK_ARRAYS_EQ(ss_m, kExpectedSsM, sizeof(kExpectedSsM));
-  LOG_INFO("Alice ML-KEM Encap OK");
+  HKEM_PROFILE_TEST("check_mlkem_encap",
+    CHECK_ARRAYS_EQ(ct_m, kExpectedCtM, sizeof(kExpectedCtM));
+    CHECK_ARRAYS_EQ(ss_m, kExpectedSsM, sizeof(kExpectedSsM));
+  );
 
   /* Secure wipe before next OTBN app */
-  HKEM_PROFILE(kPhaseName, "wipe_after_mlkem_encap",
+  HKEM_PROFILE("wipe_after_mlkem_encap",
     CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
   );
 
   /* ---- Step 3: HKDF(ss_e, ss_m, info="") → OKM (KEM unified) ---- */
-  HKEM_PROFILE(kPhaseName, "hkdf_load",
+  HKEM_PROFILE("hkdf_load",
     CHECK_STATUS_OK(otbn_testutils_load_app(&otbn, kAppHkdf));
   );
 
   /* Write salt + info + info_len */
-  HKEM_PROFILE(kPhaseName, "hkdf_write_params",
+  HKEM_PROFILE("hkdf_write_params",
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 32, kSalt,
         OTBN_ADDR_T_INIT(hkdf_sha3_256, input_salt)));
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(kInfo), kInfo,
         OTBN_ADDR_T_INIT(hkdf_sha3_256, input_info)));
   );
   uint32_t info_len = sizeof(kInfo);
-  HKEM_PROFILE(kPhaseName, "hkdf_write_info_len",
+  HKEM_PROFILE("hkdf_write_info_len",
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, 4, &info_len,
         OTBN_ADDR_T_INIT(hkdf_sha3_256, input_info_len)));
   );
@@ -397,40 +457,56 @@ bool test_main(void) {
   /* Build IKM: len_cls(2B)||ss_e(32B)||len_pqc(2B)||ss_m(32B)||ctx||sid */
   uint8_t ikm[256] = {0};
   size_t off = 0;
-  ikm[off++] = 0x00; ikm[off++] = 0x20;
-  memcpy(ikm + off, ss_e, 32); off += 32;
-  ikm[off++] = 0x00; ikm[off++] = 0x20;
-  memcpy(ikm + off, ss_m, 32); off += 32;
-  memcpy(ikm + off, kCtx, sizeof(kCtx)); off += sizeof(kCtx);
-  memcpy(ikm + off, kSid, sizeof(kSid)); off += sizeof(kSid);
-  size_t ikm_len = (off + 3) & ~(size_t)3;
+  size_t ikm_len = 0;
+  HKEM_PROFILE("hkdf_assemble_ikm",
+    ikm[off++] = 0x00; ikm[off++] = 0x20;
+    memcpy(ikm + off, ss_e, 32); off += 32;
+    ikm[off++] = 0x00; ikm[off++] = 0x20;
+    memcpy(ikm + off, ss_m, 32); off += 32;
+    memcpy(ikm + off, kCtx, sizeof(kCtx)); off += sizeof(kCtx);
+    memcpy(ikm + off, kSid, sizeof(kSid)); off += sizeof(kSid);
+    ikm_len = (off + 3) & ~(size_t)3;
+  );
 
   /* input_lengths: ctx, sid, okm (info via input_info_len) */
   uint32_t lens[3] = {
       sizeof(kCtx), sizeof(kSid), sizeof(kExpectedOkm),
   };
-  HKEM_PROFILE(kPhaseName, "hkdf_write_ikm_lengths",
+  HKEM_PROFILE("hkdf_write_ikm_lengths",
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, ikm_len, ikm,
         OTBN_ADDR_T_INIT(hkdf_sha3_256, ikm_prebuilt)));
     CHECK_STATUS_OK(otbn_testutils_write_data(&otbn, sizeof(lens), lens,
         OTBN_ADDR_T_INIT(hkdf_sha3_256, input_lengths)));
   );
 
-  HKEM_PROFILE(kPhaseName, "hkdf_execute_wait",
+  HKEM_PROFILE("hkdf_execute_wait",
     CHECK_STATUS_OK(otbn_testutils_execute(&otbn));
     CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
         kDifOtbnErrBitsNoError));
   );
 
   uint8_t okm[32];
-  HKEM_PROFILE(kPhaseName, "hkdf_read_output",
+  HKEM_PROFILE("hkdf_read_output",
     CHECK_STATUS_OK(otbn_testutils_read_data(&otbn, sizeof(okm),
         OTBN_ADDR_T_INIT(hkdf_sha3_256, output_okm), okm));
   );
 
-  CHECK_ARRAYS_EQ(okm, kExpectedOkm, sizeof(kExpectedOkm));
+  HKEM_PROFILE_TEST("check_hkdf_okm",
+    CHECK_ARRAYS_EQ(okm, kExpectedOkm, sizeof(kExpectedOkm));
+  );
+
+  /* Final secure wipe before leaving the protocol phase. */
+  HKEM_PROFILE("wipe_after_hkdf",
+    CHECK_DIF_OK(dif_otbn_write_cmd(&otbn, kDifOtbnCmdSecWipeDmem));
+    CHECK_STATUS_OK(otbn_testutils_wait_for_done(&otbn,
+        kDifOtbnErrBitsNoError));
+  );
+
+  uint32_t scope_total = profile_end(protocol_scope_start);
+  hkem_profile_dump(scope_total);
+  LOG_INFO("Alice ECDH OK");
+  LOG_INFO("Alice ML-KEM Encap OK");
   LOG_INFO("Alice HKDF OK");
-  LOG_INFO("HKEM_PROF,%s,total,%u", kPhaseName, profile_end(phase_t_start));
 
   return true;
 }
