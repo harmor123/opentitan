@@ -21,13 +21,12 @@
  *
  * clobbered registers: x4-x30, w0-w31
  */
-
 .globl cbd2
 cbd2:
     /* Set up wide registers for input and intermediate states */
     li x4, 0
     li x5, 1
-    li x6, 6
+    li x6, 2
     li x7, 3
     li x3, 4
     li x9, 5
@@ -36,10 +35,8 @@ cbd2:
     la x17, cbd2_const
     bn.lid x7, 0(x17++)
     bn.lid x3, 0(x17++)
-    la x18, modulus_bn
-    bn.lid x9, 0(x18)
 
-    LOOPI 4, 20
+    LOOPI 4, 19
         bn.lid  x4, 0(x10++)      /* Load input array of 2*256/4=128 bytes --> 4 wrs */
         bn.and  w1, w0, w3        /* Extract even bits */
         bn.rshi w0, w31, w0 >> 1  /* w0 >> 1 */
@@ -49,7 +46,7 @@ cbd2:
         bn.rshi w0, w31, w0 >> 2  /* w0 >> 2 */
         bn.and  w0, w0, w4        /* Extract odd bit couple */
 
-        LOOPI 4,  10
+        LOOPI 4,  9
             LOOPI 16, 6
                 bn.rshi w6, w1, w6 >> 4
                 bn.rshi w7, w0, w7 >> 4
@@ -57,16 +54,29 @@ cbd2:
                 bn.rshi w7, w31, w7 >> 12
                 bn.rshi w1, w31, w1 >> 4
                 bn.rshi w0, w31, w0 >> 4
-            bn.add w6, w6, w5 
-            bn.sub w6, w6, w7 
+            bn.subvm.16H w2, w6, w7
             bn.sid x6, 0(x11++)
         NOP
-
     ret    
-  
 
 
-
+/*
+ * cbd3
+ *
+ * Description: Given an array of uniformly random bytes, compute
+ *              polynomial with coefficients distributed according to
+ *              a centered binomial distribution with parameter eta=3.
+ *              This function is only needed for Kyber-512
+ *
+ * Flags: Clobbers FG0, has no meaning beyond the scope of this subroutine.
+ *
+ * @param[in]  x10: dptr_input, dmem pointer to input byte array
+ * @param[in]  x11: dptr_output, dmem pointer to output
+ * @param[in]  x17: cbd2_const
+ * @param[in]  w31: all-zero
+ *
+ * clobbered registers: x4-x30, w0-w31
+ */
 .globl cbd3
 cbd3:
     li x4, 0
