@@ -61,7 +61,7 @@ main:
 .balign 32
 .global stack
 stack:
-  .zero 20000
+  .zero 4320
 stack_end:
 .globl ct
 ct:

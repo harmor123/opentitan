@@ -61,8 +61,8 @@ main:
 .data
 .balign 32
 .global stack
-stack:
-  .zero 20000
+stack: 
+  .zero 3840
 stack_end:
 .globl dk
 dk:

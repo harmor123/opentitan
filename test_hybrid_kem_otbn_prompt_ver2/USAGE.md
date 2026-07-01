@@ -8,9 +8,9 @@
 bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:all --cache_test_results=no
 bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:p256_ecdh_test --test_output=errors --cache_test_results=no
 bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:hkdf_test --test_output=errors
-bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_keypair_test --test_output=errors
-bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_encap_test --test_output=errors
-bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_decap_test --test_output=errors
+bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_keypair_test --test_output=errors --cache_test_results=no
+bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_encap_test --test_output=errors --cache_test_results=no
+bazel test //test_hybrid_kem_otbn_prompt_ver2/otbn/test:mlkem768_decap_test --test_output=errors --cache_test_results=no
 ```
 
 ### OTBN co-sim (RTL vs ISS)
