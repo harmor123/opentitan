@@ -5,105 +5,114 @@ Loading: 0 packages loaded
 Analyzing: target //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator (0 packages loaded, 0 targets configured)
 Analyzing: target //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator (0 packages loaded, 0 targets configured)
 
-INFO: Analyzed target //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator (0 packages loaded, 5 targets configured).
+INFO: Analyzed target //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator (0 packages loaded, 0 targets configured).
 Invoking test: sw/host/opentitantool/opentitantool --rcfile= --logging=info --interface=verilator --verilator-bin=hw/build.verilator_real/lowrisc_dv_top_earlgrey_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb --verilator-rom=sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem --verilator-otp=hw/top_earlgrey/data/otp/img_rma.24.vmem --verilator-flash=test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.64.vmem --exec=console --non-interactive --exit-success='PASS.*\n' --exit-failure='((FAIL|FAULT).*\n)|(BFV:[0-9a-f]{8})' no-op
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess] CWD: Ok("/home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main")
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess] Spawning verilator: "hw/build.verilator_real/lowrisc_dv_top_earlgrey_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb" "--meminit=rom0,sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem --meminit=flash0,test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.64.vmem --meminit=otp,hw/top_earlgrey/data/otp/img_rma.24.vmem"
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] Simulation of OpenTitan Earl Grey
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] =================================
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] Tracing can be toggled by sending SIGUSR1 to this process:
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ kill -USR1 19
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] TOP.chip_sim_tb.u_dut.top_earlgrey.u_flash_ctrl.u_eflash.u_flash.gen_prim_flash_banks[0].u_prim_flash_bank.unnamedblk1: ReadLatency:1 ProgLatency:50 EraseLatency:200
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] TOP.chip_sim_tb.u_dut.top_earlgrey.u_flash_ctrl.u_eflash.u_flash.gen_prim_flash_banks[1].u_prim_flash_bank.unnamedblk1: ReadLatency:1 ProgLatency:50 EraseLatency:200
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout]                    0GPIO: creating gpiodpi
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] GPIO: FIFO pipes created at /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-read (read) and /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write (write) for 32-bit wide GPIO.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] GPIO: To measure the values of the pins as driven by the device, run
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ cat /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-read  # '0' low, '1' high, 'X' floating
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] GPIO: To drive the pins, run a command like
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ echo 'h09 l31' > /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write  # Pull the pin 9 high, and pin 31 low.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ echo 'wh10' > /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write  # Pull pin 10 high through a weak pull-up.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] SPI: Created /dev/pts/10 for spi0. Connect to it with any terminal program, e.g.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ screen /dev/pts/10
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] NOTE: a SPI transaction is run for every 4 characters entered.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] SPI: Monitor output file created at /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/spi0.log. Works well with tail:
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ tail -f /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/spi0.log
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] USBDPI: Monitor output file created at /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/usb0.log. Works well with tail:
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ tail -f /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/usb0.log
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] No UARTDPI_LOG_uart0 plusarg found.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] UART: Created /dev/pts/11 for uart0. Connect to it with any terminal program, e.g.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] $ screen /dev/pts/11
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] UART: Additionally writing all UART output to 'uart0.log'.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] JTAG: Virtual JTAG interface dmi0 is listening on port 44853. Use
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] OpenOCD and the following configuration to connect:
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout]   interface remote_bitbang
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout]   remote_bitbang_host localhost
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout]   remote_bitbang_port 44853
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] Simulation running, end by pressing CTRL-c.
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::subprocess::stdout] 
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::transport] Verilator started with the following interfaces:
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::transport] gpio_read = /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-read
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::transport] gpio_write = /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/79/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::transport] uart = /dev/pts/11
-[2026-06-29T07:14:39Z INFO  ot_transport_verilator::transport] spi = /dev/pts/10
-[2026-06-29T07:14:39Z WARN  opentitanlib::app] Could not read UART parity to check it is None
-[2026-06-29T07:14:39Z INFO  opentitanlib::io::uart] set_flow_control to false
-[25 / 26] Testing //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator; 1s linux-sandbox
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess] CWD: Ok("/home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main")
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess] Spawning verilator: "hw/build.verilator_real/lowrisc_dv_top_earlgrey_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb" "--meminit=rom0,sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem --meminit=flash0,test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.64.vmem --meminit=otp,hw/top_earlgrey/data/otp/img_rma.24.vmem"
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] Simulation of OpenTitan Earl Grey
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] =================================
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] Tracing can be toggled by sending SIGUSR1 to this process:
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ kill -USR1 19
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] TOP.chip_sim_tb.u_dut.top_earlgrey.u_flash_ctrl.u_eflash.u_flash.gen_prim_flash_banks[0].u_prim_flash_bank.unnamedblk1: ReadLatency:1 ProgLatency:50 EraseLatency:200
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] TOP.chip_sim_tb.u_dut.top_earlgrey.u_flash_ctrl.u_eflash.u_flash.gen_prim_flash_banks[1].u_prim_flash_bank.unnamedblk1: ReadLatency:1 ProgLatency:50 EraseLatency:200
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout]                    0GPIO: creating gpiodpi
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] GPIO: FIFO pipes created at /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-read (read) and /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write (write) for 32-bit wide GPIO.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] GPIO: To measure the values of the pins as driven by the device, run
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ cat /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-read  # '0' low, '1' high, 'X' floating
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] GPIO: To drive the pins, run a command like
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ echo 'h09 l31' > /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write  # Pull the pin 9 high, and pin 31 low.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ echo 'wh10' > /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write  # Pull pin 10 high through a weak pull-up.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] SPI: Created /dev/pts/1 for spi0. Connect to it with any terminal program, e.g.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ screen /dev/pts/1
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] NOTE: a SPI transaction is run for every 4 characters entered.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] SPI: Monitor output file created at /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/spi0.log. Works well with tail:
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ tail -f /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/spi0.log
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] USBDPI: Monitor output file created at /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/usb0.log. Works well with tail:
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ tail -f /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/usb0.log
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] No UARTDPI_LOG_uart0 plusarg found.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] UART: Created /dev/pts/6 for uart0. Connect to it with any terminal program, e.g.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] $ screen /dev/pts/6
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] UART: Additionally writing all UART output to 'uart0.log'.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] JTAG: Virtual JTAG interface dmi0 is listening on port 44853. Use
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] OpenOCD and the following configuration to connect:
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout]   interface remote_bitbang
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout]   remote_bitbang_host localhost
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout]   remote_bitbang_port 44853
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] Simulation running, end by pressing CTRL-c.
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::subprocess::stdout] 
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::transport] Verilator started with the following interfaces:
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::transport] gpio_read = /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-read
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::transport] gpio_write = /home/chy/.cache/bazel/_bazel_chy/895ac3e163046a89d53147131dfd6d76/sandbox/linux-sandbox/26/execroot/_main/bazel-out/k8-fastbuild-ST-1df456420242/bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash.runfiles/_main/gpio0-write
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::transport] uart = /dev/pts/6
+[2026-07-06T03:42:39Z INFO  ot_transport_verilator::transport] spi = /dev/pts/1
+[2026-07-06T03:42:39Z WARN  opentitanlib::app] Could not read UART parity to check it is None
+[2026-07-06T03:42:39Z INFO  opentitanlib::io::uart] set_flow_control to false
+[8 / 9] Testing //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator; 1s linux-sandbox
 þI00001 test_rom.c:190] kBuildInfo: scm_revision=54697461
 I00002 test_rom.c:267] Test ROM complete, jumping to flash (addr: 20000480)!
 I00001 ottf_main.c:175] Running test_hybrid_kem_otbn_prompt_ver0_1/ibex/phase2_encap_decap/phase2_bob_decap.c
 I00002 ottf_main.c:182] Enabling OTTF alert catcher
-I00003 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,mlkem_decap_load,707741
-I00004 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,mlkem_decap_write_inputs,55373
-I00005 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,mlkem_decap_execute_wait,661239
-I00006 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,mlkem_decap_read_outputs,710
-I00007 phase2_bob_decap.c:72] HKEM_PROF_TEST,phase2_bob_decap,check_mlkem_decap,257
-I00008 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,wipe_after_mlkem_decap,1229
-I00009 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,p256_load,48107
-I00010 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,p256_write_inputs,3732
-I00011 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,p256_execute_wait,603812
-I00012 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,p256_read_outputs,1316
-I00013 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,p256_unmask,468
-I00014 phase2_bob_decap.c:72] HKEM_PROF_TEST,phase2_bob_decap,check_p256_ss,256
-I00015 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,wipe_after_p256,1239
-I00016 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_load,112081
-I00017 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_write_params,1136
-I00018 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_write_info_len,257
-I00019 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_assemble_ikm,755
-I00020 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_write_ikm_lengths,2582
-I00021 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_execute_wait,55528
-I00022 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,hkdf_read_output,728
-I00023 phase2_bob_decap.c:72] HKEM_PROF_TEST,phase2_bob_decap,check_hkdf_okm,241
-I00024 phase2_bob_decap.c:75] HKEM_PROF,phase2_bob_decap,wipe_after_hkdf,1257
-I00025 phase2_bob_decap.c:79] HKEM_PROF,phase2_bob_decap,protocol_total,2259290
-I00026 phase2_bob_decap.c:80] HKEM_PROF_TEST,phase2_bob_decap,test_total,754
-I00027 phase2_bob_decap.c:82] HKEM_PROF_SCOPE,phase2_bob_decap,scope_total,2263279
-I00028 phase2_bob_decap.c:84] HKEM_PROF_SCOPE,phase2_bob_decap,accounted_total,2260044
-I00029 phase2_bob_decap.c:86] HKEM_PROF_SCOPE,phase2_bob_decap,unaccounted_total,3235
-I00030 phase2_bob_decap.c:568] Bob ML-KEM Decap OK
-I00031 phase2_bob_decap.c:569] Bob ECDH OK
-I00032 phase2_bob_decap.c:570] Bob HKDF OK
-I00033 ottf_main.c:114] Finished test_hybrid_kem_otbn_prompt_ver0_1/ibex/phase2_encap_decap/phase2_bob_decap.c
-[2026-06-29T07:26:41Z INFO  opentitantool::command::console] ExitSuccess("PASS!\r\n")
-[2026-06-29T07:26:41Z INFO  opentitantool] Command result: success.
-[2026-06-29T07:26:41Z INFO  opentitantool] Command result: success.
-[25 / 26] Testing //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator; 722s linux-sandbox
-I00034 status.c:37] PASS!
+I00003 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,mlkem_decap_load,718990
+I00004 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,mlkem_decap_write_inputs,56194
+I00005 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,mlkem_decap_execute_wait,661177
+I00006 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,mlkem_decap_read_outputs,688
+I00007 hkem_profile.h:112] HKEM_PROF_TEST,phase2_bob_decap,check_mlkem_decap,262
+I00008 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,wipe_after_mlkem_decap,1181
+I00009 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,p256_load,48886
+I00010 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,p256_write_inputs,3786
+I00011 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,p256_execute_wait,603798
+I00012 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,p256_read_outputs,1347
+I00013 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,p256_unmask,468
+I00014 hkem_profile.h:112] HKEM_PROF_TEST,phase2_bob_decap,check_p256_ss,237
+I00015 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,wipe_after_p256,1213
+I00016 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_load,113907
+I00017 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_write_params,1164
+I00018 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_write_info_len,258
+I00019 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_assemble_ikm,705
+I00020 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_write_ikm_lengths,2548
+I00021 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_execute_wait,55457
+I00022 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,hkdf_read_output,663
+I00023 hkem_profile.h:112] HKEM_PROF_TEST,phase2_bob_decap,check_hkdf_okm,246
+I00024 hkem_profile.h:115] HKEM_PROF,phase2_bob_decap,wipe_after_hkdf,1164
+I00025 phase2_bob_decap.c:37] HKEM_PROF,phase2_bob_decap,protocol_total,2273594
+I00026 phase2_bob_decap.c:38] HKEM_PROF_TEST,phase2_bob_decap,test_total,745
+I00027 phase2_bob_decap.c:40] HKEM_PROF_SCOPE,phase2_bob_decap,scope_total,2277556
+I00028 phase2_bob_decap.c:42] HKEM_PROF_SCOPE,phase2_bob_decap,accounted_total,2274339
+I00029 phase2_bob_decap.c:44] HKEM_PROF_SCOPE,phase2_bob_decap,unaccounted_total,3217
+I00030 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=HKEM_PHASE_BOB_DECAP_TOTAL,calls=1,total_cycles=2273594,avg_cycles=2273594
+I00031 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=HKEM_BOB_DECAP_MLKEM_DECAP,calls=1,total_cycles=1438230,avg_cycles=1438230
+I00032 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=HKEM_BOB_DECAP_P256_ECDH,calls=1,total_cycles=659498,avg_cycles=659498
+I00033 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=HKEM_BOB_DECAP_KDF,calls=1,total_cycles=175866,avg_cycles=175866
+I00034 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=MLKEM_DECAP_OTBN_APP,calls=1,total_cycles=661177,avg_cycles=661177
+I00035 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=P256_SCALAR_MULT,calls=1,total_cycles=603798,avg_cycles=603798
+I00036 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=P256_SHARED_SECRET_EXTRACT,calls=1,total_cycles=1815,avg_cycles=1815
+I00037 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=HKEM_SECRET_COMBINE,calls=1,total_cycles=705,avg_cycles=705
+I00038 hkem_profile.h:133] HKEM_PROFILE_SUMMARY,phase2_bob_decap,label=HKDF_SHA3_OTBN_APP,calls=1,total_cycles=55457,avg_cycles=55457
+I00039 phase2_bob_decap.c:597] Bob ML-KEM Decap OK
+I00040 phase2_bob_decap.c:598] Bob ECDH OK
+I00041 phase2_bob_decap.c:599] Bob HKDF OK
+I00042 ottf_main.c:114] Finished test_hybrid_kem_otbn_prompt_ver0_1/ibex/phase2_encap_decap/phase2_bob_decap.c
+I00043 status.c:37] PASS!
+[2026-07-06T03:57:50Z INFO  opentitantool::command::console] ExitSuccess("PASS!\r\n")
+[2026-07-06T03:57:50Z INFO  opentitantool] Command result: success.
+[2026-07-06T03:57:50Z INFO  opentitantool] Command result: success.
+[8 / 9] Testing //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator; 911s linux-sandbox
 INFO: Found 1 test target...
 Target //test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator up-to-date:
   bazel-bin/test_hybrid_kem_otbn_prompt_ver0_1/phase2_bob_decap_test_sim_verilator.bash
-INFO: Elapsed time: 723.305s, Critical Path: 722.65s
-INFO: 2 processes: 25 action cache hit, 2 linux-sandbox.
-INFO: Build completed successfully, 2 total actions
-//test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator PASSED in 722.5s
+INFO: Elapsed time: 913.151s, Critical Path: 912.52s
+INFO: 8 processes: 1 action cache hit, 8 linux-sandbox.
+INFO: Build completed successfully, 8 total actions
+//test_hybrid_kem_otbn_prompt_ver0_1:phase2_bob_decap_test_sim_verilator PASSED in 911.7s
 
 Executed 1 out of 1 test: 1 test passes.
 There were tests whose specified size is too big. Use the --test_verbose_timeout_warnings command line option to see which ones these are.

@@ -87,7 +87,10 @@ opentitan_test(
 # ---- Phase 1: Key Generation ----
 opentitan_test(
     name = "phase1_keygen_test",
-    srcs = ["ibex/phase1_keygen/phase1_keygen_test.c"],
+    srcs = [
+        "ibex/hkem_profile.h",
+        "ibex/phase1_keygen/phase1_keygen_test.c",
+    ],
     exec_env = EARLGREY_TEST_ENVS,
     deps = [
         "//hw/top_earlgrey/sw/autogen:top_earlgrey",
@@ -106,7 +109,10 @@ opentitan_test(
 # ---- Phase 2: Alice / Bob ----
 opentitan_test(
     name = "phase2_alice_encap_test",
-    srcs = ["ibex/phase2_encap_decap/phase2_alice_encap.c"],
+    srcs = [
+        "ibex/hkem_profile.h",
+        "ibex/phase2_encap_decap/phase2_alice_encap.c",
+    ],
     exec_env = EARLGREY_TEST_ENVS,
     deps = [
         "//hw/top_earlgrey/sw/autogen:top_earlgrey",
@@ -126,7 +132,10 @@ opentitan_test(
 
 opentitan_test(
     name = "phase2_bob_decap_test",
-    srcs = ["ibex/phase2_encap_decap/phase2_bob_decap.c"],
+    srcs = [
+        "ibex/hkem_profile.h",
+        "ibex/phase2_encap_decap/phase2_bob_decap.c",
+    ],
     exec_env = EARLGREY_TEST_ENVS,
     deps = [
         "//hw/top_earlgrey/sw/autogen:top_earlgrey",

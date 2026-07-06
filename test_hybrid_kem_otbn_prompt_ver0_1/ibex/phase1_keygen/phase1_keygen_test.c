@@ -15,73 +15,63 @@
 #include "sw/device/lib/runtime/log.h"
 #include "sw/device/lib/testing/entropy_testutils.h"
 #include "sw/device/lib/testing/otbn_testutils.h"
-#include "sw/device/lib/testing/profile.h"
 #include "sw/device/lib/testing/test_framework/check.h"
 #include "sw/device/lib/testing/test_framework/ottf_main.h"
+#include "test_hybrid_kem_otbn_prompt_ver0_1/ibex/hkem_profile.h"
 #include <stddef.h>
 
 OTTF_DEFINE_TEST_CONFIG();
-
-#define HKEM_PROFILE(step, body)                         \
-  do {                                                   \
-    uint64_t hkem_t_start = profile_start();             \
-    do {                                                 \
-      body                                               \
-    } while (false);                                     \
-    uint32_t hkem_elapsed = profile_end(hkem_t_start);   \
-    hkem_protocol_cycles += hkem_elapsed;                \
-    hkem_profile_add(false, step, hkem_elapsed);         \
-  } while (false)
-
-#define HKEM_PROFILE_TEST(step, body)                    \
-  do {                                                   \
-    uint64_t hkem_t_start = profile_start();             \
-    do {                                                 \
-      body                                               \
-    } while (false);                                     \
-    uint32_t hkem_elapsed = profile_end(hkem_t_start);   \
-    hkem_test_cycles += hkem_elapsed;                    \
-    hkem_profile_add(true, step, hkem_elapsed);          \
-  } while (false)
 
 static const char kPhaseName[] = "phase1_keygen";
 static uint64_t hkem_protocol_cycles;
 static uint32_t hkem_test_cycles;
 
-typedef struct hkem_profile_entry {
-  const char *step;
-  uint32_t cycles;
-  bool is_test;
-} hkem_profile_entry_t;
-
 static hkem_profile_entry_t hkem_profile_entries[16];
 static size_t hkem_profile_count;
 
-static void hkem_profile_add(bool is_test, const char *step, uint32_t cycles) {
-  CHECK(hkem_profile_count < ARRAYSIZE(hkem_profile_entries));
-  hkem_profile_entries[hkem_profile_count++] =
-      (hkem_profile_entry_t){.step = step, .cycles = cycles, .is_test = is_test};
-}
-
 static void hkem_profile_dump(uint32_t scope_total) {
-  for (size_t i = 0; i < hkem_profile_count; ++i) {
-    if (hkem_profile_entries[i].is_test) {
-      LOG_INFO("HKEM_PROF_TEST,%s,%s,%u", kPhaseName,
-               hkem_profile_entries[i].step, hkem_profile_entries[i].cycles);
-    } else {
-      LOG_INFO("HKEM_PROF,%s,%s,%u", kPhaseName,
-               hkem_profile_entries[i].step, hkem_profile_entries[i].cycles);
-    }
-  }
-  LOG_INFO("HKEM_PROF,%s,protocol_total,%u", kPhaseName,
+  hkem_profile_dump_raw(kPhaseName, hkem_profile_entries, hkem_profile_count);
+  LOG_INFO("HKE_PROFILE_PHASE,%s,protocol_total,%u", kPhaseName,
            (uint32_t)hkem_protocol_cycles);
-  LOG_INFO("HKEM_PROF_TEST,%s,test_total,%u", kPhaseName, hkem_test_cycles);
+  LOG_INFO("HKE_PROFILE_APP_TEST,%s,test_total,%u", kPhaseName,
+           hkem_test_cycles);
   uint32_t accounted_total = (uint32_t)hkem_protocol_cycles + hkem_test_cycles;
-  LOG_INFO("HKEM_PROF_SCOPE,%s,scope_total,%u", kPhaseName, scope_total);
-  LOG_INFO("HKEM_PROF_SCOPE,%s,accounted_total,%u", kPhaseName,
+  LOG_INFO("HKE_PROFILE_PHASE_SCOPE,%s,scope_total,%u", kPhaseName,
+           scope_total);
+  LOG_INFO("HKE_PROFILE_PHASE_SCOPE,%s,accounted_total,%u", kPhaseName,
            accounted_total);
-  LOG_INFO("HKEM_PROF_SCOPE,%s,unaccounted_total,%u", kPhaseName,
+  LOG_INFO("HKE_PROFILE_PHASE_SCOPE,%s,unaccounted_total,%u", kPhaseName,
            scope_total > accounted_total ? scope_total - accounted_total : 0);
+
+  uint32_t p256_keygen_total =
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "p256_keygen_load") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "p256_keygen_write_inputs") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "p256_keygen_execute_wait") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "p256_keygen_read_outputs") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "wipe_after_p256_keygen");
+  uint32_t mlkem_keypair_total =
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "mlkem_keypair_load") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "mlkem_keypair_write_inputs") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "mlkem_keypair_execute_wait") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "mlkem_keypair_read_outputs") +
+      hkem_profile_get_step(hkem_profile_entries, hkem_profile_count,
+                            "wipe_after_mlkem_keypair");
+
+  HKEM_PROFILE_PHASE(kPhaseName, "HKEM_PHASE_BOB_SETUP_TOTAL", 1,
+                     (uint32_t)hkem_protocol_cycles);
+  HKEM_PROFILE_APP_SUMMARY(kPhaseName, "HKEM_BOB_SETUP_P256_APP", 1,
+                           p256_keygen_total);
+  HKEM_PROFILE_APP_SUMMARY(kPhaseName, "HKEM_BOB_SETUP_MLKEM_APP", 1,
+                           mlkem_keypair_total);
 }
 
 /* ================================================================
@@ -361,9 +351,8 @@ static const uint8_t kExpectedSkM[2400] = {
     0x92, 0xf2, 0x67, 0xaa, 0xfa, 0x3f, 0x87, 0xca, 0x60, 0xd0, 0x1c, 0xb5, 0x4f, 0x29, 0x20, 0x2a,
 };
 bool test_main(void) {
-  hkem_protocol_cycles = 0;
-  hkem_test_cycles = 0;
-  hkem_profile_count = 0;
+  hkem_profile_reset(&hkem_protocol_cycles, &hkem_test_cycles,
+                     &hkem_profile_count);
   dif_otbn_t otbn;
   CHECK_DIF_OK(dif_otbn_init_from_dt(kDtOtbn, &otbn));
   CHECK_STATUS_OK(entropy_testutils_auto_mode_init());

@@ -1,0 +1,7 @@
+app,run,instructions,cycles
+p256_keygen,1,574011,595838
+p256_ecdh,1,581344,603182
+mlkem768_keypair,1,505004,550825
+mlkem768_encap,1,552476,599965
+mlkem768_decap,1,610965,660480
+hkdf_sha3,1,51145,54823

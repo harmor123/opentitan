@@ -99,3 +99,4 @@ hw/dv/tools/fi_sim.tcl
 hw/dv/tools/dvsim/z01x.hjson
 test_1/
 test_1/otbn-pq
+test_hybrid_kem_otbn_prompt_ver0_1/results/iss_leaf_profile/otbn_leaf_profile_raw.csv

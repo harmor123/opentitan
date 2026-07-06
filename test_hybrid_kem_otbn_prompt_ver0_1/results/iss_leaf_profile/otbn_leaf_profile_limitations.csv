@@ -1,0 +1,25 @@
+label,status,reason
+MLKEM_NTT,measured,symbol range found in at least one profiled ELF
+MLKEM_INTT,measured,symbol range found in at least one profiled ELF
+MLKEM_BASEMUL,measured,symbol range found in at least one profiled ELF
+MLKEM_COEFF_REDUCE,measured,symbol range found in at least one profiled ELF
+MLKEM_POLY_ADD_SUB,measured,symbol range found in at least one profiled ELF
+MLKEM_REJ_SAMPLING,measured,symbol range found in at least one profiled ELF
+MLKEM_CBD_SAMPLING,measured,symbol range found in at least one profiled ELF
+MLKEM_MATRIX_EXPAND,measured,symbol range found in at least one profiled ELF
+MLKEM_PACK,measured,symbol range found in at least one profiled ELF
+MLKEM_UNPACK,measured,symbol range found in at least one profiled ELF
+MLKEM_COMPRESS,measured,symbol range found in at least one profiled ELF
+MLKEM_DECOMPRESS,measured,symbol range found in at least one profiled ELF
+KECCAK_F1600,measured,symbol range found in at least one profiled ELF
+KECCAK_ABSORB,measured,symbol range found in at least one profiled ELF
+KECCAK_SQUEEZE,measured,symbol range found in at least one profiled ELF
+HKDF_EXTRACT,measured,symbol range found in at least one profiled ELF
+HKDF_EXPAND,measured,symbol range found in at least one profiled ELF
+P256_FIELD_MUL_REDUCE,measured,symbol range found in at least one profiled ELF
+P256_FIELD_SQR,not_measured,no separate stable source symbol configured
+P256_FIELD_ADD_SUB,not_measured,no separate stable source symbol configured
+P256_FIELD_INV,not_measured,no separate stable source symbol configured
+P256_POINT_DOUBLE,measured,symbol range found in at least one profiled ELF
+P256_POINT_ADD_MIXED,measured,symbol range found in at least one profiled ELF
+P256_SCALAR_MULT,measured,symbol range found in at least one profiled ELF
