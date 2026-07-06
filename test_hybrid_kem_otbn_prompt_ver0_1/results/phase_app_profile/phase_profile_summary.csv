@@ -1,0 +1,4 @@
+phase,total_cycles,p256_branch_cycles,mlkem_branch_cycles,kdf_branch_cycles,test_check_cycles,scope_total_cycles,accounted_total_cycles,unaccounted_cycles,unaccounted_pct,status
+bob_setup,1932787,642307,1290480,0,25558,1947250,1945566,1684,0.086,measured
+alice_encapsulation,2810466,1305292,1328543,175462,10418,2819991,2815675,4316,0.153,measured
+bob_decapsulation,2273594,659030,1438230,175161,1490,2277556,2274339,3217,0.141,measured

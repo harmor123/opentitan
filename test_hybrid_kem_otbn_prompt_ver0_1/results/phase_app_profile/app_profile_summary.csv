@@ -1,0 +1,10 @@
+phase,app,operation,load_cycles,write_input_cycles,execute_wait_cycles,read_output_cycles,wipe_cycles,check_cycles,total_cycles,status
+bob_setup,p256_keygen,bob_setup_p256_keygen,40646,2541,596506,1413,1201,474,642307,measured
+bob_setup,mlkem_keypair,bob_setup_mlkem_keypair,681517,1265,551442,55065,1191,12305,1290480,measured
+alice_encapsulation,p256_keygen,alice_p256_keygen,41232,2573,596519,1333,1198,464,642855,measured
+alice_encapsulation,p256_ecdh,alice_p256_ecdh,52057,4089,603792,1320,1179,0,662437,measured
+alice_encapsulation,mlkem_encap,alice_mlkem_encap,689282,19928,600623,17474,1236,4269,1328543,measured
+alice_encapsulation,hkdf_sha3,alice_hkdf_sha3,113841,4249,55463,721,1188,255,175462,measured
+bob_decapsulation,mlkem_decap,bob_mlkem_decap,718990,56194,661177,688,1181,262,1438230,measured
+bob_decapsulation,p256_ecdh,bob_p256_ecdh,48886,3786,603798,1347,1213,237,659030,measured
+bob_decapsulation,hkdf_sha3,bob_hkdf_sha3,113907,3970,55457,663,1164,246,175161,measured
