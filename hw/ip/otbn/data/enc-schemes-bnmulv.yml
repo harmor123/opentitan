@@ -453,3 +453,23 @@ wcsr:
     fixed:
       bits: 30-28
       value: bxxx
+
+
+# bnmodp256: P-256 Solinas modular multiplication
+# opcode = 0x1B = 7'b001_1011 -> bits[6:2] = b00110, bits[1:0] = b11 (rv base)
+# funct3 = b000, wdr3 for three WDR operands (wrd, wrs1, wrs2)
+# Follows the same inheritance pattern as bnmulv (custom5+wdr3+funct3)
+bnmodp256:
+  parents:
+    - wdr3
+    - funct3
+  fields:
+    opcode:
+      bits: 6-2
+      value: b00110
+    unused:
+      bits: 31-25
+      value: bxxxxxxx
+    uncomp:
+      bits: 1-0
+      value: b11

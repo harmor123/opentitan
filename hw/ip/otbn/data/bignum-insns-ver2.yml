@@ -1429,3 +1429,35 @@
       wrd: wrd
       funct3: b110
       type: type
+
+- mnemonic: bn.modp256
+  synopsis: 256-bit modular multiplication for NIST P-256 prime (Solinas reduction)
+  operands:
+    - name: wrd
+      type: wrd
+      doc: Destination WDR
+    - name: wrs1
+      type: wrs
+      doc: First source WDR (multiplicand a)
+    - name: wrs2
+      type: wrs
+      doc: Second source WDR (multiplier b)
+  doc: |
+    Computes (wrs1 * wrs2) mod P256 using standard NIST Solinas reduction.
+    P256 = 2^256 - 2^224 + 2^192 + 2^96 - 1 (hardcoded).
+    Multi-cycle instruction (~24-26 cycles: 16 schoolbook + 8 reduce + 0-2 subp).
+    Result written to wrd and ACC. ACCH cleared. FG0 flags updated.
+    Does NOT require w28/w29/MOD constants.
+  syntax: |
+    <wrd>, <wrs1>, <wrs2>
+  errs: []
+  iflow:
+    - to: [wrd, ACC]
+      from: [wrs1, wrs2]
+  encoding:
+    scheme: bnmodp256
+    mapping:
+      wrd: wrd
+      wrs1: wrs1
+      wrs2: wrs2
+      funct3: b000

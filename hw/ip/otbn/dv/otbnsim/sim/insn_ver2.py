@@ -1806,6 +1806,114 @@ class BNMULVL(OTBNInsn):
             eprint(f"acch at the end = {hex(acch)}")
 
 
+class BNMODP256(OTBNInsn):
+    """bn.modp256: P-256 Solinas modular multiplication.
+
+    wrd = (wrs1 * wrs2) mod P256.
+    Clobbers: wrd, ACC, ACCH (=0).  Does NOT set flags.
+    Does NOT need MOD/w28/w29 (unlike mul_modp).
+    ~24-26 cycles (16 schoolbook + 8 Solinas + 0-3 subp).
+    """
+    insn = insn_for_mnemonic('bn.modp256', 3)
+
+    # P-256 prime constant
+    P256 = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+
+    # Schoolbook ROM: 16 entries = (wsel_a, wsel_b), shift = (wsel_a+wsel_b)*64
+    SB_ROM = [
+        (0, 0),  (0, 1),  (1, 0),
+        (0, 2),  (1, 1),  (2, 0),
+        (0, 3),  (1, 2),  (2, 1),  (3, 0),
+        (1, 3),  (2, 2),  (3, 1),
+        (2, 3),  (3, 2),
+        (3, 3),
+    ]
+
+    # Solinas Term ROM: 8 entries = (doubled, is_neg, lane_sels, zero_mask)
+    TERM_ROM = [
+        (True,  False, [0,1,2,3,4, 0,0,0], 0b00000111),   # +2*s1
+        (True,  False, [0,0,1,2,3, 0,0,0], 0b10000111),   # +2*s2
+        (False, False, [0,1,0,0,0, 5,6,7], 0b00111000),   # +s3
+        (False, False, [7,2,0,1,2, 4,5,6], 0b00000000),   # +s4
+        (False, True,  [5,7,0,0,0, 2,3,4], 0b00111000),   # -d1
+        (False, True,  [4,6,0,0,0, 1,2,3], 0b00110000),   # -d2
+        (False, True,  [3,0,5,6,7, 0,1,2], 0b01000000),   # -d3
+        (False, True,  [2,0,4,5,6, 0,0,1], 0b01000100),   # -d4
+    ]
+
+    def __init__(self, raw: int, op_vals: Dict[str, int]):
+        super().__init__(raw, op_vals)
+        self.wrd = op_vals['wrd']
+        self.wrs1 = op_vals['wrs1']
+        self.wrs2 = op_vals['wrs2']
+
+    def execute(self, state: OTBNState) -> Iterator[None]:
+        a = state.wdrs.get_reg(self.wrs1).read_unsigned()
+        b = state.wdrs.get_reg(self.wrs2).read_unsigned()
+
+        mask256 = (1 << 256) - 1
+        mask64 = (1 << 64) - 1
+
+        # ---- Phase 1: Schoolbook multiply (16 cycles) ----
+        acch = 0
+        accl = 0
+
+        for cycle, (wsel_a, wsel_b) in enumerate(self.SB_ROM):
+            aw = (a >> (wsel_a * 64)) & mask64
+            bw = (b >> (wsel_b * 64)) & mask64
+            prod = aw * bw
+            shift = (wsel_a + wsel_b) * 64
+            acc_512 = (acch << 256) | accl
+            acc_512 += prod << shift
+            acch = (acc_512 >> 256) & mask256
+            accl = acc_512 & mask256
+            yield None
+
+        # ---- Phase 2: Solinas reduction (8 cycles) ----
+        S = acch
+        R = accl
+        s_words = [(S >> (224 - i * 32)) & 0xFFFFFFFF for i in range(8)]
+        sum_512 = R
+
+        for term_idx in range(8):
+            doubled, is_neg, lane_sels, zero_mask = self.TERM_ROM[term_idx]
+            term_val = 0
+            for lane in range(8):
+                if (zero_mask >> lane) & 1:
+                    continue
+                s_idx = lane_sels[7 - lane]
+                term_val |= s_words[s_idx] << (lane * 32)
+            if doubled:
+                term_val <<= 1
+            if is_neg:
+                sum_512 -= term_val   # Python signed int, can go negative
+            else:
+                sum_512 += term_val
+            yield None
+
+        # ---- Phase 3: Conditional add/sub p (max ~3 cycles) ----
+        # Python signed int: handle both negative and >p cases.
+        # RTL: use unsigned 512b adder with external B-invert + cin=1 for sub.
+        while sum_512 < 0:
+            sum_512 += self.P256
+            yield None
+        while sum_512 >= self.P256:
+            sum_512 -= self.P256
+            yield None
+
+        # ---- Phase 4: Writeback ----
+        result = sum_512 & mask256
+        state.wdrs.get_reg(self.wrd).write_unsigned(result)
+        state.wsrs.ACC.write_unsigned(result)
+        if _HAS_ACCH:
+            # result < P256 < 2^256 → upper 256b of accumulator naturally 0
+            state.wsrs.ACCH.write_unsigned(0)
+        # Flags NOT set — no caller of mul_modp depends on flags across calls.
+        # RTL will also leave flags unchanged (no explicit flag update in FSM).
+
+        return None
+
+
 INSN_CLASSES = [
     ADD, ADDI, LUI, SUB, SLL, SLLI, SRL, SRLI, SRA, SRAI,
     AND, ANDI, OR, ORI, XOR, XORI,
@@ -1817,6 +1925,7 @@ INSN_CLASSES = [
 
     BNADD, BNADDC, BNADDI, BNADDM, BNADDV,
     BNMULV, BNMULVL,
+    BNMODP256,
     BNMULQACC, BNMULQACCWO, BNMULQACCSO,
     BNSUB, BNSUBB, BNSUBI, BNSUBM, BNSUBV,
     BNAND, BNOR, BNNOT, BNXOR,

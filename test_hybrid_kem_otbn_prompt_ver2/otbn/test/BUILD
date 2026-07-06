@@ -10,6 +10,7 @@ exports_files([
     "hkdf_test.s",
     "sha3_test.s",
     "hmac_test.s",
+    "modp256_test.s",
 ])
 
 otbn_sim_test(
@@ -77,6 +78,7 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver2/otbn/p256:p256_shared_key_lib",
     ],
     dexp = "p256.dexp",
+    copts = ["--bnmulv_version_id=2"],
 )
 
 otbn_sim_test(
@@ -97,4 +99,11 @@ otbn_sim_test(
         "//test_hybrid_kem_otbn_prompt_ver2/otbn/hkdf:kmac_sha3_lib",
     ],
     dexp = "sha3_test.dexp",
+)
+
+otbn_sim_test(
+    name = "modp256_test",
+    srcs = ["modp256_test.s"],
+    dexp = "modp256_test.dexp",
+    copts = ["--bnmulv_version_id=2"],
 )
