@@ -1,7 +1,3 @@
-/* Copyright lowRISC contributors (OpenTitan project). */
-/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
-/* SPDX-License-Identifier: Apache-2.0 */
-
 /* Copyright 2016 The Chromium OS Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE.dcrypto file.
@@ -14,7 +10,6 @@
 .globl p256_masked_scalar_reblind
 .globl trigger_fault_if_fg0_z
 .globl trigger_fault_if_fg0_not_z
-.globl mul_modp
 .globl setup_modp
 
 .globl scalar_mult_int
@@ -22,7 +17,6 @@
 .globl proj_to_affine
 
 /* Exposed only for testing or SCA purposes. */
-
 .globl proj_double
 
 .text
@@ -100,53 +94,16 @@ trigger_fault_if_fg0_z:
 
 
 /**
- * 256-bit modular multiplication for P-256 coordinate field.
+ * Set up MOD register for P-256 coordinate field operations.
  *
- * Returns c = a * b mod p
- *
- * Uses a specialized algorithm to quicly multiply modulo the P-256 coordinate
- * modulus p = 2^256 - 2^224 + 2^192 + 2^96 - 1.
- *
- * This code has been proven correct in Coq here against a simplified model of
- * OTBN (simplified in the sense of only including the instructions and
- * functionality that this code uses):
- * https://gist.github.com/jadephilipoom/5c1910fd355f730238c99ce620aed98a
- *
- * For more details about the code and how to read the proofs above, see the PR
- * description here: https://github.com/lowRISC/opentitan/pull/20701
- *
- * Flags: Flags have no meaning beyond the scope of this subroutine.
- *
- * @param[in]  w24: a, first 256 bit operand (a < p)
- * @param[in]  w25: b, second 256 bit operand (b < p)
- * @param[in]  w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[in]  w29: r448, constant, 2^448 mod p
- * @param[in]  w31: all-zero
- * @param[in]  MOD: p, modulus of P-256 underlying finite field
- * @param[out]  w19: c, result
- *
- * clobbered registers: w19, w20, w21, w22, w23, w24, w25
- * clobbered flag groups: FG0
- */
-mul_modp:
-  bn.modp256 w19, w24, w25
-  ret
-
-
-/**
- * Set up for coordinate field operations modulo the prime p.
- *
- * Loads the constants required by `mul_modp` and other coordinate-arithmetic
- * routines.
+ * Loads the P-256 prime modulus p into the MOD register.
  *
  * Flags: Flags have no meaning beyond the scope of this subroutine.
  *
  * @param[in]  w31: all-zero
  * @param[out] MOD: p, modulus of P-256 underlying finite field
- * @param[out] w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[out] w29: r448, constant, 2^448 mod p
  *
- * clobbered registers: w28, w29
+ * clobbered registers: w29
  * clobbered flag groups: FG0
  */
 setup_modp:
@@ -156,16 +113,6 @@ setup_modp:
   la        x3, p256_p
   bn.lid    x2, 0(x3)
   bn.wsrw   MOD, w29
-
-  /* Compute the constant r256 for reduction modulo p.
-       w28 <= 2^256 - p = r256 */
-  bn.sub   w28, w31, w29
-
-  /* Load the constant r448 for reduction modulo p.
-     w29 <= dmem[p256_r448] = r448 */
-  li        x2, 29
-  la        x3, p256_r448
-  bn.lid    x2, 0(x3)
   ret
 
 /**
@@ -198,8 +145,6 @@ setup_modp:
  * @param[in]  w12: y_q, x-coordinate of input point Q
  * @param[in]  w13: z_q, x-coordinate of input point Q
  * @param[in]  w27: b, curve domain parameter
- * @param[in]  w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[in]  w29: r448, constant, 2^448 mod p
  * @param[in]  w31: all-zero.
  * @param[in]  MOD: p, modulus, 2^256 > p > 2^255.
  * @param[out]  w11: x_r, x-coordinate of resulting point R
@@ -381,8 +326,6 @@ proj_add:
  * @param[in]  w8: x, x-coordinate of curve point (projective)
  * @param[in]  w9: y, y-coordinate of curve point (projective)
  * @param[in]  w10: z, z-coordinate of curve point (projective)
- * @param[in]  w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[in]  w29: r448, constant, 2^448 mod p
  * @param[in]  MOD: p, modulus of the finite field of P-256
  * @param[out]  w11: x_a, x-coordinate of curve point (affine)
  * @param[out]  w12: y_a, y-coordinate of curve point (affine)
@@ -495,8 +438,6 @@ proj_to_affine:
  *                          x-coordinate of input point
  * @param[in]  x22: dptr_y, pointer to dmem location containing affine
  *                          y-coordinate of input point
- * @param[in]  w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[in]  w29: r448, constant, 2^448 mod p
  * @param[in]  w31: all-zero
  * @param[in]  MOD: p, modulus of P-256 underlying finite field
  * @param[out] w14: x, projective x-coordinate
@@ -570,8 +511,6 @@ fetch_proj_randomize:
  * @param[in]  w8: x_p, x-coordinate of input point
  * @param[in]  w9: y_p, y-coordinate of input point
  * @param[in]  w10: z_p, z-coordinate of input point
- * @param[in]  w28: r256, constant, 2^256 mod p = 2^256 - p
- * @param[in]  w29: r448, constant, 2^448 mod p
  * @param[in]  w31: all-zero.
  * @param[in]  MOD: p, modulus of P-256 underlying finite field
  * @param[out]  w8: x_r, x-coordinate of resulting point
@@ -687,10 +626,8 @@ proj_double:
  * clobbered flag groups: FG0
  */
 scalar_mult_int:
-  /* Set up for coordinate arithmetic.
-       MOD <= p
-       w28 <= r256
-       w29 <= r448 */
+  /* Set up MOD for coordinate arithmetic.
+       MOD <= p */
   jal       x1, setup_modp
 
   /* load domain parameter b from dmem
@@ -1038,19 +975,6 @@ p256_p:
   .word 0x00000001
   .word 0xffffffff
 
-/* Constant ((2^448) mod p) for reduction modulo p. */
-.globl p256_r448
-.balign 32
-p256_r448:
-  .word 0xffffffff
-  .word 0xfffffffe
-  .word 0xfffffffe
-  .word 0xffffffff
-  .word 0x00000000
-  .word 0x00000002
-  .word 0x00000003
-  .word 0x00000000
-
 /* P-256 domain parameter n (order of base point) */
 .globl p256_n
 .balign 32
@@ -1063,43 +987,3 @@ p256_n:
   .word 0xffffffff
   .word 0x00000000
   .word 0xffffffff
-
-/* Barrett constant u for n */
-.globl p256_u_n
-.balign 32
-p256_u_n:
-  .word 0xeedf9bfe
-  .word 0x012ffd85
-  .word 0xdf1a6c21
-  .word 0x43190552
-  .word 0xffffffff
-  .word 0xfffffffe
-  .word 0xffffffff
-  .word 0x00000000
-
-/* P-256 basepoint G affine x-coordinate */
-.globl p256_gx
-.balign 32
-p256_gx:
-  .word 0xd898c296
-  .word 0xf4a13945
-  .word 0x2deb33a0
-  .word 0x77037d81
-  .word 0x63a440f2
-  .word 0xf8bce6e5
-  .word 0xe12c4247
-  .word 0x6b17d1f2
-
-/* P-256 basepoint G affine y-coordinate */
-.globl p256_gy
-.balign 32
-p256_gy:
-  .word 0x37bf51f5
-  .word 0xcbb64068
-  .word 0x6b315ece
-  .word 0x2bce3357
-  .word 0x7c0f9e16
-  .word 0x8ee7eb4a
-  .word 0xfe1a7f9b
-  .word 0x4fe342e2
-
