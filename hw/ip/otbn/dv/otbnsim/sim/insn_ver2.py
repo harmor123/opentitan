@@ -1878,16 +1878,24 @@ class BNMODP256(OTBNInsn):
                 result += term_val
             yield None
 
-        # ---- Phase 3: Conditional reduce (4 cycles, constant-time) ----
-        # TERM_ROM signed accumulation → result in [-4p, +4p].
-        # 4 cycles guarantee reduction into [0, p).
-        # RTL word-level carry chain only needs 2 cycles (result < 2p).
-        for _ in range(4):
-            if result < 0:
-                result += self.P256
-            elif result >= self.P256:
-                result -= self.P256
-            yield None
+        # # ---- Phase 3: Conditional reduce (4 cycles, constant-time) ----
+        # # TERM_ROM signed accumulation → result in [-4p, +4p].
+        # # 4 cycles guarantee reduction into [0, p).
+        # # RTL word-level carry chain only needs 2 cycles (result < 2p).
+        # for _ in range(4):
+        #     if result < 0:
+        #         result += self.P256
+        #     elif result >= self.P256:
+        #         result -= self.P256
+        #     yield None
+        
+        # ---- Phase 3: Conditional reduce (2 cycles, constant-time) ----
+        # Solinas formula guarantees result in (-p, 2p).
+        # Single mod operation, yield 2 cycles for constant-time.
+        # RTL word-level carry chain: final carry → 1 cond sub/add, 2 cycles.
+        result = result % self.P256
+        yield None
+        yield None
 
         # ---- Phase 4: Writeback (no side effects) ----
         state.wdrs.get_reg(self.wrd).write_unsigned(result & mask256)
