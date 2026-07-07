@@ -129,147 +129,7 @@ trigger_fault_if_fg0_z:
  * clobbered flag groups: FG0
  */
 mul_modp:
-  /* First, compute the high partial products (coefficient 2^192 or higher).
-       w19,w20.U <= 2^192*(a0b3 + a1b2 + a2b1 + a3b0)
-                    + 2^256*(a1b3 + a2b2 + a3b1)
-                    + 2^320*(a2b3 + a3b2)
-                    + 2^384*a3b3 */
-  bn.mulqacc.z          w24.0, w25.3, 64  /* a0b3 */
-  bn.mulqacc            w24.1, w25.2, 64  /* a1b2 */
-  bn.mulqacc            w24.2, w25.1, 64  /* a2b1 */
-  bn.mulqacc.so  w20.U, w24.3, w25.0, 64  /* a3b0 */
-  bn.mulqacc            w24.1, w25.3, 0   /* a1b3 */
-  bn.mulqacc            w24.2, w25.2, 0   /* a2b2 */
-  bn.mulqacc            w24.3, w25.1, 0   /* a3b1 */
-  bn.mulqacc            w24.2, w25.3, 64  /* a2b3 */
-  bn.mulqacc            w24.3, w25.2, 64  /* a3b2 */
-  bn.mulqacc.wo    w19, w24.3, w25.3, 128 /* a3b3 */
-
-  /* Now, we have:
-     a * b = a0b0 + 2^64*(a0b1 + a1b0) + 2^128*(a0b2 + a1b1 + a2b0 + w20.U)
-             + 2^256*w19
-
-     If we separate w19 into limbs t0, t1, t2, and t3, that gives us
-     a * b = a0b0 + 2^64*(a0b1 + a1b0) + 2^128*(a0b2 + a1b1 + a2b0 + w20.U)
-              + 2^256*t0 + 2^320*t1 + 2^384*t2 + 2^448*t3
-
-     This implies the modular equivalence:
-     (a * b) mod p
-       \equiv (a0b0 + 2^64*(a0b1 + a1b0) + 2^128*(a0b2 + a1b1 + a2b0 + w20.U)
-              + (2^256 mod p)*t0 + (2^448 mod p)*t3 - ((-2^320) mod p)*t1
-              - ((-2^384) mod p)*t2
-
-     The only reason above for using ((-2^320) mod p) and ((-2^384) mod p)
-     instead of (2^320 mod p) and (2^384 mod p) is that, for these specific
-     values, the positive terms are ~256 bits and the negative ones are ~224
-     bits, so the negative ones are quicker to compute.
-
-     For simplicity, let's call the additive terms u and the subtractive ones v:
-     u = a0b0 + 2^64*(a0b1 + a1b0) + 2^128*(a0b2 + a1b1 + a2b0 + w20.U)
-         + (2^256 mod p)*t0 + (2^448 mod p)*t3
-     v = ((-2^320) mod p)*t1 + ((-2^384) mod p)*t2
-     (a * b) mod p \equiv (u - v) mod p
-  */
-
-  /* Compute the additive terms (u). The term in w21 is offset 128 bits to save
-     a writeback instruction.
-       w20 + w21 << 384 = u  */
-  bn.mulqacc.z          w24.0, w25.0, 0   /* a0b0 */
-  bn.mulqacc            w28.0, w19.0, 0   /* r256[0] * t0 */
-  bn.mulqacc            w29.0, w19.3, 0   /* r448[0] * t3 */
-  bn.mulqacc            w24.0, w25.1, 64  /* a0b1 */
-  bn.mulqacc            w24.1, w25.0, 64  /* a1b0 */
-  bn.mulqacc            w28.1, w19.0, 64  /* r256[1] * t0 */
-  bn.mulqacc.so  w20.L, w29.1, w19.3, 64  /* r448[1] * t3 */
-  bn.mulqacc            w24.0, w25.2, 0   /* a0b2 */
-  bn.mulqacc            w24.1, w25.1, 0   /* a1b1 */
-  bn.mulqacc            w24.2, w25.0, 0   /* a2b0 */
-  bn.mulqacc            w28.2, w19.0, 0   /* r256[2] * t0 */
-  bn.mulqacc            w29.2, w19.3, 0   /* r448[2] * t3 */
-  bn.mulqacc            w28.3, w19.0, 64  /* r256[3] * t0 */
-  bn.mulqacc.wo    w21, w29.3, w19.3, 64  /* r448[3] * t3 */
-
-  /* To fully reduce u mod p, we'll separate the low 256 bits (u0) from the
-     high 33 bits (u1) and compute:
-      u0 + (2^256 mod p)*u1 = u0 + (2^224 - 2^192 - 2^96 + 1) * u1 */
-
-  /* Rotate 128 bits to undo the offset and put u1 in the least significant
-     position.
-       w22 <= w21[128:0] << 128 | w21[255:127] */
-  bn.rshi   w22, w21, w21 >> 128
-
-  /* w21 <= (u0 + u1) mod p */
-  bn.addm   w20, w20, w31
-  bn.addm   w21, w22, w31
-  bn.addm   w21, w20, w21
-
-  /* w24 <= u1 << 223 */
-  bn.rshi   w24, w22, w31 >> 33
-
-  /* w25 <= u1 * (2^223 - 2^191 - 2^95) */
-  bn.sub    w25, w24, w24 >> 32
-  bn.sub    w25, w25, w24 >> 128
-
-  /* Note: the value in w25 is small enough for addm because u1 < 2^33, and
-     2^33*(2^223 - 2^191 - 2^95) < p.
-     w25 <= (u0 + (2^224 - 2^192 - 2^96 + 1) * u1) mod p = u mod p */
-  bn.addm   w25, w25, w25
-  bn.addm   w25, w25, w21
-
-  /* Now, compute the subtractive terms (v). We don't store constants for this
-     one; instead we transform the expression into something that is
-     computable with (the minimum number of) shifts and adds.
-       v = ((-2^320) mod p)*t1 + ((-2^384) mod p)*t2
-         = t1 * (2^224 + 2^160 + 2^128 - 2^64 - 2^32)
-           + t2 * (2^224 - 2*2^128 - 2*2^96 + 2^32 + 1)
-         = 2^224 * (t1 + t2) + (2^32 + 1) * (t1*2^128 + t2)
-           - 2^32 * (2^32 + 1) * (t1 + t2*2*2^64) */
-
-  /* First, isolate t1 and t2 using `mulqacc` and the lowest limb of r256,
-     which happens to be 1. This method is faster than using shifts.
-       w20 <= t1
-       w21 <= t2 */
-  bn.mulqacc.wo.z  w20, w28.0, w19.1, 0
-  bn.mulqacc.wo.z  w21, w28.0, w19.2, 0
-
-  /* w22 <= (2^32 + 1) * (t1*2^128 + t2) */
-  bn.add    w22, w21, w20 << 128
-  bn.add    w22, w22, w22 << 32
-
-  /* w23 <= t1 + t2 */
-  bn.add    w23, w20, w21
-
-  /* w24 <= (2^32 + 1) * (t1 + 2*2^64*t2) */
-  bn.add    w24, w20, w21 << 64
-  bn.add    w24, w24, w21 << 64
-  bn.add    w24, w24, w24 << 32
-
-  /* w21, w20 <= v */
-  bn.add    w20, w22, w23 << 224
-  bn.addc   w21, w31, w23 >> 32
-  bn.sub    w20, w20, w24 << 32
-  bn.subb   w21, w21, w31
-
-  /* The maximum value of v is 289 bits, so we can now reduce v the same way we
-     reduced u earlier. */
-
-  /* w22 <= (v0 + v1) mod p */
-  bn.addm   w22, w20, w21
-
-  /* w24 <= v1 << 223 */
-  bn.rshi   w24, w21, w31 >> 33
-
-  /* w23 <= v1 * (2^223 - 2^191 - 2^95) */
-  bn.sub    w23, w24, w24 >> 32
-  bn.sub    w23, w23, w24 >> 128
-
-  /* w23 <= (v0 + (2^224 - 2^192 - 2^96 + 1) * v1) mod p = v mod p */
-  bn.addm   w23, w23, w23
-  bn.addm   w23, w23, w22
-
-  /* w19 = (u - v) mod p = (a * b) mod p */
-  bn.subm   w19, w25, w23
-
+  bn.modp256 w19, w24, w25
   ret
 
 
@@ -573,135 +433,83 @@ proj_to_affine:
   bn.addm   w10, w10, w31
 
   /* w19 <= z^2 */
-  bn.mov    w24, w10
-  bn.mov    w25, w10
-  jal       x1, mul_modp
+  bn.modp256 w19, w10, w10
 
   /* w12 <= z^3 = x2 */
-  bn.mov    w24, w19
-  bn.mov    w25, w10
-  jal       x1, mul_modp
+  bn.modp256 w19, w19, w10
   bn.mov    w12, w19
 
   /* w19 <= z^6 */
-  bn.mov    w24, w19
-  bn.mov    w25, w19
-  jal       x1, mul_modp
+   bn.modp256 w19, w19, w19
 
   /* w13 <= z^7 = z^(2^3 - 1) = x3 */
-  bn.mov    w24, w19
-  bn.mov    w25, w10
-  jal       x1, mul_modp
+  bn.modp256 w19, w19, w10
   bn.mov    w13, w19
 
   /* w14 <= z^(2^6 - 1) = x6 */
-  bn.mov    w24, w19
-  loopi     3, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w13
-  jal       x1, mul_modp
+  loopi     3, 1
+    bn.modp256 w19, w19, w19      
+  bn.modp256 w19, w19, w13        
   bn.mov    w14, w19
 
   /* w15 <= z^(2^12 - 1) = x12 */
-  bn.mov    w24, w19
-  loopi     6, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w14
-  jal       x1, mul_modp
+  loopi     6, 1
+    bn.modp256 w19, w19, w19  
+  bn.modp256 w19, w19, w14    
   bn.mov    w15, w19
 
   /* w16 <= z^(2^15 - 1) = x15 */
-  bn.mov    w24, w19
-  loopi     3, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w13
-  jal       x1, mul_modp
+  loopi     3, 1
+    bn.modp256 w19, w19, w19  
+  bn.modp256 w19, w19, w13  
   bn.mov    w16, w19
 
   /* w17 <= z^(2^30 - 1) = x30 */
-  bn.mov    w24, w19
-  loopi     15, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w16
-  jal       x1, mul_modp
+  loopi     15, 1
+    bn.modp256 w19, w19, w19  
+  bn.modp256 w19, w19, w16  
   bn.mov    w17, w19
 
   /* w18 <= z^(2^32 - 1) = x32 */
-  bn.mov    w24, w19
-  loopi     2, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w12
-  jal       x1, mul_modp
+  loopi     2, 1
+    bn.modp256 w19, w19, w19 
+  bn.modp256 w19, w19, w12 
   bn.mov    w18, w19
 
   /* w19 <= z^(2^64 - 2^32 + 1) */
-  bn.mov    w24, w19
-  loopi     32, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w10
-  jal       x1, mul_modp
+  loopi     32, 1
+    bn.modp256 w19, w19, w19 
+  bn.modp256 w19, w19, w10 
 
   /* w19 <= z^(2^192 - 2^160 + 2^128 + 2^32 - 1) */
-  bn.mov    w24, w19
-  loopi     128, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w18
-  jal       x1, mul_modp
+  loopi     128, 1
+    bn.modp256 w19, w19, w19 
+  bn.modp256 w19, w19, w18 
 
   /* w19 <= z^(2^224 - 2^192 + 2^160 + 2^64 + 1) */
-  bn.mov    w24, w19
-  loopi     32, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w18
-  jal       x1, mul_modp
+  loopi     32, 1
+    bn.modp256 w19, w19, w19 
+  bn.modp256 w19, w19, w18 
 
   /* w19 <= z^(2^254 - 2^222 + 2^190 + 2^94 - 1) */
-  bn.mov    w24, w19
-  loopi     30, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w17
-  jal       x1, mul_modp
+  loopi     30, 1
+    bn.modp256 w19, w19, w19 
+  bn.modp256 w19, w19, w17
 
   /* w14 <= z^(2^256 - 2^224 + 2^192 + 2^96 - 2^2 + 1) = z^(p-2) */
-  bn.mov    w24, w19
-  loopi     2, 3
-    bn.mov    w25, w19
-    jal       x1, mul_modp
-    bn.mov    w24, w19
-  bn.mov    w25, w10
-  jal       x1, mul_modp
+  loopi     2, 1
+    bn.modp256 w19, w19, w19 
+  bn.modp256 w19, w19, w10
   bn.mov    w14, w19
 
   /* convert x-coordinate to affine
      w11 = x_a = x/z = x * z^(-1) = w8 * w14 */
-  bn.mov    w24, w8
-  bn.mov    w25, w14
-  jal       x1, mul_modp
+  bn.modp256 w19, w8, w14
   bn.mov    w11, w19
 
   /* convert y-coordinate to affine
      w12 = y_a = y/z = y * z^(-1) = w9 * w14 */
-  bn.mov    w24, w9
-  bn.mov    w25, w14
-  jal       x1, mul_modp
+  bn.modp256 w19, w9, w14
   bn.mov    w12, w19
 
   ret

@@ -5,16 +5,19 @@ package(default_visibility = ["//visibility:public"])
 otbn_library(
     name = "p256_base_lib",
     srcs = ["p256_base.s"],
+    copts = ["--bnmulv_version_id=2"],
 )
 
 otbn_library(
     name = "p256_isoncurve_proj_lib",
     srcs = ["p256_isoncurve_proj.s"],
+    copts = ["--bnmulv_version_id=2"],
 )
 
 otbn_library(
     name = "p256_shared_key_lib",
     srcs = ["p256_shared_key.s"],
+    copts = ["--bnmulv_version_id=2"],
 )
 
 otbn_binary(

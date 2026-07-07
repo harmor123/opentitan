@@ -55,9 +55,7 @@ p256_isoncurve_proj:
   bn.lid    x2, 0(x3)
 
   /* w19 <= z^2 = w26*w26 */
-  bn.mov    w25, w26
-  bn.mov    w24, w26
-  jal       x1, mul_modp
+  bn.modp256 w19, w26, w26
 
   /* for curve P-256, 'a' can be written as a = -3, therefore we subtract
      z^2 three times from 0.
@@ -67,14 +65,10 @@ p256_isoncurve_proj:
   bn.subm   w18, w18, w19
 
   /* w19 <= bz^2 = w27*w19 */
-  bn.mov    w25, w27
-  bn.mov    w24, w19
-  jal       x1, mul_modp
+  bn.modp256 w19, w19, w27
 
   /* w19 <= bz^3 = w26*w19 */
-  bn.mov    w25, w26
-  bn.mov    w24, w19
-  jal       x1, mul_modp
+  bn.modp256 w19, w19, w26
 
   /* Move the modified b back into w27. */
   bn.mov    w27, w19
@@ -86,22 +80,16 @@ p256_isoncurve_proj:
   bn.lid    x2, 0(x3)
 
   /* w19 <= axz^2 = w26*w18 */
-  bn.mov    w25, w26
-  bn.mov    w24, w18
-  jal       x1, mul_modp
+  bn.modp256 w19, w18, w26
 
   /* Move the modified axz^2 into w18. */
   bn.mov    w18, w19
 
   /* w19 <= x^2 = w26*w26 */
-  bn.mov    w25, w26
-  bn.mov    w24, w26
-  jal       x1, mul_modp
+  bn.modp256 w19, w26, w26
 
   /* w19 = x^3 <= x^2 * x = w25*w24 = w26*w19 */
-  bn.mov    w25, w19
-  bn.mov    w24, w26
-  jal       x1, mul_modp
+  bn.modp256 w19, w26, w19
 
   /* w18 <= x^3 + axz^2 mod p = w19 + w18 mod p */
   bn.addm   w18, w19, w18
@@ -116,8 +104,7 @@ p256_isoncurve_proj:
   bn.lid    x2, 0(x3)
 
   /* w19 <= w24*w24 mod p = y^2 mod p */
-  bn.mov    w25, w24
-  jal       x1, mul_modp
+  bn.modp256 w19, w24, w24
 
   /* load projective z-coordinate of curve point from dmem
      w26 <= dmem[z] */
@@ -126,7 +113,6 @@ p256_isoncurve_proj:
   bn.lid    x2, 0(x3)
 
   /* w19 <= w26*w19 mod p = zy^2 mod p */
-  bn.mov    w25, w19
-  jal       x1, mul_modp
+  bn.modp256 w19, w24, w19
 
   ret

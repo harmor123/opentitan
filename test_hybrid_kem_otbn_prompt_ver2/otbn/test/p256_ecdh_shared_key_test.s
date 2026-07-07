@@ -41,6 +41,12 @@ p256_ecdh_shared_key_test:
        w11 <= x0 ^ x1 = x */
   bn.xor    w11, w11, w12
 
+  /* Store the unmasked x-coordinate for dexp verification.
+     TODO: remove after Phase 1 verification. */
+  la        x16, shared_key_x
+  li        x17, 11
+  bn.sid    x17, 0(x16)
+
   ecall
 
 
@@ -97,10 +103,16 @@ y:
   .word 0xfe1a7f9b
   .word 0x4fe342e2
 
+/* Unmasked shared key x-coordinate (x0 ^ x1). */
+.globl shared_key_x
+.balign 32
+shared_key_x:
+  .zero 32
+
 /* Public key z-coordinate. */
 .globl z
 .balign 32
-z: /* 仿射点 z 坐标（用不上，预留） */
+z:
   .zero 32
 
 /* affine x-coordinate value before A2B */
