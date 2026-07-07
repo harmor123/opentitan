@@ -84,7 +84,6 @@ targets:
           - '--trace-params'
           - '--trace-max-array 1024'
           - 'bnmulv_ver2 ? (-DTOWARDS_BASE)'
-          - 'bnmulv_ver2 ? (-DTOWARDS_ADDER)'
           - 'bnmulv_ver2 ? (-DBNMULV -DBNMULV_ACCH)'
           - 'bnmulv_ver2 ? (-CFLAGS "-DBNMULV_VER=2")'
           - '-CFLAGS "-std=c++17 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=otbn_top_sim"'
