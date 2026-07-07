@@ -217,22 +217,13 @@ proj_add:
      X3 = x_r; Y3 = y_r; Z3 = z_r */
 
   /* 1: w14 = t0 <= X1*X2 = w11*w8 */
-  bn.mov    w24, w11
-  bn.mov    w25, w8
-  jal       x1, mul_modp
-  bn.mov    w14, w19
+  bn.modp256 w14, w11, w8
 
   /* 2: w15 = t1 <= Y1*Y2 = w12*w9 */
-  bn.mov    w24, w12
-  bn.mov    w25, w9
-  jal       x1, mul_modp
-  bn.mov    w15, w19
+  bn.modp256 w15, w12, w9
 
   /* 3: w16 = t2 <= Z1*Z2 = w13*w10*/
-  bn.mov    w24, w13
-  bn.mov    w25, w10
-  jal       x1, mul_modp
-  bn.mov    w16, w19
+  bn.modp256 w16, w13, w10
 
   /* 5: w17 = t4 <= X2+Y2 = w11 + w12 */
   bn.addm   w17, w11, w12
@@ -241,9 +232,7 @@ proj_add:
   bn.addm   w18, w8, w9
 
   /* 6: w19 = t3 <= t3*t4 = w18*w17 */
-  bn.mov    w24, w17
-  bn.mov    w25, w18
-  jal       x1, mul_modp
+  bn.modp256 w19, w17, w18
 
   /* 7: w18 = t4 <= t0+t1 = w14+w15 */
   bn.addm   w18, w14, w15
@@ -258,10 +247,7 @@ proj_add:
   bn.addm   w19, w9, w10
 
   /* 11: w18 = t4 <= t4 * X3 = w19 * w18 */
-  bn.mov    w24, w18
-  bn.mov    w25, w19
-  jal       x1, mul_modp
-  bn.mov    w18, w19
+  bn.modp256 w18, w18, w19
 
   /* 12: w19 = X3 <= t1 + t2 = w15 + w16 */
   bn.addm   w19, w15, w16
@@ -276,10 +262,7 @@ proj_add:
   bn.addm   w12, w8, w10
 
   /* 16: w11 = X3 <= X3 * Y3 = w12 * w19 */
-  bn.mov    w24, w19
-  bn.mov    w25, w12
-  jal       x1, mul_modp
-  bn.mov    w11, w19
+  bn.modp256 w11, w19, w12
 
   /* 17: w12 = Y3 <= t0 + t2 = w14 + w16 */
   bn.addm   w12, w14, w16
@@ -288,9 +271,7 @@ proj_add:
   bn.subm   w12, w11, w12
 
   /* 19: w19 = Z3 <= b * t2 =  w27 * w16 */
-  bn.mov    w24, w27
-  bn.mov    w25, w16
-  jal       x1, mul_modp
+  bn.modp256 w19, w27, w16
 
   /* 20: w11 = X3 <= Y3 -Z3 = w12 - w19 */
   bn.subm   w11, w12, w19
@@ -308,9 +289,7 @@ proj_add:
   bn.addm   w11, w15, w11
 
   /* 25: w19 = Y3 <= w27 * w12 = b * Y3 */
-  bn.mov    w24, w27
-  bn.mov    w25, w12
-  jal       x1, mul_modp
+  bn.modp256 w19, w27, w12
 
   /* 26: w15 = t1 <= t2 + t2 = w16 + w16 */
   bn.addm   w15, w16, w16
@@ -340,43 +319,28 @@ proj_add:
   bn.subm   w14, w14, w16
 
   /* 35: w15 = t1 <= t4 * Y3 = w18 * w12 */
-  bn.mov    w24, w18
-  bn.mov    w25, w12
-  jal       x1, mul_modp
-  bn.mov    w15, w19
+  bn.modp256 w15, w18, w12
 
   /* 36: w16 = t2 <= t0 * Y3 = w14 * w12 */
-  bn.mov    w24, w14
-  bn.mov    w25, w12
-  jal       x1, mul_modp
-  bn.mov    w16, w19
+  bn.modp256 w16, w14, w12
 
   /* 37: w12 = Y3 <= X3 * Z3 = w11 * w13 */
-  bn.mov    w24, w11
-  bn.mov    w25, w13
-  jal       x1, mul_modp
+  bn.modp256 w19, w11, w13
 
   /* 38: w12 = Y3 <= Y3 + t2 = w19 + w16 */
   bn.addm   w12, w19, w16
 
   /* 39: w19 = X3 <= t3 * X3 = w17 * w11 */
-  bn.mov    w24, w17
-  bn.mov    w25, w11
-  jal       x1, mul_modp
+  bn.modp256 w19, w17, w11
 
   /* 40: w11 = X3 <= X3 - t1 = w19 - w15 */
   bn.subm   w11, w19, w15
 
   /* 41: w13 = Z3 <= t4 * Z3 = w18 * w13 */
-  bn.mov    w24, w18
-  bn.mov    w25, w13
-  jal       x1, mul_modp
-  bn.mov    w13, w19
+  bn.modp256 w13, w18, w13
 
   /* 42: w19 = t1 <= t3 * t0 = w17 * w14 */
-  bn.mov    w24, w17
-  bn.mov    w25, w14
-  jal       x1, mul_modp
+  bn.modp256 w19, w17, w14
 
   /* 43: w13 = Z3 <= Z3 + t1 = w13 + w19 */
   bn.addm   w13, w13, w19
@@ -499,18 +463,15 @@ proj_to_affine:
   /* w14 <= z^(2^256 - 2^224 + 2^192 + 2^96 - 2^2 + 1) = z^(p-2) */
   loopi     2, 1
     bn.modp256 w19, w19, w19 
-  bn.modp256 w19, w19, w10
-  bn.mov    w14, w19
+  bn.modp256 w14, w19, w10
 
   /* convert x-coordinate to affine
      w11 = x_a = x/z = x * z^(-1) = w8 * w14 */
-  bn.modp256 w19, w8, w14
-  bn.mov    w11, w19
+  bn.modp256 w11, w8, w14
 
   /* convert y-coordinate to affine
      w12 = y_a = y/z = y * z^(-1) = w9 * w14 */
-  bn.modp256 w19, w9, w14
-  bn.mov    w12, w19
+  bn.modp256 w12, w9, w14
 
   ret
 
@@ -563,9 +524,7 @@ fetch_proj_randomize:
 
   /* scale x-coordinate
      w14 = x <= w24*w16 = x_a*z  mod p */
-  bn.mov    w25, w16
-  jal       x1, mul_modp
-  bn.mov    w14, w19
+  bn.modp256 w14, w24, w16
 
   /* fetch y-coordinate from dmem
      w24 = y_a <= dmem[x22] = dmem[dptr_y] */
@@ -573,9 +532,7 @@ fetch_proj_randomize:
 
   /* scale y-coordinate
      w15 = y <= w24*w16 = y_a*z  mod p */
-  bn.mov    w25, w16
-  jal       x1, mul_modp
-  bn.mov    w15, w19
+  bn.modp256 w15, w24, w16
 
   ret
 
@@ -630,60 +587,39 @@ proj_double:
   /* w14 <= 3 * (w8 - w10) * (w8 + w10) = 3 * (X1 - Z1) * (X1 + Z1) = w */
   bn.subm   w24, w8, w10
   bn.addm   w25, w8, w10
-  jal       x1, mul_modp
+  bn.modp256 w19, w24, w25
   bn.addm   w14, w19, w19
   bn.addm   w14, w14, w19
 
   /* w15 <= 2 * w9 * w10 = 2 * Y1 * Z1 = s */
-  bn.mov    w24, w9
-  bn.mov    w25, w10
-  jal       x1, mul_modp
+  bn.modp256 w19, w9, w10
   bn.addm   w15, w19, w19
 
   /* w16 <= w9 * w15 = Y1 * s = R */
-  bn.mov    w24, w9
-  bn.mov    w25, w15
-  jal       x1, mul_modp
-  bn.mov    w16, w19
+  bn.modp256 w16, w9, w15
 
   /* w17 <= 2 * w8 * w16 = 2 * X1 * R = B */
-  bn.mov    w24, w8
-  bn.mov    w25, w16
-  jal       x1, mul_modp
+  bn.modp256 w19, w8, w16
   bn.addm   w17, w19, w19
 
   /* w18 <= w14^2 - 2*w17 = w^2 - 2*B = h */
-  bn.mov    w24, w14
-  bn.mov    w25, w14
-  jal       x1, mul_modp
+  bn.modp256 w19, w14, w14
   bn.subm   w18, w19, w17
   bn.subm   w18, w18, w17
 
   /* w8 <= w18 * w15 = h * s = X1 */
-  bn.mov    w24, w18
-  bn.mov    w25, w15
-  jal       x1, mul_modp
-  bn.mov    w8, w19
+  bn.modp256 w8, w18, w15
 
   /* w10 <= w15 * w15 * w15 = s * s * s = sss  = Z1 */
-  bn.mov    w24, w15
-  bn.mov    w25, w15
-  jal       x1, mul_modp
-  bn.mov    w24, w19
-  bn.mov    w25, w15
-  jal       x1, mul_modp
-  bn.mov    w10, w19
+  bn.modp256 w19, w15, w15
+  bn.modp256 w10, w19, w15
 
   /* w15 <= w14 * (w17 - w18) = w*(B-h) */
-  bn.mov    w24, w14
   bn.subm   w25, w17, w18
-  jal       x1, mul_modp
-  bn.mov    w15, w19
+  bn.modp256 w15, w14, w25
 
   /* w15 <= w15 - 2 * (w16 * w16) = w*(B-h) - 2*R^2 = Y1 */
-  bn.mov    w24, w16
-  bn.mov    w25, w16
-  jal       x1, mul_modp
+  bn.modp256 w19, w16, w16
   bn.subm   w15, w15, w19
   bn.subm   w15, w15, w19
 
@@ -813,7 +749,7 @@ scalar_mult_int:
   bn.rshi   w2,  w2,  w20 >> 65
 
   /* double-and-add loop with decreasing index */
-  loopi     321, 63
+  loopi     321, 54
 
     /* double point Q
        Q = (w8, w9, w10) <= 2*(w8, w9, w10) = 2*Q */
@@ -945,22 +881,13 @@ scalar_mult_int:
     bn.rshi   w0, w0, w7 >> 255
 
     /* w4 = w4 * w7 */
-    bn.mov    w24, w4
-    bn.mov    w25, w7
-    jal       x1, mul_modp
-    bn.mov    w4, w19
+    bn.modp256 w4, w4, w7
 
     /* w5 = w5 * w7 */
-    bn.mov    w24, w5
-    bn.mov    w25, w7
-    jal       x1, mul_modp
-    bn.mov    w5, w19
+    bn.modp256 w5, w5, w7
 
     /* w6 = w6 * w7 */
-    bn.mov    w24, w6
-    bn.mov    w25, w7
-    jal       x1, mul_modp
-    bn.mov    w6, w19
+    bn.modp256 w6, w6, w7
 
     /* Shift k1 left 1 bit. */
     bn.rshi   w3, w3, w2 >> 255
@@ -1176,60 +1103,3 @@ p256_gy:
   .word 0xfe1a7f9b
   .word 0x4fe342e2
 
-.section .bss
-
-/* random scalar k (in two 320b shares) */
-.balign 32
-.weak k0
-k0:
-  .zero 64
-.balign 32
-.weak k1
-k1:
-  .zero 64
-
-/* message digest */
-.balign 32
-.weak msg
-msg:
-  .zero 32
-
-/* signature R */
-.balign 32
-.weak r
-r:
-  .zero 32
-
-/* signature S */
-.balign 32
-.weak s
-s:
-  .zero 32
-
-/* public key x-coordinate */
-.balign 32
-.weak x
-x:
-  .zero 32
-
-/* public key y-coordinate */
-.balign 32
-.weak y
-y:
-  .zero 32
-
-/* private key d (in two 320b shares) */
-.balign 32
-.weak d0
-d0:
-  .zero 64
-.balign 32
-.weak d1
-d1:
-  .zero 64
-
-/* verification result x_r (aka x_1) */
-.balign 32
-.weak x_r
-x_r:
-  .zero 32
