@@ -1810,8 +1810,8 @@ class BNMODP256(OTBNInsn):
     """bn.modp256: P-256 modular multiplication (Solinas fast reduction).
 
     wrd = (wrs1 * wrs2) mod P256.  No side effects (no ACC/ACCH/flags).
-    ISS: TERM_ROM, 28 cycles (16 schoolbook + 8 Solinas + 4 cond-reduce).
-    RTL: word-level carry chain, 26 cycles (16+8+2).
+    RTL: 26 cycles (16 SB + 8 Solinas + 2 cond-reduce), word-level carry chain.
+    ISS: 25 stall yields + 1 exec return = 26 steps, aligned with RTL.
     RTL reuses: unified_mul(MODE_64) + buffer_bit ×2 + ACC/ACCH.
     """
     insn = insn_for_mnemonic('bn.modp256', 3)
@@ -1848,8 +1848,12 @@ class BNMODP256(OTBNInsn):
         mask512 = (1 << 512) - 1
         mask64  = (1 << 64) - 1
 
+        # DEBUG: confirm this is the fixed ISS (25 yields + return = 26 steps)
+        with open("/tmp/iss_modp256.log", "w") as f:
+            f.write(f"FIXED_26_STEP wrs1={self.wrs1} wrs2={self.wrs2} wrd={self.wrd}\n")
+
         # ---- Phase 1: Schoolbook multiply (16 cycles) ----
-        # RTL: unified_mul MODE_64 reuses 16×16 DSP array.
+        # RTL: unified_mul MODE_64 reuses 16×16 DSP array. No idle cycle.
         acc = 0
         for i, j in self._SB:
             ai = (a >> (i * 64)) & mask64
@@ -1858,6 +1862,7 @@ class BNMODP256(OTBNInsn):
             yield None
 
         # ---- Phase 2: Solinas reduction (8 cycles, verified TERM_ROM) ----
+        # RTL transitions directly from SB to Solinas (no init cycle).
         # Python signed int handles the full NIST formula correctly.
         # RTL will use word-level carry chain (Phase 2).
         S = (acc >> 256) & mask256
@@ -1890,14 +1895,11 @@ class BNMODP256(OTBNInsn):
         #     yield None
         
         # ---- Phase 3: Conditional reduce (2 cycles, constant-time) ----
-        # Solinas formula guarantees result in (-p, 2p).
-        # Single mod operation, yield 2 cycles for constant-time.
-        # RTL word-level carry chain: final carry → 1 cond sub/add, 2 cycles.
+        # RTL: cycle 24 = cond_add_p (stall), cycle 25 = cond_sub_p + valid (exec).
+        # ISS: yield for cycle 24, return for cycle 25 (operation_valid_raw).
         result = result % self.P256
         yield None
-        yield None
 
-        # ---- Phase 4: Writeback (no side effects) ----
         state.wdrs.get_reg(self.wrd).write_unsigned(result & mask256)
         return None
 

@@ -857,7 +857,7 @@ package otbn_pkg;
     logic        solinas_phase;
     logic [1:0]  op_a_qw_sel;
     logic [1:0]  op_b_qw_sel;
-    logic [2:0]  dshift;
+    logic [8:0]  dshift;
     logic [2:0]  term_idx;
     logic        cond_add_p;
     logic        cond_sub_p;

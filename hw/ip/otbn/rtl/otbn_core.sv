@@ -839,6 +839,32 @@ module otbn_core
 `endif
                                        mai_state_err, kmac_state_err}));
 
+  `ifndef SYNTHESIS
+  always_ff @(posedge clk_i) begin
+    if (mubi4_test_true_loose(controller_fatal_escalate_en) &&
+        mubi4_test_false_strict(escalate_en_i))
+      $display("[CORE] t=%0t ESCALATE predec=%0d modp256_se=%0d mac_se=%0d",
+               $time, predec_error,
+`ifdef MODP256
+               modp256_state_error,
+`else
+               1'b0,
+`endif
+               mac_bignum_state_error);
+    if (predec_error_d)
+      $display("[CORE] t=%0t PREDEC_D alu=%0d mac=%0d ctrl=%0d modp=%0d rf=%0d ispr=%0d rd=%0d",
+               $time,
+               alu_bignum_predec_error, mac_bignum_predec_error,
+               controller_predec_error,
+`ifdef MODP256
+               modp256_predec_error,
+`else
+               1'b0,
+`endif
+               rf_bignum_predec_error, ispr_predec_error, rd_predec_error);
+  end
+  `endif
+
   assign controller_recov_escalate_en =
       mubi4_bool_to_mubi(|{rnd_rep_err, rnd_fips_err});
 

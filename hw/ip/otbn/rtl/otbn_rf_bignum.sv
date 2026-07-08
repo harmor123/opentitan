@@ -135,6 +135,14 @@ module otbn_rf_bignum
 
   assign predec_error_o = rd_en_a_mismatch | rd_en_b_mismatch | wr_en_mismatch;
 
+  `ifndef SYNTHESIS
+  always_ff @(posedge clk_i) begin
+    if (predec_error_o)
+      $display("[RF_BIGNUM] t=%0t predec_err rdA=%0d rdB=%0d wr=%0d",
+               $time, rd_en_a_mismatch, rd_en_b_mismatch, wr_en_mismatch);
+  end
+  `endif
+
   // New data can have its integrity from an external source or the integrity can be calculated here
   assign wr_data_intg_mux_out = wr_data_intg_sel_i ? wr_data_intg_i : wr_data_intg_calc;
 

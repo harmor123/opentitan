@@ -701,6 +701,16 @@ module otbn_controller
   assign recoverable_err_o = recoverable_err | (software_err & ~software_errs_fatal_i);
   assign mems_sec_wipe_o   = (state_d == OtbnStateLocked) & (state_q != OtbnStateLocked);
 
+  `ifndef SYNTHESIS
+  always_ff @(posedge clk_i) begin
+    if (state_d == OtbnStateLocked && state_q != OtbnStateLocked)
+      $display("[CTRL] t=%0t ->LOCKED sw=%0d bad=%0d intg=%0d fatal=%0d esc=%0d",
+               $time, software_err, bad_internal_state_err,
+               reg_intg_violation_err, fatal_err,
+               mubi4_test_true_loose(fatal_escalate_en_i));
+  end
+  `endif
+
   assign internal_err = software_err | internal_fatal_err;
   assign err          = software_err | recoverable_err | fatal_err;
 
@@ -1000,7 +1010,11 @@ module otbn_controller
   // trigger any of the other stall sources (mem_stall, ispr_stall or rf_indirect_stall). The only
   // possible stall reason is the MAC module itself.
   logic rf_bignum_rd_en_stall;
-  assign rf_bignum_rd_en_stall = insn_dec_bignum_i.mac_en ? 1'b0 : stall;
+  assign rf_bignum_rd_en_stall = (insn_dec_bignum_i.mac_en
+`ifdef MODP256
+                                  | insn_dec_bignum_i.modp256_en
+`endif
+                                  ) ? 1'b0 : stall;
 
   assign rf_bignum_rd_addr_a_unbuf = insn_dec_bignum_i.rf_a_indirect ? insn_bignum_rd_addr_a_q :
                                                                        insn_dec_bignum_i.a;

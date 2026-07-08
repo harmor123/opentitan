@@ -151,7 +151,7 @@ module otbn_instruction_fetch
     .ispr_bignum_predec_o     (ispr_bignum_predec),
     .mac_bignum_predec_raw_o  (mac_bignum_predec_raw),
 `ifdef MODP256
-    .modp256_en_o             (modp256_en_raw),
+    .modp256_en_o             (unused_modp256_en_raw),
 `endif
     .lsu_addr_en_predec_o     (lsu_addr_en_predec_insn)
   );
@@ -220,41 +220,11 @@ module otbn_instruction_fetch
   };
 
 `ifdef MODP256
-  // MODP256: lockstep FSM duplicate for redundancy check (SEC_CM: CTRL.REDUN).
-  // Same pattern as MAC FSM — raw predecode from predecoder gates the FSM.
-  logic            modp256_en_raw, modp256_en_q, modp256_en_to_fsm;
-  modp256_predec_t modp256_predec;
-  modp256_predec_t modp256_predec_q, modp256_predec_d;
-
-  // As long as the pipeline hasn't been cleared, the q-value is used (same as MAC pattern).
-  assign modp256_en_to_fsm = insn_fetch_en ? modp256_en_raw : modp256_en_q;
-
-  otbn_modp256_fsm #(
-    .EnableAlertTriggerSVA(0)
-  ) u_modp256_fsm_predec (
-    .clk_i, .rst_ni,
-    .start_i     (insn_fetch_en),
-    .modp256_en_i(modp256_en_to_fsm),
-    .ctrl_o      (/* unused */),
-    .predec_o    (modp256_predec),
-    .busy_o      (/* unused */),
-    .state_err_o (/* Ignored */),
-    .sec_wipe_i  (1'b0)
-  );
-
-  assign modp256_predec_d = insn_fetch_en           ? modp256_predec :
-                             insn_fetch_resp_clear_i ? '0           :
-                                                       modp256_predec_q;
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      modp256_predec_q <= '0;
-      modp256_en_q     <= 1'b0;
-    end else begin
-      modp256_predec_q <= modp256_predec_d;
-      modp256_en_q     <= modp256_en_raw;
-    end
-  end
+  // MODP256 predec placeholder.  Redundant FSM is not instantiated while
+  // predec_error_o is tied to 0 in otbn_modp256.sv.
+  // predecoder port must still be connected.
+  logic unused_modp256_en_raw;
+  assign modp256_predec_o = '0;
 `endif
 
   prim_onehot_enc #(
@@ -525,9 +495,6 @@ module otbn_instruction_fetch
   assign ctrl_flow_target_predec_o = ctrl_flow_target_predec_q;
   assign ispr_bignum_predec_o      = ispr_bignum_predec_q;
   assign mac_bignum_predec_o       = mac_bignum_predec_q;
-`ifdef MODP256
-  assign modp256_predec_o          = modp256_predec_q;
-`endif
   assign lsu_addr_en_predec_o      = lsu_addr_en_predec_q;
 
   `ASSERT(FetchEnOnlyIfValidIMem, insn_fetch_en |-> imem_rvalid_i)

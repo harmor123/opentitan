@@ -41,14 +41,14 @@ module otbn_modp256_fsm
     logic [7:0]  zero_mask;
   } term_t;
   localparam term_t TERM[0:7] = '{
-    '{1,0, 24'h004688, 8'h07},  // {0,0,0,4,3,2,1,0}
-    '{1,0, 24'h003440, 8'h87},  // {0,0,0,3,2,1,0,0}
-    '{0,0, 24'hFA8008, 8'h38},  // {7,6,5,0,0,0,1,0}
-    '{0,0, 24'hD62217, 8'h00},  // {6,5,4,2,1,0,2,7}
-    '{0,1, 24'h8D003D, 8'h38},  // {4,3,2,0,0,0,7,5}
-    '{0,1, 24'h688034, 8'h30},  // {3,2,1,0,0,0,6,4}
-    '{0,1, 24'h447D43, 8'h40},  // {2,1,0,7,6,5,0,3}
-    '{0,1, 24'h206B02, 8'h44}   // {1,0,0,6,5,4,0,2}
+    '{1,0, 24'h053800, 8'h07},  // +2*s1  ISS ls=[0,1,2,3,4,0,0,0]
+    '{1,0, 24'h00A600, 8'h87},  // +2*s2  ISS ls=[0,0,1,2,3,0,0,0]
+    '{0,0, 24'h040177, 8'h38},  // +s3    ISS ls=[0,1,0,0,0,5,6,7]
+    '{0,0, 24'hE8152E, 8'h00},  // +s4    ISS ls=[7,2,0,1,2,4,5,6]
+    '{0,1, 24'hBC009C, 8'h38},  // -d1    ISS ls=[5,7,0,0,0,2,3,4]
+    '{0,1, 24'h980053, 8'h30},  // -d2    ISS ls=[4,6,0,0,0,1,2,3]
+    '{0,1, 24'h62EE0A, 8'h40},  // -d3    ISS ls=[3,0,5,6,7,0,1,2]
+    '{0,1, 24'h425C01, 8'h44}   // -d4    ISS ls=[2,0,4,5,6,0,0,1]
   };
 
   // ===========================================================================
@@ -68,7 +68,7 @@ module otbn_modp256_fsm
       pdec_arr[c].sb_phase      = 1'b1;
       pdec_arr[c].op_a_qw_sel   = SB[c].i;
       pdec_arr[c].op_b_qw_sel   = SB[c].j;
-      pdec_arr[c].dshift        = 3'(SB[c].i + SB[c].j) * 64;
+      pdec_arr[c].dshift        = 9'(SB[c].i + SB[c].j) * 64;
       pdec_arr[c].adder_en      = 1'b1;
       pdec_arr[c].prod_lo_wr    = 1'b1;
       pdec_arr[c].prod_hi_wr    = (SB[c].i + SB[c].j >= 3);
@@ -101,10 +101,7 @@ module otbn_modp256_fsm
     ctrl_arr[25].result_wr_en_raw = 1'b1;
     ctrl_arr[25].adder_en_raw     = 1'b1;
 
-    // URND clear at writeback
-    ctrl_arr[25].prod_lo_clear_en = 1'b1;
-    ctrl_arr[25].prod_hi_clear_en = 1'b1;
-    ctrl_arr[25].result_clear_en  = 1'b1;
+    // Accumulators auto-zero when idle (handled in otbn_modp256.sv datapath)
   end
 
   // ===========================================================================
@@ -133,6 +130,16 @@ module otbn_modp256_fsm
   assign ctrl_o   = ctrl_arr[cycle_q];
   assign predec_o = pdec_arr[cycle_q];
   assign state_err_o = cycle_q >= CYCLE_W'(LATENCY);
+
+  // DEBUG: print every cycle when active to compare with redundant FSM
+  `ifndef SYNTHESIS
+  always_ff @(posedge clk_i) begin
+    if (busy_o || modp256_en_i)
+      $display("[MODP256_FSM] t=%0t cyc=%0d en=%0d busy=%0d pre=%54b",
+               $time, cycle_q, modp256_en_i, busy_o,
+               $bits(predec_o)'(predec_o));
+  end
+  `endif
 
   // ===========================================================================
   // Alert assertion

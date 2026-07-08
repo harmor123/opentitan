@@ -911,6 +911,14 @@ module otbn_predecode
         end
 `endif
 
+`ifdef MODP256
+        InsnOpcodeBignumModp256: begin
+          rf_ren_a_bignum = 1'b1;
+          rf_ren_b_bignum = 1'b1;
+          rf_we_bignum    = 1'b1;
+        end
+`endif
+
         default: ;
       endcase
 
