@@ -12,12 +12,6 @@ main:
 
 .data
 .balign 32
-.global stack
-stack:
-  .zero 4096
-.global stack_end
-stack_end:
-.balign 32
 .globl poly_a
 poly_a:
   .zero 1024
@@ -36,3 +30,12 @@ modulus:
 .globl twiddles_ntt
 twiddles_ntt:
   .zero 2048
+
+.balign 32
+/* Local weak stack_end for standalone OTBN microbench. */
+.section .data
+.balign 32
+.zero 4096
+.weak stack_end
+stack_end:
+

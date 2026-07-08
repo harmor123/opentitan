@@ -1,19 +1,1 @@
 label,status,reason,next_action
-P256_FIELD_MUL_REDUCE,missing,standalone OTBN microbenchmark not implemented,create bench_p256_field_mul with fixed public test inputs
-P256_FIELD_SQR,missing,standalone OTBN microbenchmark not implemented,create bench_p256_field_sqr with fixed public test inputs
-P256_FIELD_ADD,missing,standalone OTBN microbenchmark not implemented,create bench_p256_field_add with fixed public test inputs
-P256_FIELD_SUB,missing,standalone OTBN microbenchmark not implemented,create bench_p256_field_sub with fixed public test inputs
-P256_FIELD_INV,missing,standalone OTBN microbenchmark not implemented,create bench_p256_field_inv with fixed public test inputs
-P256_POINT_DOUBLE,missing,standalone OTBN microbenchmark not implemented,create bench_p256_point_double with fixed public test inputs
-P256_POINT_ADD_MIXED,missing,standalone OTBN microbenchmark not implemented,create bench_p256_point_add_mixed with fixed public test inputs
-P256_POINT_SELECT_CMOV,missing,standalone OTBN microbenchmark not implemented,create bench_p256_point_select_cmov with fixed public test inputs
-MLKEM_NTT,missing,standalone OTBN microbenchmark not implemented,create bench_mlkem_ntt with fixed public test inputs
-MLKEM_INTT,missing,standalone OTBN microbenchmark not implemented,create bench_mlkem_intt with fixed public test inputs
-MLKEM_BASEMUL,missing,standalone OTBN microbenchmark not implemented,create bench_mlkem_basemul with fixed public test inputs
-MLKEM_COEFF_REDUCE,missing,standalone OTBN microbenchmark not implemented,create bench_mlkem_reduce with fixed public test inputs
-MLKEM_POLY_ADD,missing,standalone OTBN microbenchmark not implemented,create bench_mlkem_poly_add with fixed public test inputs
-MLKEM_POLY_SUB,missing,standalone OTBN microbenchmark not implemented,create bench_mlkem_poly_sub with fixed public test inputs
-KECCAK_F1600,missing,standalone OTBN microbenchmark not implemented,create bench_keccak_f1600 with fixed public test inputs
-KECCAK_ABSORB,missing,standalone OTBN microbenchmark not implemented,create bench_sha3_absorb with fixed public test inputs
-KECCAK_SQUEEZE,missing,standalone OTBN microbenchmark not implemented,create bench_sha3_squeeze with fixed public test inputs
-HKDF_EXTRACT_EXPAND,missing,standalone OTBN microbenchmark not implemented,create bench_hkdf_extract_expand with fixed public test inputs

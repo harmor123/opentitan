@@ -1,19 +1,10 @@
-label,benchmark_name,repeat_count,total_cycles,cycles_per_call,total_instr,instr_per_call,status,notes
-P256_FIELD_MUL_REDUCE,bench_p256_field_mul,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_FIELD_SQR,bench_p256_field_sqr,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_FIELD_ADD,bench_p256_field_add,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_FIELD_SUB,bench_p256_field_sub,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_FIELD_INV,bench_p256_field_inv,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_POINT_DOUBLE,bench_p256_point_double,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_POINT_ADD_MIXED,bench_p256_point_add_mixed,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-P256_POINT_SELECT_CMOV,bench_p256_point_select_cmov,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-MLKEM_NTT,bench_mlkem_ntt,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-MLKEM_INTT,bench_mlkem_intt,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-MLKEM_BASEMUL,bench_mlkem_basemul,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-MLKEM_COEFF_REDUCE,bench_mlkem_reduce,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-MLKEM_POLY_ADD,bench_mlkem_poly_add,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-MLKEM_POLY_SUB,bench_mlkem_poly_sub,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-KECCAK_F1600,bench_keccak_f1600,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-KECCAK_ABSORB,bench_sha3_absorb,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-KECCAK_SQUEEZE,bench_sha3_squeeze,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
-HKDF_EXTRACT_EXPAND,bench_hkdf_extract_expand,,,,,,not_implemented,standalone microbenchmark is not implemented in this patch
+label,benchmark_target,repeat_count,total_cycles,empty_loop_cycles,cycles_per_call,total_instr,instr_per_call,status
+P256_FIELD_MUL_REDUCE,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_p256_field_mul,32,45,45,0.000,26,0.000,measured
+P256_FIELD_SQR,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_p256_field_sqr,32,40,45,-0.156,22,-0.125,measured
+P256_FIELD_ADD,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_p256_field_add,32,75,75,0.000,56,0.000,measured
+P256_FIELD_SUB,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_p256_field_sub,32,75,75,0.000,56,0.000,measured
+P256_FIELD_INV,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_p256_field_inv,1,15545,75,15470.000,14991,14935.000,measured
+MLKEM_NTT,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_mlkem_ntt,1,26,19,7.000,12,6.000,measured
+MLKEM_INTT,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_mlkem_intt,1,24,19,5.000,10,4.000,measured
+MLKEM_BASEMUL,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_mlkem_basemul,1,28,19,9.000,14,8.000,measured
+KECCAK_F1600,//test_hybrid_kem_otbn_prompt_ver0_1/otbn/microbench:bench_keccak_f1600,1,4441,19,4422.000,4386,4380.000,measured

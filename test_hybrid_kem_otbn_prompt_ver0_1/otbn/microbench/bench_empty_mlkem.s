@@ -11,10 +11,11 @@ main:
 mlkem_empty_leaf:
   ret
 
-.data
 .balign 32
-.global stack
-stack:
-  .zero 4096
-.global stack_end
+/* Local weak stack_end for standalone OTBN microbench. */
+.section .data
+.balign 32
+.zero 4096
+.weak stack_end
 stack_end:
+
