@@ -249,6 +249,9 @@ package otbn_pkg;
 `ifdef BNMULV
     ,InsnOpcodeBignumMulv     = 7'h4B
 `endif
+`ifdef MODP256
+    ,InsnOpcodeBignumModp256   = 7'h1B
+`endif
 `ifdef TOWARDS_BASE
     ,InsnOpcodeBignumTrn      = 7'h5F
     ,InsnOpcodeBignumShiftv   = 7'h7F
@@ -427,6 +430,9 @@ package otbn_pkg;
     RfWdSelIspr,
     RfWdSelIncr,
     RfWdSelMac,
+`ifdef MODP256
+    RfWdSelModp256,
+`endif
     RfWdSelMovSel
   } rf_wd_sel_e;
 
@@ -670,6 +676,12 @@ package otbn_pkg;
     logic                    rf_ren_b;
 
     logic                    sel_insn;
+`ifdef MODP256
+    logic                    modp256_en;
+    logic [WdrAw-1:0]        modp256_wrd;
+    logic [WdrAw-1:0]        modp256_wrs1;
+    logic [WdrAw-1:0]        modp256_wrs2;
+`endif
   } insn_dec_bignum_t;
 
   typedef struct packed {
@@ -834,6 +846,46 @@ package otbn_pkg;
     logic [1:0]            exec_mode;
 `endif
   } mac_bignum_operation_t;
+
+`ifdef MODP256
+  // ===========================================================================
+  // bn.modp256 — P-256 modular multiplication (Solinas fast reduction)
+  // ===========================================================================
+
+  typedef struct packed {
+    logic        sb_phase;
+    logic        solinas_phase;
+    logic [1:0]  op_a_qw_sel;
+    logic [1:0]  op_b_qw_sel;
+    logic [2:0]  dshift;
+    logic [2:0]  term_idx;
+    logic        cond_add_p;
+    logic        cond_sub_p;
+    logic        adder_en;
+    logic        prod_lo_wr;
+    logic        prod_hi_wr;
+    logic        result_wr;
+    logic        prod_lo_clear;
+    logic        prod_hi_clear;
+    logic        result_clear;
+    logic        operation_valid_raw;
+  } modp256_predec_t;
+
+  typedef struct packed {
+    logic prod_lo_wr_en_raw;
+    logic prod_hi_wr_en_raw;
+    logic prod_lo_clear_en;
+    logic prod_hi_clear_en;
+    logic result_wr_en_raw;
+    logic result_clear_en;
+    logic adder_en_raw;
+  } modp256_contrl_t;
+
+  typedef struct packed {
+    logic [WLEN-1:0] operand_a;
+    logic [WLEN-1:0] operand_b;
+  } modp256_operation_t;
+`endif
 
   // Encoding generated with:
   // $ ./util/design/sparse-fsm-encode.py -d 3 -m 4 -n 5 \

@@ -72,6 +72,9 @@ filesets:
       - rtl/otbn_vec_multiplier.sv
       - rtl/otbn_vec_shifter.sv
       - rtl/otbn_vec_transposer.sv
+      # MODP256: P-256 modular multiplication (enabled by MODP256)
+      - rtl/otbn_modp256.sv
+      - rtl/otbn_modp256_fsm.sv
     file_type: systemVerilogSource
 
   files_rtl_top:
@@ -122,6 +125,9 @@ parameters:
     datatype: bool
     paramtype: vlogdefine
   TOWARDS_BASE:
+    datatype: bool
+    paramtype: vlogdefine
+  MODP256:
     datatype: bool
     paramtype: vlogdefine
   MAC_ADDER:
@@ -181,3 +187,4 @@ targets:
       - ALU_ADDER
       - bnmulv_ver2 ? (BNMULV=true)
       - bnmulv_ver2 ? (BNMULV_ACCH=true)
+      - modp256 ? (MODP256=true)

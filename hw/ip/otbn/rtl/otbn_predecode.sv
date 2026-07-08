@@ -22,6 +22,9 @@ module otbn_predecode
   output alu_bignum_predec_t       alu_bignum_predec_o,
   output ispr_bignum_predec_t      ispr_bignum_predec_o,
   output mac_bignum_predec_t       mac_bignum_predec_raw_o,
+`ifdef MODP256
+  output logic                     modp256_en_o,
+`endif
   output logic                     lsu_addr_en_predec_o,
   output ctrl_flow_predec_t        ctrl_flow_predec_o,
   output logic [ImemAddrWidth-1:0] ctrl_flow_target_predec_o
@@ -1073,6 +1076,11 @@ module otbn_predecode
   assign mac_bignum_predec_raw_o.mul_merger_en       = '0;
   assign mac_bignum_predec_raw_o.add_res_en          = '0;
   assign mac_bignum_predec_raw_o.operation_valid_raw = '0;
+
+`ifdef MODP256
+  // modp256_en: opcode 0x1B = {5'b00110, 2'b11}
+  assign modp256_en_o = (imem_rdata_i[6:2] == 5'b00110) && (imem_rdata_i[1:0] == 2'b11);
+`endif
 `ifdef BNMULV
   assign mac_bignum_predec_raw_o.mulv                = mac_bignum_mulv;
 `endif

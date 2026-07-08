@@ -84,6 +84,10 @@ parameters:
     datatype: bool
     paramtype: vlogdefine
     description: "Enable OTBN BNMULV ACCH"
+  MODP256:
+    datatype: bool
+    paramtype: vlogdefine
+    description: "Enable OTBN P-256 modular multiplication instruction"
 
 targets:
   default: &default_target
@@ -104,6 +108,7 @@ targets:
       - bnmulv_ver2 ? (TOWARDS_BASE=true)
       - bnmulv_ver2 ? (BNMULV=true)
       - bnmulv_ver2 ? (BNMULV_ACCH=true)
+      - modp256 ? (MODP256=true)
     default_tool: verilator
     filesets:
       - files_sim_verilator

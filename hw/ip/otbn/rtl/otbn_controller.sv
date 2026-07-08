@@ -112,6 +112,16 @@ module otbn_controller
   output logic                  mac_bignum_en_o,
   output logic                  mac_bignum_commit_o,
 
+`ifdef MODP256
+  // MODP256: P-256 modular multiplication
+  input  logic                  modp256_valid_i,
+  input  logic [WLEN-1:0]       modp256_result_i,
+  output logic                  modp256_en_o,
+  output logic                  modp256_commit_o,
+  output logic [WLEN-1:0]       modp256_wrs1_o,
+  output logic [WLEN-1:0]       modp256_wrs2_o,
+`endif
+
   // LSU
   output logic                     lsu_load_req_o,
   output logic                     lsu_store_req_o,
@@ -209,6 +219,9 @@ module otbn_controller
   logic mem_stall;
   logic rf_indirect_stall;
   logic mac_bignum_stall;
+`ifdef MODP256
+  logic modp256_stall;
+`endif
   logic jump_or_branch;
   logic branch_taken;
   logic insn_executing;
@@ -387,7 +400,17 @@ module otbn_controller
                             (insn_dec_shared_i.subset == InsnSubsetBignum) &
                             insn_dec_bignum_i.mac_en &
                             (~mac_bignum_operation_valid_i);
-  assign stall = mem_stall | ispr_stall | rf_indirect_stall | mac_bignum_stall;
+`ifdef MODP256
+  assign modp256_stall = insn_valid_i &
+                         (insn_dec_shared_i.subset == InsnSubsetBignum) &
+                         insn_dec_bignum_i.modp256_en &
+                         (~modp256_valid_i);
+`endif
+  assign stall = mem_stall | ispr_stall | rf_indirect_stall | mac_bignum_stall
+`ifdef MODP256
+                 | modp256_stall
+`endif
+                 ;
 
   // OTBN is done when it was executing something (in state OtbnStateRun or OtbnStateStall)
   // and either it executes an ecall or an error occurs. A pulse on the done signal raises the
@@ -1106,6 +1129,25 @@ module otbn_controller
     ~(insn_valid_i & insn_dec_bignum_i.sel_insn) |-> rf_bignum_rd_data_b_intg_blanked == '0,
     clk_i, !rst_ni || ctrl_predec_error || !insn_executing)
 
+`ifdef MODP256
+  // =========================================================================
+  // MODP256: bn.modp256 — P-256 modular multiplication
+  // =========================================================================
+  assign modp256_en_o   = insn_dec_bignum_i.modp256_en;
+  assign modp256_commit_o = insn_valid_i;
+  assign modp256_wrs1_o = rf_bignum_rd_data_a_no_intg;
+  assign modp256_wrs2_o = rf_bignum_rd_data_b_no_intg;
+
+  always_ff @(posedge clk_i) begin
+    if (insn_dec_bignum_i.modp256_en)
+      $display("[MODP256_CTRL] t=%0t EN=1 valid=%0d wrs1=%08x wrs2=%08x stall=%0d",
+               $time, insn_valid_i, rf_bignum_rd_data_a_no_intg[31:0],
+               rf_bignum_rd_data_b_no_intg[31:0], modp256_stall);
+    if (modp256_valid_i)
+      $display("[MODP256_CTRL] t=%0t VALID result=%08x", $time, modp256_result_i[31:0]);
+  end
+`endif
+
   assign selection_result =
     ~ctrl_flow_predec_i.sel_insn | alu_bignum_selection_flag_i ? rf_bignum_rd_data_a_intg_i :
                                                                  rf_bignum_rd_data_b_intg_blanked;
@@ -1238,6 +1280,11 @@ module otbn_controller
       RfWdSelMac: begin
         rf_bignum_wr_data_no_intg_o  = mac_bignum_rf_wr_data;
       end
+`ifdef MODP256
+      RfWdSelModp256: begin
+        rf_bignum_wr_data_no_intg_o  = modp256_result_i;
+      end
+`endif
       RfWdSelIspr: begin
         rf_bignum_wr_data_intg_sel_o = 1'b1;
         rf_bignum_wr_data_intg_o     = ispr_rdata_intg_i;

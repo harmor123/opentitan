@@ -228,6 +228,22 @@ module otbn_core
   logic                  mac_bignum_sec_wipe_err;
   logic                  mac_bignum_urnd_used;
 
+`ifdef MODP256
+  modp256_predec_t       modp256_predec;
+  logic                  modp256_en;
+  logic                  modp256_commit;
+  logic [WLEN-1:0]       modp256_result;
+  logic                  modp256_valid;
+  logic [1:0]            modp256_mul_wsel_a;
+  logic [1:0]            modp256_mul_wsel_b;
+  logic [WLEN-1:0]       modp256_wrs1;
+  logic [WLEN-1:0]       modp256_wrs2;
+  logic [127:0]          mac_mul_result;
+  logic                  modp256_predec_error;
+  logic                  modp256_urnd_used;
+  logic                  modp256_state_error_d;
+`endif
+
   ispr_e                       ispr_addr;
   logic [31:0]                 ispr_base_wdata;
   logic [BaseWordsPerWLEN-1:0] ispr_base_wr_en;
@@ -365,6 +381,9 @@ module otbn_core
   logic controller_predec_error;
   logic rd_predec_error, predec_error_d, predec_error;
   logic mac_bignum_state_error_d, mac_bignum_state_error;
+`ifdef MODP256
+  logic modp256_state_error;
+`endif
 
   logic mai_software_error;
   logic mai_reg_intg_violation_err;
@@ -465,6 +484,9 @@ module otbn_core
     .ctrl_flow_target_predec_o(ctrl_flow_target_predec),
     .ispr_bignum_predec_o     (ispr_bignum_predec),
     .mac_bignum_predec_o      (mac_bignum_predec),
+`ifdef MODP256
+    .modp256_predec_o         (modp256_predec),
+`endif
     .lsu_addr_en_predec_o     (lsu_addr_en_predec),
 
     .rf_bignum_rd_a_indirect_onehot_i(rf_bignum_rd_a_indirect_onehot),
@@ -514,9 +536,13 @@ module otbn_core
                              ispr_bignum_predec.ispr_rd_en} & ~insn_valid;
 
   assign predec_error_d =
-    ((alu_bignum_predec_error | mac_bignum_predec_error | controller_predec_error) & insn_valid) |
-     rf_bignum_predec_error                                                                      |
-     ispr_predec_error                                                                           |
+    ((alu_bignum_predec_error | mac_bignum_predec_error | controller_predec_error
+`ifdef MODP256
+      | modp256_predec_error
+`endif
+     ) & insn_valid) |
+     rf_bignum_predec_error |
+     ispr_predec_error      |
      rd_predec_error;
 
   assign sec_wipe_err = |{rf_base_wr_sec_wipe_err,
@@ -617,6 +643,14 @@ module otbn_core
     .mac_bignum_operation_valid_i (mac_bignum_operation_valid),
     .mac_bignum_en_o              (mac_bignum_en),
     .mac_bignum_commit_o          (mac_bignum_commit),
+`ifdef MODP256
+    .modp256_valid_i              (modp256_valid),
+    .modp256_result_i             (modp256_result),
+    .modp256_en_o                 (modp256_en),
+    .modp256_commit_o             (modp256_commit),
+    .modp256_wrs1_o               (modp256_wrs1),
+    .modp256_wrs2_o               (modp256_wrs2),
+`endif
 
     // To/from LSU (base and bignum)
     .lsu_load_req_o          (lsu_load_req),
@@ -740,6 +774,9 @@ module otbn_core
       non_controller_reg_intg_violation <= non_controller_reg_intg_violation_d;
       insn_addr_err                     <= insn_addr_err_d;
       mac_bignum_state_error            <= mac_bignum_state_error_d;
+`ifdef MODP256
+      modp256_state_error               <= modp256_state_error_d;
+`endif
     end
   end
 
@@ -753,6 +790,9 @@ module otbn_core
                            insn_addr_err,
                            rf_base_spurious_we_err,
                            mac_bignum_state_error,
+`ifdef MODP256
+                           modp256_state_error,
+`endif
                            mubi_err,
                            mai_state_err,
                            kmac_state_err},
@@ -793,8 +833,11 @@ module otbn_core
                   mubi4_bool_to_mubi(|{start_stop_fatal_error, urnd_all_zero, predec_error,
                                        rf_base_spurious_we_err, lsu_rdata_err,
                                        insn_fetch_err, non_controller_reg_intg_violation,
-                                       insn_addr_err, mac_bignum_state_error, mai_state_err,
-                                       kmac_state_err}));
+                                       insn_addr_err, mac_bignum_state_error,
+`ifdef MODP256
+                                       modp256_state_error,
+`endif
+                                       mai_state_err, kmac_state_err}));
 
   assign controller_recov_escalate_en =
       mubi4_bool_to_mubi(|{rnd_rep_err, rnd_fips_err});
@@ -805,6 +848,9 @@ module otbn_core
                   mubi4_bool_to_mubi(|{urnd_all_zero, rf_base_intg_err, rf_base_spurious_we_err,
                                        predec_error, lsu_rdata_err, insn_fetch_err,
                                        mac_bignum_state_error,
+`ifdef MODP256
+                                       modp256_state_error,
+`endif
                                        controller_fatal_err, insn_addr_err, mai_state_err,
                                        kmac_state_err}));
 
@@ -1103,9 +1149,39 @@ module otbn_core
 `endif
 
     .ispr_mod_intg_i(ispr_mod_intg),
+`ifdef MODP256
+    .modp256_en_i      (modp256_en),
+    .modp256_wrs1_i    (modp256_wrs1),
+    .modp256_wrs2_i    (modp256_wrs2),
+    .modp256_wsel_a_i  (modp256_mul_wsel_a),
+    .modp256_wsel_b_i  (modp256_mul_wsel_b),
+    .mac_mul_result_o  (mac_mul_result),
+`endif
 
     .state_err_o(mac_bignum_state_error_d)
   );
+
+`ifdef MODP256
+  otbn_modp256 u_otbn_modp256 (
+    .clk_i, .rst_ni,
+    .start_i         (modp256_en),
+    .modp256_en_i    (modp256_en),
+    .modp256_commit_i(modp256_commit),
+    .wrs1_i          (modp256_wrs1),
+    .wrs2_i          (modp256_wrs2),
+    .mul_wsel_a_o    (modp256_mul_wsel_a),
+    .mul_wsel_b_o    (modp256_mul_wsel_b),
+    .mac_mul_result_i(mac_mul_result),
+    .result_o        (modp256_result),
+    .valid_o         (modp256_valid),
+    .busy_o          (/* unused */),
+    .predec_i        (modp256_predec),
+    .predec_error_o  (modp256_predec_error),
+    .urnd_i          (urnd_data[WLEN-1:0]),
+    .urnd_used_o     (modp256_urnd_used),
+    .state_err_o     (modp256_state_error_d)
+  );
+`endif
 
   if (FeatStubMai) begin : gen_no_mai
 
@@ -1276,12 +1352,20 @@ module otbn_core
   // from URND (includes the ACC WSR).
   assign urnd_advance = urnd_advance_start_stop_control || req_sec_wipe_urnd_keys_q ||
                         (SecMuteUrnd && (ispr_bignum_predec.ispr_rd_en[IsprUrnd] ||
-                                         mac_bignum_urnd_used));
+                                         mac_bignum_urnd_used
+`ifdef MODP256
+                                         || modp256_urnd_used
+`endif
+                                         ));
 
   // The signal mac_bignum_urnd_used is only used when muting the URND.
   if (!SecMuteUrnd) begin : gen_unused_mac_urnd_used
     logic unused_mac_bignum_urnd_used;
     assign unused_mac_bignum_urnd_used = ^mac_bignum_urnd_used;
+`ifdef MODP256
+    logic unused_modp256_urnd_used;
+    assign unused_modp256_urnd_used = ^modp256_urnd_used;
+`endif
   end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin

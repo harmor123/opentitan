@@ -199,6 +199,9 @@ module otbn_decoder
 
 `ifdef BNMULV
   logic                  mac_mulv_bignum;
+`ifdef MODP256
+  logic                  modp256_en_bignum;
+`endif
   logic                  mac_data_type_bignum;
   logic                  mac_sel_bignum;
   logic                  mac_lane_mode_bignum;
@@ -318,6 +321,12 @@ module otbn_decoder
     mac_lane_word_16:       mac_lane_word_16_bignum,
     mac_exec_mode:          mac_exec_mode_bignum,
 `endif
+`ifdef MODP256
+    modp256_en:             modp256_en_bignum,
+    modp256_wrd:            insn_rd,
+    modp256_wrs1:           insn_rs1,
+    modp256_wrs2:           insn_rs2,
+`endif
     mac_en:                 mac_en_bignum,
     mac_is_vec:             mac_is_vec_bignum,
     mac_is_mod:             mac_is_mod_bignum,
@@ -378,6 +387,9 @@ module otbn_decoder
     mac_is_lane_bignum            = 1'b0;
     mac_elen_bignum               = MacElen64; // Default is regular 64-bit multiplication
     mac_acc_add_en                = 1'b0;
+`ifdef MODP256
+    modp256_en_bignum             = 1'b0;
+`endif
 
 `ifdef BNMULV
     mac_mulv_bignum               = 1'b0;
@@ -815,6 +827,16 @@ module otbn_decoder
           endcase
         end
   `endif
+`ifdef MODP256
+      InsnOpcodeBignumModp256: begin
+        insn_subset         = InsnSubsetBignum;
+        rf_ren_a_bignum     = 1'b1;
+        rf_ren_b_bignum     = 1'b1;
+        rf_wdata_sel_bignum = RfWdSelModp256;
+        rf_we_bignum        = 1'b1;
+        modp256_en_bignum   = 1'b1;
+      end
+`endif
       // Bignum logical/BN.RSHI/LOOP/LOOPI //
       ///////////////////////////////////////
 
@@ -1373,6 +1395,16 @@ module otbn_decoder
           endcase
         end
   `endif
+`ifdef MODP256
+      InsnOpcodeBignumModp256: begin
+        insn_subset         = InsnSubsetBignum;
+        rf_ren_a_bignum     = 1'b1;
+        rf_ren_b_bignum     = 1'b1;
+        rf_wdata_sel_bignum = RfWdSelModp256;
+        rf_we_bignum        = 1'b1;
+        modp256_en_bignum   = 1'b1;
+      end
+`endif
       // Bignum logical/BN.RSHI/LOOP/LOOPI //
       ///////////////////////////////////////
 

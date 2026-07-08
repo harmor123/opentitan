@@ -135,6 +135,16 @@ module otbn_mac_bignum
 
   input  logic [ExtWLEN-1:0] ispr_mod_intg_i,
 
+`ifdef MODP256
+  // Shared unified_mul interface for bn.modp256
+  input  logic                modp256_en_i,
+  input  logic [WLEN-1:0]     modp256_wrs1_i,
+  input  logic [WLEN-1:0]     modp256_wrs2_i,
+  input  logic [1:0]          modp256_wsel_a_i,
+  input  logic [1:0]          modp256_wsel_b_i,
+  output logic [127:0]        mac_mul_result_o,
+`endif
+
   output logic state_err_o
 );
   localparam int unsigned ELEN = QWLEN / 2;
@@ -420,9 +430,21 @@ module otbn_mac_bignum
   logic [WLEN-1:0]   bnmulv_mul_res;
 `endif
   unified_mul u_bnmulv_mul (
-    .word_mode  ({operation_i.mulv, operation_i.data_type}),
-    .word_sel_A (operation_i.op_a_qw_sel_raw),
-    .word_sel_B (operation_i.op_b_elem0_sel_raw[2:1]),
+    .word_mode  (
+`ifdef MODP256
+      modp256_en_i ? 2'b00 :
+`endif
+      {operation_i.mulv, operation_i.data_type}),
+    .word_sel_A (
+`ifdef MODP256
+      modp256_en_i ? modp256_wsel_a_i :
+`endif
+      operation_i.op_a_qw_sel_raw),
+    .word_sel_B (
+`ifdef MODP256
+      modp256_en_i ? modp256_wsel_b_i :
+`endif
+      operation_i.op_b_elem0_sel_raw[2:1]),
 `ifdef BNMULV_ACCH
     .exec_mode  (operation_i.exec_mode),
 `endif
@@ -430,11 +452,27 @@ module otbn_mac_bignum
     .lane_mode  (operation_i.lane_mode),
     .lane_word_32(operation_i.lane_word_32),
     .lane_word_16(operation_i.lane_word_16),
-    .A          (operand_a_blanked),
-    .B          (operand_b_blanked),
-    .data_type_64_shift(operation_i.pre_acc_shift_imm),
+    .A          (
+`ifdef MODP256
+      modp256_en_i ? modp256_wrs1_i :
+`endif
+      operand_a_blanked),
+    .B          (
+`ifdef MODP256
+      modp256_en_i ? modp256_wrs2_i :
+`endif
+      operand_b_blanked),
+    .data_type_64_shift(
+`ifdef MODP256
+      modp256_en_i ? 2'd0 :
+`endif
+      operation_i.pre_acc_shift_imm),
     .result     (bnmulv_mul_res)
   );
+
+`ifdef MODP256
+  assign mac_mul_result_o = bnmulv_mul_res[127:0];
+`endif
 `endif // BNMULV
 
   //////////////////////////////////////////////////////////
