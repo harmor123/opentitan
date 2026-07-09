@@ -73,7 +73,7 @@ module otbn_modp256_fsm
       pdec_arr[c].prod_lo_wr    = 1'b1;
       pdec_arr[c].prod_hi_wr    = (SB[c].i + SB[c].j >= 3);
       ctrl_arr[c].prod_lo_wr_en_raw = 1'b1;
-      ctrl_arr[c].prod_hi_wr_en_raw = (SB[c].i + SB[c].j >= 3);
+      ctrl_arr[c].prod_hi_wr_en_raw = 1'b1;  // always capture carry from lo adder
       ctrl_arr[c].adder_en_raw      = 1'b1;
     end
 

@@ -84,9 +84,9 @@ module otbn_modp256
                $time, u_fsm.cycle_q, fsm_predec.op_a_qw_sel, fsm_predec.op_b_qw_sel,
                product_128[127:32], product_128[31:0]);
     if (busy_o && fsm_predec.prod_hi_wr && fsm_ctrl.prod_hi_wr_en_raw)
-      $display("[MODP256_PHI] t=%0t cyc=%0d wr_en=%0d commit=%0d shifted_hi_lo=%032x",
-               $time, u_fsm.cycle_q, fsm_ctrl.prod_hi_wr_en_raw, modp256_commit_i,
-               shifted_hi[63:0]);
+      $display("[MODP256_PHI] t=%0t cyc=%0d ahi_cin=%0d alo_c15=%0d sh_hi_lo=%032x ahi_res_lo=%032x",
+               $time, u_fsm.cycle_q, alo_cout[15], alo_cout[15],
+               shifted_hi[63:0], ahi_res[63:0]);
   end
   `endif
 
