@@ -701,15 +701,6 @@ module otbn_controller
   assign recoverable_err_o = recoverable_err | (software_err & ~software_errs_fatal_i);
   assign mems_sec_wipe_o   = (state_d == OtbnStateLocked) & (state_q != OtbnStateLocked);
 
-  `ifndef SYNTHESIS
-  always_ff @(posedge clk_i) begin
-    if (state_d == OtbnStateLocked && state_q != OtbnStateLocked)
-      $display("[CTRL] t=%0t ->LOCKED sw=%0d bad=%0d intg=%0d fatal=%0d esc=%0d",
-               $time, software_err, bad_internal_state_err,
-               reg_intg_violation_err, fatal_err,
-               mubi4_test_true_loose(fatal_escalate_en_i));
-  end
-  `endif
 
   assign internal_err = software_err | internal_fatal_err;
   assign err          = software_err | recoverable_err | fatal_err;
@@ -1152,14 +1143,6 @@ module otbn_controller
   assign modp256_wrs1_o = rf_bignum_rd_data_a_no_intg;
   assign modp256_wrs2_o = rf_bignum_rd_data_b_no_intg;
 
-  always_ff @(posedge clk_i) begin
-    if (insn_dec_bignum_i.modp256_en)
-      $display("[MODP256_CTRL] t=%0t EN=1 valid=%0d wrs1=%08x wrs2=%08x stall=%0d",
-               $time, insn_valid_i, rf_bignum_rd_data_a_no_intg[31:0],
-               rf_bignum_rd_data_b_no_intg[31:0], modp256_stall);
-    if (modp256_valid_i)
-      $display("[MODP256_CTRL] t=%0t VALID result=%08x", $time, modp256_result_i[31:0]);
-  end
 `endif
 
   assign selection_result =

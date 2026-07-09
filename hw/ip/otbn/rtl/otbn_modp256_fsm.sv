@@ -131,15 +131,6 @@ module otbn_modp256_fsm
   assign predec_o = pdec_arr[cycle_q];
   assign state_err_o = cycle_q >= CYCLE_W'(LATENCY);
 
-  // DEBUG: print every cycle when active to compare with redundant FSM
-  `ifndef SYNTHESIS
-  always_ff @(posedge clk_i) begin
-    if (busy_o || modp256_en_i)
-      $display("[MODP256_FSM] t=%0t cyc=%0d en=%0d busy=%0d pre=%54b",
-               $time, cycle_q, modp256_en_i, busy_o,
-               $bits(predec_o)'(predec_o));
-  end
-  `endif
 
   // ===========================================================================
   // Alert assertion

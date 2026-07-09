@@ -76,6 +76,6 @@ Received $finish() from Verilog, shutting down simulation.
 Simulation statistics
 =====================
 Executed cycles:  825
-Wallclock time:   1.159 s
-Simulation speed: 711.821 cycles/s (0.711821 kHz)
-Trace file size:  854434 B
+Wallclock time:   1.346 s
+Simulation speed: 612.927 cycles/s (0.612927 kHz)
+Trace file size:  854005 B

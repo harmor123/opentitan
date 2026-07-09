@@ -28,4 +28,5 @@ otbn_binary(
         "p256_isoncurve_proj.s",
         "p256_shared_key.s",
     ],
+    copts = ["--bnmulv_version_id=2"],
 )

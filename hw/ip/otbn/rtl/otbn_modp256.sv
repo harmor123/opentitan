@@ -54,15 +54,6 @@ module otbn_modp256
   // SEC_CM: CTRL.REDUN — disabled until redundant FSM is fixed.
   assign predec_error_o = 1'b0;
 
-  // DEBUG: print every predec mismatch with full values
-  `ifndef SYNTHESIS
-  always_ff @(posedge clk_i) begin
-    if (predec_error_o)
-      $display("[MODP256_PREDEC] t=%0t MIS fsm=%54b\n                                    pre=%54b",
-               $time, $bits(fsm_predec)'(fsm_predec), $bits(predec_i)'(predec_i));
-  end
-  `endif
-
   assign urnd_used_o = fsm_ctrl.prod_lo_clear_en || fsm_ctrl.prod_hi_clear_en ||
                        fsm_ctrl.result_clear_en;
 
@@ -76,19 +67,6 @@ module otbn_modp256
   assign product_128  = mac_mul_result_i;
   assign mul_wsel_a_o = fsm_predec.op_a_qw_sel;
   assign mul_wsel_b_o = fsm_predec.op_b_qw_sel;
-
-  `ifndef SYNTHESIS
-  always_ff @(posedge clk_i) begin
-    if (busy_o && fsm_predec.sb_phase)
-      $display("[MODP256_MUL] t=%0t cyc=%0d sel=(%0d,%0d) prod=%032x_%032x",
-               $time, u_fsm.cycle_q, fsm_predec.op_a_qw_sel, fsm_predec.op_b_qw_sel,
-               product_128[127:32], product_128[31:0]);
-    if (busy_o && fsm_predec.prod_hi_wr && fsm_ctrl.prod_hi_wr_en_raw)
-      $display("[MODP256_PHI] t=%0t cyc=%0d ahi_cin=%0d alo_c15=%0d sh_hi_lo=%032x ahi_res_lo=%032x",
-               $time, u_fsm.cycle_q, alo_cout[15], alo_cout[15],
-               shifted_hi[63:0], ahi_res[63:0]);
-  end
-  `endif
 
   logic [WLEN-1:0] shifted_lo, shifted_hi;
   always_comb begin
@@ -252,45 +230,22 @@ module otbn_modp256
   end
 
   // ===========================================================================
-  // DEBUG: uncomment to trace FSM state
+  // DEBUG (minimal)
   // ===========================================================================
-  logic dbg_was_busy;
+  `ifndef SYNTHESIS
+  logic dbg_en_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) dbg_was_busy <= 1'b0;
-    else         dbg_was_busy <= busy_o;
+    if (!rst_ni) dbg_en_q <= 1'b0; else dbg_en_q <= modp256_en_i;
   end
   always_ff @(posedge clk_i) begin
-    if (modp256_en_i && !dbg_was_busy)
-      $display("[MODP256] t=%0t EN=1 busy=%0d wrs1_lo=%08x wrs2_lo=%08x",
-               $time, busy_o, wrs1_i[31:0], wrs2_i[31:0]);
+    if (modp256_en_i && !dbg_en_q)
+      $display("[MODP256] t=%0t START wrs1=%08x_%08x wrs2=%08x_%08x",
+               $time, wrs1_i[255:224], wrs1_i[31:0], wrs2_i[255:224], wrs2_i[31:0]);
     if (fsm_predec.operation_valid_raw)
-      $display("[MODP256] t=%0t DONE result=%064x_%064x_%064x_%064x carry=%0d sub_p=%0d wr=%0d ge=%0d",
-               $time, result_q[255:192], result_q[191:128], result_q[127:64], result_q[63:0],
-               carry_q, fsm_predec.cond_sub_p, fsm_ctrl.result_wr_en_raw,
-               (result_q >= P256));
-    if (fsm_predec.solinas_phase && fsm_ctrl.result_wr_en_raw) begin
-      automatic logic signed [39:0] dbg_wl;
-      dbg_wl = $signed({5'd0, prod_lo_q[word_pos*32 +: 32]}) + carry_q;
-      $write("[MODP256_SOL] t=%0t w%0d: C0+carry=%010x", $time, word_pos, dbg_wl);
-      for (int tt = 0; tt < 8; tt++) begin
-        automatic logic signed [39:0] tcon;
-        tcon = '0;
-        if (!TERM[tt].zero_mask[word_pos]) begin
-          tcon = TERM[tt].doubled
-            ? (TERM[tt].is_neg
-                ? -$signed({2'b0, s_words[TERM[tt].lane_sel[word_pos*3+:3]]} << 1)
-                :  $signed({2'b0, s_words[TERM[tt].lane_sel[word_pos*3+:3]]} << 1))
-            : (TERM[tt].is_neg
-                ? -$signed({1'b0, s_words[TERM[tt].lane_sel[word_pos*3+:3]]})
-                :  $signed({1'b0, s_words[TERM[tt].lane_sel[word_pos*3+:3]]}));
-        end
-        dbg_wl += tcon;
-        if (tcon != 0)
-          $write(" T%d=%010x", tt, tcon);
-      end
-      $display(" final=%010x carry_out=%0d", dbg_wl, $signed(dbg_wl >> 32));
-    end
+      $display("[MODP256] t=%0t DONE result=%064x_%064x carry=%0d",
+               $time, result_q[255:192], result_q[63:0], carry_q);
   end
+  `endif
 
   // ===========================================================================
   // Result output
